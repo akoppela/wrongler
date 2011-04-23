@@ -1,0 +1,13 @@
+!!! 5
+%html
+  %head
+    = render 'shared/head'
+    = stylesheet_link_tag 'layouts/application'
+    /[if IE]
+      = stylesheet_link_tag "ie"
+      = javascript_include_tag 'html5'
+    /[if IE 7]
+      = stylesheet_link_tag "ie7"
+  %body
+    #container
+      = yield

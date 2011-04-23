@@ -1,0 +1,35 @@
+/* master
+$base = 12px
+
+$container_radius = 3px
+$container_shadow = '0 1px 3px rgba(0, 0, 0, 0.75)'
+
+html
+  :min-width= $min_width + $free_space
+  :background #b9b6a9 url(/images/backgrounds/main.jpg) no-repeat center top
+  
+html, html a
+  :color= $black
+  
+body
+  :height 100%
+  :padding
+    :left= $free_space / 2
+    :right= $free_space / 2
+  :font
+    :size= $base
+    :family= Arial, Helvetica, sans-serif
+  :line-height= $baseline
+  :padding
+    :bottom= $baseline
+  &.without-text-shadow *
+    :text
+      :shadow none !important
+    
+#container
+  +grid-container
+  :background #fff
+  :margin
+    :top= $baseline
+  +border-radius($container_radius)
+  +box-shadow($container_shadow)

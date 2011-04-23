@@ -1,0 +1,217 @@
+/* posts
+$video_posts_thumb_width = 60px
+$video_posts_thumb_height = 40px
+
+$video_posts_big_thumb_width = 100px
+$video_posts_big_thumb_height = 66px
+
+= post-aside-bar
+  +children-inline
+  > a
+    :padding
+      :left= $ninesixty_gutter_width * 2
+    :color= $grey
+    :background
+      :repeat no-repeat
+      :position left center
+    +hover-underline
+    & ~ a
+      :margin
+        :left= $ninesixty_gutter_width
+    &.karma
+      :color= $green
+      :background
+        :image url(/images/icons/thumb_up.png)
+      &.bad
+        :color= $red
+        :background
+          :image url(/images/icons/thumb_down.png)
+    &.comments
+      :background
+        :image url(/images/icons/ballon.png)
+    &.price
+      :background
+        :image url(/images/icons/point.png)
+    &.views
+      :background
+        :image url(/images/icons/eye.png)
+
+#container .posts
+  > header.lined > h3
+    :background
+      :image url(/images/icons/quill_bw.png) !important
+  > article
+    +list-fix
+    :padding
+      :top= $baseline / 2
+      :bottom= $baseline / 2
+      :right= $ninesixty_gutter_width / 2
+    > *
+      +margin-top($baseline / 4)
+    > header, > footer
+      :height= $baseline
+      & + aside
+        :margin
+          :top= -$baseline
+    > header
+      > a
+        +inline-block
+        :color= $grey
+        +hover-underline
+        & ~ a
+          :position relative
+          :margin
+            :left= $ninesixty_gutter_width * 1.5
+          &:before
+            :content ''
+            :position absolute
+            :width 5px
+            :height 100%
+            :top 0
+            :left= -$ninesixty_gutter_width
+            :background url(/images/arrows/right_grey.png) no-repeat left center
+        &.user
+          :padding
+            :left= $ninesixty_gutter_width * 2
+          :background url(/images/icons/user.png) no-repeat left center
+          &.moderator
+            :background
+              :image url(/images/icons/user_moderator.png)
+    > aside
+      :height= $baseline
+      +post-aside-bar
+      > time
+        :color= $grey
+      > span
+        :color= $green
+    > h3
+      :font
+        :size= 18px
+      :line-height 26px
+      > a
+        :color= $blue
+        +hover-underline
+    > section
+      > p
+        :line-height 18px
+        & + p
+          :margin
+            :top= $baseline / 2
+    > footer
+      > a
+        :color= $grey
+        +hover-underline
+      > span
+        :color= $black
+    &.short
+      > section
+        :display none
+    &.iconed > h3 > a
+      :padding
+        :left= $ninesixty_gutter_width * 2
+      :background url(/images/icons/quill.png) no-repeat left center
+    & ~ article
+      :border
+        :top 1px dotted #e6e6e6
+  &.videos
+    > header.lined > h3
+      :background
+        :image url(/images/icons/films.png) !important
+    > article
+      > .thumb
+        +inline-block
+        :width= $video_posts_big_thumb_width
+        :height= $video_posts_big_thumb_height
+        :padding= $baseline / 4
+        :background #eae9e5
+        +hover-opacity
+        > img
+          :width 100%
+          :height 100%
+        & + div
+          :margin
+            :top= -$video_posts_big_thumb_height - $baseline / 2
+            :left= $video_posts_big_thumb_width + $baseline / 2 + $ninesixty_gutter_width
+      > div
+        > header, > footer
+          :height= $baseline
+          & + aside
+            :margin
+              :top= -$baseline
+        > header
+          > a
+            +inline-block
+            :color= $grey
+            +hover-underline
+            & ~ a
+              :position relative
+              :margin
+                :left= $ninesixty_gutter_width * 1.5
+              &:before
+                :content ''
+                :position absolute
+                :width 5px
+                :height 100%
+                :top 0
+                :left= -$ninesixty_gutter_width
+                :background url(/images/arrows/right_grey.png) no-repeat left center
+            &.user
+              :padding
+                :left= $ninesixty_gutter_width * 2
+              :background url(/images/icons/user.png) no-repeat left center
+              &.moderator
+                :background
+                  :image url(/images/icons/user_moderator.png)
+        > aside
+          :height= $baseline
+          +post-aside-bar
+          > time
+            :color= $grey
+          > span
+            :color= $green
+        > h3
+          :font
+            :size= 18px
+          :line-height 26px
+          > a
+            :color= $blue
+            +hover-underline
+          & + aside
+            +line-height(26px)
+            :margin
+              :top -26px
+        > section
+          :margin
+            :top= $baseline / 4
+          > p
+            :color= $grey
+            :line-height 18px
+            & + p
+              :margin
+                :top= $baseline / 2
+      > section
+        > .thumb
+          +inline-block
+          :width= $video_posts_thumb_width
+          :height= $video_posts_thumb_height
+          :padding= $baseline / 5
+          :background #eae9e5
+          +hover-opacity
+          > img
+            :width 100%
+            :height 100%
+          & + div
+            :margin
+              :top= -$video_posts_thumb_height - $baseline / 5
+              :left= $video_posts_thumb_width + $baseline / 5 * 2 + $ninesixty_gutter_width / 2
+        > div
+          :height= $video_posts_thumb_height + $baseline / 5
+          :text
+            :align right
+          > header, > footer
+            +line-height($video_posts_thumb_height / 2)
+            > a
+              :color= $grey
+              +hover-underline
+          > header
+            +post-aside-bar

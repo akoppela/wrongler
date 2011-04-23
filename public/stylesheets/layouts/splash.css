@@ -1,0 +1,297 @@
+/* reset */
+html, body {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-weight: inherit;
+  font-style: inherit;
+  font-size: 100%;
+  font-family: inherit;
+  vertical-align: baseline; }
+
+div, span, object, iframe, h1, h2, h3, h4, h5, h6, p,
+pre, a, abbr, acronym, address, code, del, dfn, em, img,
+dl, dt, dd, ol, ul, li, fieldset, form, label, input,
+textarea, legend, caption, tbody, tfoot, thead, tr {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-weight: inherit;
+  font-style: inherit;
+  font-size: 100%;
+  font-family: inherit;
+  vertical-align: baseline; }
+
+body {
+  line-height: 1.5; }
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: normal; }
+
+blockquote, q {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-weight: inherit;
+  font-style: inherit;
+  font-size: 100%;
+  font-family: inherit;
+  vertical-align: baseline;
+  quotes: "" ""; }
+  blockquote:before, blockquote:after, q:before, q:after {
+    content: ""; }
+
+th, td, caption {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-weight: inherit;
+  font-style: inherit;
+  font-size: 100%;
+  font-family: inherit;
+  vertical-align: baseline;
+  text-align: left;
+  font-weight: normal;
+  vertical-align: middle; }
+
+table {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-weight: inherit;
+  font-style: inherit;
+  font-size: 100%;
+  font-family: inherit;
+  vertical-align: baseline;
+  border-collapse: separate;
+  border-spacing: 0;
+  vertical-align: middle; }
+
+li {
+  list-style-type: none; }
+
+a {
+  text-decoration: none;
+  cursor: pointer; }
+  a img {
+    border: 0; }
+
+textarea {
+  resize: none; }
+
+* {
+  outline: none; }
+
+footer, header, aside, nav, menu, video, audio, time, section, article {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-weight: inherit;
+  font-style: inherit;
+  font-size: 100%;
+  font-family: inherit;
+  vertical-align: baseline;
+  display: block; }
+
+aside {
+  text-align: right; }
+
+time {
+  cursor: help; }
+
+/* colors */
+/* shadows */
+@font-face {
+  src: url("/fonts/cambria-italic.eot");
+  font-family: Cambria;
+  font-style: italic;
+  src: local("Cambria-italic"), url("/fonts/cambria-italic.eot") format("truetype"); }
+
+@font-face {
+  src: url("/fonts/cambria.eot");
+  font-family: Cambria;
+  font-style: normal;
+  src: local("Cambria"), url("/fonts/cambria.eot") format("truetype"); }
+
+@import url(splash/elements.css);
+/* master */
+html {
+  height: 100%;
+  min-width: 980px;
+  background: #585952 url(/images/backgrounds/grey_textured.gif); }
+
+html, html a {
+  color: #333333; }
+
+body {
+  height: 100%;
+  padding-left: 10px;
+  padding-right: 10px;
+  font-size: 12px;
+  font-family: Arial, Helvetica, sans-serif;
+  line-height: 20px; }
+  body > table {
+    width: 100%;
+    height: 100%; }
+    body > table td {
+      vertical-align: middle; }
+  body.without-text-shadow * {
+    text-shadow: none !important; }
+
+#container {
+  margin-left: auto;
+  margin-right: auto;
+  width: 900px;
+  position: relative;
+  height: 106px;
+  background: #c6c9af;
+  box-shadow: 0 5px 5px rgba(0, 0, 0, 0.25);
+  -moz-box-shadow: 0 5px 5px rgba(0, 0, 0, 0.25);
+  -webkit-box-shadow: 0 5px 5px rgba(0, 0, 0, 0.25); }
+  #container > * {
+    zoom: 1;
+    display: inline;
+    display: -moz-inline-box;
+    display: inline-block;
+    *display: inline;
+    vertical-align: top;
+    height: 106px; }
+  #container > h1, #container > p {
+    padding-right: 1px;
+    background: url(/images/separators/lightest_black.png) repeat-y right top; }
+  #container > h1 {
+    width: 224px; }
+    #container > h1 > a {
+      display: block;
+      width: 100%;
+      height: 100%;
+      background: url(/images/icons/logo.png) no-repeat center;
+      cursor: default;
+      text-indent: -99999px; }
+  #container > p {
+    height: 44px;
+    padding-top: 31px;
+    padding-bottom: 31px;
+    width: 234px;
+    color: #333333;
+    line-height: 22px;
+    font-size: 24px;
+    font-family: Cambria, Arial;
+    text-align: center; }
+    #container > p > span {
+      display: block;
+      color: #585952; }
+  #container > form {
+    height: 60px;
+    padding-top: 23px;
+    padding-bottom: 23px;
+    width: 400px;
+    padding-left: 20px;
+    padding-right: 20px; }
+    #container > form > div {
+      position: relative;
+      height: 38px;
+      padding-top: 11px;
+      padding-bottom: 11px;
+      padding-left: 10px;
+      padding-right: 10px;
+      background: #a1a390;
+      -moz-border-radius: 3px;
+      -o-border-radius: 3px;
+      -ms-border-radius: 3px;
+      -khtml-border-radius: 3px;
+      -webkit-border-radius: 3px;
+      border-radius: 3px;
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.75);
+      -moz-box-shadow: 0 1px 0 rgba(255, 255, 255, 0.75);
+      -webkit-box-shadow: 0 1px 0 rgba(255, 255, 255, 0.75); }
+      #container > form > div > input[type="text"], #container > form > div > .input[type="text"] {
+        background: white !important;
+        height: 38px;
+        padding-left: 10px;
+        padding-right: 125px; }
+        #container > form > div > input[type="text"].is-placeheld, #container > form > div > input[type="text"].is-placeheld > input[type="text"], #container > form > div > .input[type="text"].is-placeheld, #container > form > div > .input[type="text"].is-placeheld > input[type="text"] {
+          color: #585952; }
+      #container > form > div input[type="text"] {
+        width: 245px;
+        height: 38px;
+        line-height: 38px;
+        color: #333333;
+        font-size: 18px;
+        background: none; }
+      #container > form > div > .button {
+        position: absolute;
+        zoom: 1;
+        display: inline;
+        display: -moz-inline-box;
+        display: inline-block;
+        *display: inline;
+        vertical-align: top;
+        color: #333333;
+        text-shadow: 0 1px 0 rgba(255, 255, 255, 0.1);
+        width: 110px;
+        height: 27px;
+        left: -125px;
+        top: 16px;
+        margin-left: 100%;
+        background: #4a4a4a url(/images/gradients/vertical/grey.png) repeat-x left bottom;
+        line-height: 24px;
+        font-family: Cambria, Arial;
+        font-weight: bold;
+        font-size: 12px;
+        text-align: center;
+        opacity: 0.95;
+        -moz-opacity: 0.95;
+        filter: progid:DXImageTransform.Microsoft.Alpha(opacity=95);
+        -moz-border-radius: 3px;
+        -o-border-radius: 3px;
+        -ms-border-radius: 3px;
+        -khtml-border-radius: 3px;
+        -webkit-border-radius: 3px;
+        border-radius: 3px;
+        box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+        -moz-box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+        -webkit-box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25); }
+        #container > form > div > .button:before {
+          content: "";
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          -moz-border-radius: 3px;
+          -o-border-radius: 3px;
+          -ms-border-radius: 3px;
+          -khtml-border-radius: 3px;
+          -webkit-border-radius: 3px;
+          border-radius: 3px;
+          background: url(/images/icons/touch.png) no-repeat right center;
+          box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.2);
+          -moz-box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.2);
+          -webkit-box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.2); }
+        #container > form > div > .button:hover {
+          opacity: 1;
+          -moz-opacity: 1;
+          filter: progid:DXImageTransform.Microsoft.Alpha(opacity=100); }
+        #container > form > div > .button.is-active {
+          height: 26px;
+          top: 6.5px; }
+          #container > form > div > .button.is-active:before {
+            box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.2);
+            -moz-box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.2);
+            -webkit-box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.2); }
+  #container:before, #container:after {
+    content: "";
+    position: absolute;
+    width: 100%;
+    left: 0; }
+  #container:before {
+    height: 2px;
+    background: rgba(255, 255, 255, 0.5);
+    top: 0; }
+  #container:after {
+    height: 6px;
+    top: 100%;
+    margin-top: -6px;
+    background: rgba(51, 51, 51, 0.25);
+    border-top: 1px solid rgba(252, 252, 252, 0.5); }

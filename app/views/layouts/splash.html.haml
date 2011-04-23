@@ -1,0 +1,21 @@
+!!! 5
+%html
+  %head
+    = render 'shared/head'
+    = stylesheet_link_tag 'layouts/splash'
+    /[if IE]
+      = stylesheet_link_tag "ie"
+      = javascript_include_tag 'html5'
+    /[if IE 7]
+      = stylesheet_link_tag "ie7"
+  %body
+    %table
+      %tr
+        %td
+          #container<
+            %h1>= link_to 'Wrongler', '#'
+            %p>= raw('Dispute or die.<span>We’ll release. Soon.</span>')
+            %form{:action => '#', :method => 'post'}>
+              %div
+                %input{:type => 'text', :placeholder => 'Enter you email address'}
+                %a.button{:type => 'submit'} STAY IN TOUCH

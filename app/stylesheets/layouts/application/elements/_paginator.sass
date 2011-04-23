@@ -1,0 +1,90 @@
+/* paginator
+$paginator = $baseline * 2.5
+$paginator_baseline = 26px
+
+$paginator_arrow = 100px
+
+#container .paginator
+  :margin
+    :top= $baseline
+  :background #bdbab0
+  +colors($grey, $white_fifty_shadow)
+  :font
+    :size 18px
+    :weight bold
+  +box-shadow($black_quater_shadow)
+  a
+    +colors($grey, $white_fifty_shadow)
+    +hover-underline
+  > .prev_page, > .next_page
+    +inline-block
+    :position relative
+    :display block
+    :width= $paginator_arrow - $ninesixty_gutter_width * 1.5
+    :height= $paginator
+    :line-height= $paginator
+    :text
+      :align center
+    &:before
+      :content ''
+      :position absolute
+      :top 0
+      :width 0
+      :height 100%
+    &.disabled
+      +opacity(0.5, true)
+  > .prev_page
+    :padding
+      :left= $ninesixty_gutter_width * 1.5
+    :border
+      :right 1px solid #deddd8
+    :background= url(/images/arrows/paginator_left.png) no-repeat $ninesixty_gutter_width * 1.5 center
+    &:before
+      :left -1px
+      :margin
+        :left 100%
+      :border
+        :right 1px solid #aba89e
+    & + div
+      :margin
+        :top= -$paginator
+  > .next_page
+    :padding
+      :right= $ninesixty_gutter_width * 1.5
+    :margin
+      :left= -$paginator_arrow - 1
+    :border
+      :left 1px solid #deddd8
+    :background= url(/images/arrows/paginator_right.png) no-repeat ($paginator_arrow - $ninesixty_gutter_width * 1.5 - 8) center
+    &:before
+      :left -2px
+      :border
+        :left 1px solid #aba89e
+  > div
+    +line-height($paginator, $paginator_baseline)
+    :padding
+      :left= $paginator_arrow
+      :right= $paginator_arrow
+    > div
+      +children-inline
+      :line-height= $paginator_baseline
+      > *
+        :width= $paginator_baseline
+        :height 100%
+        :margin
+          :left= $ninesixty_gutter_width / 2
+        :text
+          :align center
+        > span
+          :display block
+        &:first-child
+          :margin
+            :left= $ninesixty_gutter_width * 1.5
+        &.current
+          :background #fff
+          +box-shadow($black_fifteen_shadow)
+    & + .next_page
+      :left= -$paginator_arrow - 1
+      :margin
+        :left 100%
+        :top= -$paginator

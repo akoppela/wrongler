@@ -1,0 +1,56 @@
+/* comments
+$comment_header = $baseline * 1.5
+$comment_header_baseline = 18px
+
+#container .comments
+  > header.lined
+    > h3
+      :background
+        :image url(/images/icons/balloons_white.png) !important
+  > article
+    :margin
+      :top= $baseline
+    > header, > aside, > footer
+      +line-height($comment_header, $comment_header_baseline)
+      :line-height= $comment_header_baseline
+      +children-inline
+    > header
+      > .user
+        :position relative
+        :padding
+          :left= $ninesixty_gutter_width * 2
+        :background no-repeat left center
+        :color= $grey
+        +hover-underline
+      > p
+        :position relative
+        :margin
+          :left= $ninesixty_gutter_width * 3
+        :color= $lightest_grey
+        > a
+          :color= $blue
+          +hover-underline
+        &:before
+          :content ''
+          :position absolute
+          :width 23px
+          :height 100%
+          :top= ($comment_header - $comment_header_baseline) / 2 + 1
+          :left -25px
+          :background url(/images/icons/comment_angle.png) no-repeat left bottom
+      & + aside
+        :margin
+          :top= -$comment_header
+    > aside
+      +post-aside-bar
+    > section
+      :padding
+        :top= $baseline / 4
+      :border
+        :top 1px solid #bfbfbf
+      :line-height 18px
+      :color= $grey
+    > footer
+      > a
+        :color= $blue
+        +hover-underline

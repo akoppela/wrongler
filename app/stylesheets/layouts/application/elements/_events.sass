@@ -1,0 +1,138 @@
+/* events
+$events_toggler = 16px
+$events_header = $baseline * 1.5
+
+#container .events
+  > header
+    :font
+      :weight bold
+    > div
+      :color= $grey !important
+  > header, article > header    
+    :color= $grey
+    :margin
+      :left= $events_toggler
+    :line-height= $events_header  
+    :height= $events_header
+    +children-inline
+    > div
+      :height= $events_header
+      +text-overflow
+      :margin
+        :left= 1%
+        :right= 1%
+      > b + span
+        :margin
+          :left= $ninesixty_gutter_width / 2
+  article
+    :border
+      :top 1px solid #e3e3e1
+    > header
+      :position relative
+      :height= $events_header
+      > .id-toggler
+        :position absolute
+        :top 0
+        :left= -$events_toggler
+        :width= $events_toggler
+        :height= $events_header
+        :background url(/images/icons/grey_dot.png) no-repeat center
+        :cursor pointer
+      > div > a
+        :color= $blue
+        +hover-underline
+      &:hover > .id-toggler
+        :background
+          :image url(/images/icons/black_dot.png)
+    > section
+      :display none
+      :padding
+        :top= $baseline / 2
+        :left= $ninesixty_gutter_width * 2
+        :right= $ninesixty_gutter_width
+        :bottom= $baseline * 0.75
+      :background #f4f3f1
+      > h4
+        :font
+          :size 14px
+          :weight bold
+      > p
+        :color= $light_black
+        :margin
+          :top= $baseline / 2
+        :line-height 18px
+        > a
+          :color= $blue
+          +hover-underline
+    article
+      :padding
+        :left= $events_toggler
+    &.is-selected
+      > header > .id-toggler
+        :background
+          :color #f4f3f1
+          :image url(/images/icons/black_dot.png)
+      > section
+        :display block
+  &.rakerace
+    > header, article > header
+      > .button + div, > div:first-child
+        :width 33%
+        & + div
+          :width 13%
+          & + div
+            :width 28%
+            & + div
+              :width 18%
+              :text
+                :align right
+  &.freeroll
+    > header, article > header
+      > .button + div, > div:first-child
+        :width 23%
+        & + div
+          :width 13%
+          & + div
+            :width 13%
+            & + div
+              :width 23%
+              & + div
+                :width 18%
+                :color= $green
+                :text
+                  :align right
+  &.messages
+    > header, article > header
+      :text
+        :align right
+      > div
+        :text
+          :align left
+        :margin
+          :left= $ninesixty_gutter_width
+          :right= $ninesixty_gutter_width
+      > .button + div, > div:first-child
+        :display block
+        :margin
+          :right 200px
+        & + div
+          :width 90px
+          :margin
+            :top= -$events_header
+          & + div
+            :width 70px
+            :margin
+              :top= -$events_header
+            :text
+              :align right
+    article
+      &.new
+        > header
+          :color= $black
+          :font
+            :weight bold
+          > .id-toggler
+            :background
+              :image url(/images/icons/black_dot.png)
+      &.admin > header > div + div > a
+        :color= $red
