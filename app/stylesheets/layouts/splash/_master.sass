@@ -76,7 +76,7 @@ body
       :align center
     > span
       :display block
-      :color= $grey
+      :color= $dark_grey
   > form
     +line-height($container, $container_form)
     :width= $container_form_width
@@ -138,10 +138,10 @@ body
         &:hover
           +opacity(1, true)
         &.is-active
-          :height= $container_form_button_height - 1
-          :top= ($container_form_input - $container_form_button_height) / 2 + 1
+          :height= $container_form_button_height - 2
+          :top= ($container_form_input - $container_form_button_height - 1) / 2 + $baseline / 2 + 3
           &:before
-            +box-shadow('inset 0 -2px 0 rgba(0, 0, 0, 0.2)')
+            +box-shadow('inset 0 -1px 0 rgba(0, 0, 0, 0.2)')
   &:before, &:after
     :content ''
     :position absolute

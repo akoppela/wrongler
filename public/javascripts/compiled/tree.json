@@ -1,0 +1,58 @@
+{
+  "Wrongler": {
+    "provides": [
+      "Wrongler"
+    ],
+    "requires": [
+
+    ],
+    "desc": "Basic script"
+  },
+  "Widget": {
+    "provides": [
+      "Wrongler.Widget"
+    ],
+    "Input": {
+      "provides": [
+        "Wrongler.Widget.Input"
+      ],
+      "requires": [
+        "Wrongler.Widget",
+        "Native/LSD.Native.Input.*",
+        "LSD/LSD.Mixin.Placeholder"
+      ],
+      "desc": "A base class for all kinds of form controls"
+    },
+    "Body": {
+      "provides": [
+        "Wrongler.Widget.Body"
+      ],
+      "requires": [
+        "Wrongler.Widget",
+        "Native/LSD.Native.Body"
+      ],
+      "desc": "Body widget"
+    },
+    "requires": [
+      "Wrongler",
+      "LSD/LSD.Type"
+    ],
+    "desc": "Basic widget"
+  },
+  "Application": {
+    "provides": [
+      "Wrongler.Application"
+    ],
+    "requires": [
+      "Wrongler",
+      "Wrongler.Widget.*",
+      "Native/LSD.Native.Form",
+      "Native/LSD.Native.Button",
+      "Native/LSD.Native.Label",
+      "Widgets/LSD.Widget.Select",
+      "LSD/LSD.Action.*",
+      "LSD/LSD.Application"
+    ],
+    "desc": "Main script of application"
+  }
+}

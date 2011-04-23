@@ -1,0 +1,54 @@
+[submodule "public/javascripts/Packages/qfocuser"]
+	path = public/javascripts/Packages/qfocuser
+	url = git://github.com/Inviz/qfocuser.git
+[submodule "public/javascripts/Packages/mootools-custom-event"]
+	path = public/javascripts/Packages/mootools-custom-event
+	url = git://github.com/cpojer/mootools-custom-event.git
+[submodule "public/javascripts/Packages/art"]
+	path = public/javascripts/Packages/art
+	url = git://github.com/kamicane/art.git
+[submodule "public/javascripts/Packages/mootools-color"]
+	path = public/javascripts/Packages/mootools-color
+	url = git://github.com/kamicane/mootools-color.git
+[submodule "public/javascripts/Packages/mootools-speedups"]
+	path = public/javascripts/Packages/mootools-speedups
+	url = git://github.com/Inviz/mootools-speedups.git
+[submodule "public/javascripts/Packages/mootools-mobile"]
+	path = public/javascripts/Packages/mootools-mobile
+	url = git://github.com/Inviz/mootools-mobile.git
+[submodule "public/javascripts/Packages/lsd-widgets"]
+	path = public/javascripts/Packages/lsd-widgets
+	url = git://github.com/Inviz/lsd-widgets.git
+[submodule "public/javascripts/Packages/art-morph"]
+	path = public/javascripts/Packages/art-morph
+	url = git://github.com/calyptus/art-morph.git
+[submodule "public/javascripts/Packages/lsd"]
+	path = public/javascripts/Packages/lsd
+	url = git@github.com:Inviz/lsd.git
+[submodule "public/javascripts/Packages/Sheet.js"]
+	path = public/javascripts/Packages/Sheet.js
+	url = git://github.com/Inviz/Sheet.js.git
+[submodule "public/javascripts/Packages/mootools-core"]
+	path = public/javascripts/Packages/mootools-core
+	url = git://github.com/mootools/mootools-core.git
+[submodule "public/javascripts/Packages/lsd-native"]
+	path = public/javascripts/Packages/lsd-native
+	url = git@github.com:Inviz/lsd-native.git
+[submodule "public/javascripts/Packages/mootools-more"]
+	path = public/javascripts/Packages/mootools-more
+	url = git://github.com/mootools/mootools-more.git
+[submodule "public/javascripts/Packages/lsd-mobile"]
+	path = public/javascripts/Packages/lsd-mobile
+	url = git@github.com:Inviz/lsd-mobile.git
+[submodule "public/javascripts/Packages/mootools-ext"]
+	path = public/javascripts/Packages/mootools-ext
+	url = git://github.com/Inviz/mootools-ext.git
+[submodule "public/javascripts/Packages/mootools-string-inflections"]
+	path = public/javascripts/Packages/mootools-string-inflections
+	url = git://github.com/lovelyscalabledrawings/mootools-string-inflections.git
+[submodule "public/javascripts/Packages/mootools-resource"]
+	path = public/javascripts/Packages/mootools-resource
+	url = git://github.com/Inviz/mootools-resource.git
+[submodule "public/javascripts/Packages/slick"]
+	path = public/javascripts/Packages/slick
+	url = git://github.com/lovelyscalabledrawings/slick.git
