@@ -8,6 +8,10 @@
       = javascript_include_tag 'html5'
     /[if IE 7]
       = stylesheet_link_tag "ie7"
-  %body
+    = javascript_include_tag 'compiled/includes'
+  %body{:style => 'padding:5px;'}
+    = render 'shared/user_bar'
     #container
-      = yield
+      = render 'shared/header'
+      #content
+        = yield

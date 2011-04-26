@@ -19,7 +19,7 @@ $container_form_shadow = '0 1px 0 rgba(255, 255, 255, 0.75)'
 html
   :height 100%
   :min-width= $min_width + $free_space
-  :background #585952 url(/images/backgrounds/grey_textured.gif)
+  :background #585952 url(/images/backgrounds/grey_lined.png)
   
 html, html a
   :color= $black
@@ -71,12 +71,12 @@ body
     :line-height 22px
     :font
       :size 24px
-      :family Cambria, Arial
+      :family Cambria, Georgia, Arial
     :text
       :align center
     > span
       :display block
-      :color= $dark_grey
+      :color #585952
   > form
     +line-height($container, $container_form)
     :width= $container_form_width
@@ -99,7 +99,7 @@ body
           :left= $ninesixty_gutter_width
           :right= $ninesixty_gutter_width * 1.5 + $container_form_button_width
         &.is-placeheld, &.is-placeheld > input[type="text"]
-          :color= $grey
+          :color #aaaaa7
       input[type="text"]
         :width= $container_form_width - $ninesixty_gutter_width * 4.5 - $container_form_button_width
         :height= $container_form_input
@@ -121,22 +121,20 @@ body
         :background #4a4a4a url(/images/gradients/vertical/grey.png) repeat-x left bottom
         :line-height= $container_form_button_height - 3
         :font
-          :family Cambria, Arial
+          :family Cambria, Georgia, Arial
           :weight bold
           :size 12px
         :text
           :align center
-        +opacity(0.95, true)
         +border-radius(3px)
-        +box-shadow($black_quater_shadow)
+        +box-shadow($black_twenty_five_shadow)
+        +hover-opacity(0.95, true)
         &:before
           :content ''
           +absoluted
           +border-radius(3px)
           :background url(/images/icons/touch.png) no-repeat right center
           +box-shadow('inset 0 -3px 0 rgba(0, 0, 0, 0.2)')
-        &:hover
-          +opacity(1, true)
         &.is-active
           :height= $container_form_button_height - 2
           :top= ($container_form_input - $container_form_button_height - 1) / 2 + $baseline / 2 + 3

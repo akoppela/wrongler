@@ -1,0 +1,188 @@
+/* header
+$header = $baseline * 4
+
+$header_logo = 200px
+
+$header_button_wrapper = $baseline * 2.5
+$header_button = 44px
+
+$header_button_gutter = 16px
+
+$header_button_color = #595a54
+
+$header_nav_color = #878979
+
+#container > header
+  :position relative
+  > h1
+    :height= $header
+    > a
+      :display block
+      :width 100%
+      :height 100%
+      :background= url(/images/icons/logo_big.png) no-repeat $ninesixty_gutter_width * 1.5 center
+      +indented
+      +hover-opacity
+    & + aside
+      :margin
+        :top= -$header
+  > aside
+    :position relative
+    :height= $header
+    :margin
+      :left= $header_logo
+    +children-inline
+    > nav
+      :height 100%
+      +children-inline
+      > li
+        :height 100%
+        :padding
+          :left= $ninesixty_gutter_width * 2 + 2px
+          :right= $ninesixty_gutter_width * 2
+        :background url(/images/separators/header_double_line.png) no-repeat left bottom
+        :text
+          :align center
+        > p
+          :margin
+            :top= $baseline / 2
+          :line-height= $baseline * 1.5 - 2
+          > a
+            +inline-block
+            :position relative
+            :height= $baseline * 1.5
+            +colors($header_nav_color, $white_seventy_five_shadow)
+            :border
+              :bottom= 1px solid $header_nav_color
+            :font
+              :size 24px
+              :family Cambria, Georgia, Arial
+            &:before
+              :content ''
+              :position absolute
+              :width 100%
+              :height 1px
+              :top 100%
+              :left 0
+              :margin
+                :top 1px
+              :background #d0d2c3
+            &:after
+              :content ''
+              :position absolute
+              :width 8px
+              :height 5px
+              :top 100%
+              :left 50%
+              :margin
+                :top 1px
+                :left -3px
+              :background url(/images/arrows/nav_bottom.png) no-repeat
+            &:hover
+              +colors($white, $black_twenty_five_shadow)
+              :border
+                :color #cfd0c7
+              &:before
+                :background #888a79
+              &:after
+                :background
+                  :image url(/images/arrows/nav_bottom_white.png) no-repeat
+        > a, > span
+          :position relative
+          +inline-block
+          :height 16px
+          :line-height 16px
+          :margin
+            :top 7px
+          :padding
+            :left 8px
+            :right 8px
+          :color= $white
+          :font
+            :size 11px
+          +border-radius(7px)
+          +box-shadow($white_seventy_five_shadow)
+          &:before
+            :content ''
+            +absoluted
+            +border-radius(7px)
+            +box-shadow('inset 0 2px 0 rgba(0, 0, 0, 0.1)')
+        > a
+          :background #949584
+          > span
+            :display block
+            :height 14px
+          &:hover > span
+            :height 13px
+            :border
+              :bottom 1px #d0d1ca dotted
+        > span
+          :background #4e4e49
+    > menu
+      +line-height($header, $header_button_wrapper)
+      :padding
+        :left= $ninesixty_gutter_width * 1.5 + 2
+        :right= $ninesixty_gutter_width * 1.5
+      :background url(/images/separators/header_double_line.png) no-repeat left bottom
+      > li
+        :position relative
+        +inline-block
+        +line-height($header_button_wrapper, $header_button)
+        :padding
+          :left= ($header_button_wrapper - $header_button) / 2
+          :right= ($header_button_wrapper - $header_button) / 2
+        :background #55554f
+        +border-radius($container_radius)
+        +box-shadow($white_seventy_five_shadow)
+        > .button
+          :position relative
+          +inline-block
+          :width 69px
+          :height= $header_button
+          :line-height 26px
+          +colors($header_button_color, $white_fifty_shadow)
+          :background #a3a592 url(/images/gradients/vertical/header_button.png) repeat-x
+          :text
+            :align center
+          :font
+            :family Cambria, Georgia, Arial
+            :weight bold
+          +border-radius($container_radius)
+          +hover-opacity(0.95, true)
+          > span
+            :display block
+            :margin
+              :top -13px
+            :font
+              :size 19px
+          &:before
+            :content ''
+            +absoluted
+            +border-radius($container_radius)
+            +box-shadow('inset 0 -3px 0 rgba(0, 0, 0, 0.2)')
+          &.is-active
+            :height= $header_button - 2
+            :margin
+              :top 2px
+            &:before
+              +box-shadow('inset 0 -1px 0 rgba(0, 0, 0, 0.2)')
+        &:before
+          :content ''
+          +absoluted
+          +border-radius($container_radius)
+          +box-shadow('inset 0 2px 0 rgba(0, 0, 0, 0.1)')
+  &:before, &:after
+    :content ''
+    :position absolute
+    :width 6px
+    :height 6px
+    :top 100%
+    :left 0
+    :margin
+      :top -5px
+    :background url(/images/backgrounds/left_top_corner.png) no-repeat
+  &:after
+    :margin
+      :left 100%
+    :left -6px  
+    :background url(/images/backgrounds/right_top_corner.png) no-repeat

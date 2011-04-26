@@ -1,0 +1,2 @@
+class DisputesController < ApplicationController
+end

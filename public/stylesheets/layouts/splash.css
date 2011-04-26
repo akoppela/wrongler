@@ -176,7 +176,7 @@ body {
     color: #333333;
     line-height: 22px;
     font-size: 24px;
-    font-family: Cambria, Arial;
+    font-family: Cambria, Georgia, Arial;
     text-align: center; }
     #container > p > span {
       display: block;
@@ -236,7 +236,7 @@ body {
         margin-left: 100%;
         background: #4a4a4a url(/images/gradients/vertical/grey.png) repeat-x left bottom;
         line-height: 24px;
-        font-family: Cambria, Arial;
+        font-family: Cambria, Georgia, Arial;
         font-weight: bold;
         font-size: 12px;
         text-align: center;

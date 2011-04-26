@@ -1,35 +1,38 @@
 /* master
 $base = 12px
 
-$container_radius = 3px
-$container_shadow = '0 1px 3px rgba(0, 0, 0, 0.75)'
+$container_radius = 4px
 
 html
-  :min-width= $min_width + $free_space
-  :background #b9b6a9 url(/images/backgrounds/main.jpg) no-repeat center top
+  :background none
   
 html, html a
   :color= $black
   
 body
   :height 100%
-  :padding
-    :left= $free_space / 2
-    :right= $free_space / 2
   :font
     :size= $base
     :family= Arial, Helvetica, sans-serif
   :line-height= $baseline
-  :padding
-    :bottom= $baseline
+  :background none
   &.without-text-shadow *
     :text
       :shadow none !important
-    
+
 #container
-  +grid-container
-  :background #fff
+  :position relative
+  :z-index 2
+  :overflow hidden
   :margin
-    :top= $baseline
+    :top= -$container_radius
+  :padding
+    :bottom= $ninesixty_gutter_width / 2
+  :background #c6c9af url(/images/backgrounds/grey_textured.png)
   +border-radius($container_radius)
-  +box-shadow($container_shadow)
+  +box-shadow($black_fifty_shadow)
+  &:before
+    :content ''
+    +absoluted
+    +border-radius($container_radius)
+    +box-shadow('inset 0 2px 0 rgba(255, 255, 255, 0.5)')

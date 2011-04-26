@@ -1,174 +1,38 @@
 /* button
-$button = 18px
-$button_counter = $button - 2
+$button = 16px
 
-$button_counter_arrow = 5px
+$button_gutter = 12px
 
-$button_gutter = $ninesixty_gutter_width
-$button_counter_gutter = 6px
+$button_radius = $button / 2 - 1
 
-$button_counter_shadow = $black_quater_shadow + ', ' + $white_quater_inset_shadow
-
-$user_action_button = 26px
-$user_action_button_arrow = 11px
-
-$user_action_button_small = $baseline - 2
-$user_action_button_small_gutter = $ninesixty_gutter_width
-
-$user_action_button_base = 15px
-
-$user_action_button_gutter = 18px
-
-$user_action_button_shadow = $black_quater_shadow + ', ' + $white_ten_inset_shadow
-$user_action_button_arrow_shadow = $black_fifteen_shadow + ', ' + $white_five_inset_shadow
-
-$navigation_button = $baseline * 1.5
-
-$navigation_button_gutter = 14px
-
-= button($height, $gutter)
-  :overflow hidden
+= button-activation
   :position relative
-  :height= $height
-  :line-height= $height
-  :padding
-    :left= $gutter / 2
-    :right= $gutter / 2
-  +hover-opacity
+  +hover-opacity(0.95, true)
   &.is-active
     :top 1px
 
-= submit-button
-  > input
-    :position absolute
-    :overflow hidden
-    :width 0
-    :height 0
-    :top -4000px
-    :left -4000px
-
-= button-arrow
-  > span
-    :position relative
-    :top 1px
-    +inline-block
-    :height= $button_counter
-    :line-height= $button_counter
-    :margin
-      :left= $button_gutter / 2 + $button_counter_arrow - 1
-      :right= -($button_gutter / 2 - 1)
-    :*margin
-      :left= $button_gutter / 2
-    :padding
-      :right= $button_counter_gutter / 2
-    :*padding
-      :left= $button_counter_gutter / 2
-    :background #a9d975
-    +colors($grey, $white_quater_shadow)
-    +box-shadow($button_counter_shadow)
-    &:before
-      :content ''
-      :position absolute
-      :top 0
-      :left= -($button_counter_arrow - 1)
-      :width= $button_counter_arrow
-      :height 100%
-  &.green > span
-    :color #63853f
-    :background #7faa52 url(/images/gradients/green.png) repeat-x
-    &:before
-      :background url(/images/arrows/buttons/left_green.png) no-repeat
-  &.yellow > span
-    :color #85773f
-    :background #dcc878 url(/images/gradients/yellow.png) repeat-x
-    &:before
-      :background url(/images/arrows/buttons/left_yellow.png) no-repeat top left
-  &.brown > span
-    :color #9a7830
-    :background #ddb74e url(/images/gradients/brown.png) repeat-x
-    &:before
-      :background url(/images/arrows/buttons/left_brown.png) no-repeat
-
-= black-button
-  +button($button, $button_gutter)
-  :background= $black
-  +colors($grey, $black_quater_shadow)
-  +box-shadow($white_ten_shadow)
-  +button-arrow
-  > b
-    :font
-      :weight normal
-  &.green
-    :color= $green
-  &.yellow
-    :color= $yellow
-
-= user-action-button
-  +button($user_action_button, $user_action_button_gutter)
+= button($height = $button)
+  :position relative
+  :height= $height
+  :line-height= $height - 2
+  :padding
+    :left= $button_gutter / 2
+    :right= $button_gutter / 2
+  :background #fff
   :font
-    :size= $user_action_button_base
-    :weight bold
-  :background #821616 url(/images/gradients/red_action.png) repeat-x
-  +colors($light_yellow, $white_ten_shadow)
-  +box-shadow($user_action_button_shadow)
-  &.arrow
-    :height= $user_action_button_arrow
-    :background #511a1a url(/images/gradients/vinous_small.png) repeat-x
-    +box-shadow($user_action_button_arrow_shadow)
-    > b
-      :display block
-      :width 100%
-      :height 100%
-    &.up > b
-      :background url(/images/arrows/up_light_yellow.png) no-repeat center
-    &.down > b
-      :background url(/images/arrows/down_light_yellow.png) no-repeat center
-
-= user-action-button-small
-  +button($user_action_button_small, $user_action_button_small_gutter)
-  :font
-    :size 12px
-  +colors($white, $black_fifteen_shadow)
-  +box-shadow($black_fifty_shadow)
-
-= user-action-grey-button
-  +user-action-button
-  :background #77746b url(/images/gradients/grey_action.png) repeat-x
-  :color= $light_black
-  &.arrow
-    :background #4d4c48 url(/images/gradients/grey_small.png) repeat-x
-    &.up > b
-      :background url(/images/arrows/up_grey.png) no-repeat center
-    &.down > b
-      :background url(/images/arrows/down_grey.png) no-repeat center
-
-= user-action-grey-button-small
-  +user-action-button-small
-  :background url(/images/gradients/grey_action_small.png) repeat-x
-        
-= user-action-green-button
-  +user-action-button
-  :background #8db65f url(/images/gradients/green_action.png) repeat-x
-  :color= $dark_green
-
-= navigation-button
-  +button($navigation_button, $navigation_button_gutter)
-  :overflow visible
-  :background #bdbab0
-  :margin
-    :right 7px
-  +colors($black, $white_seventyfive_shadow)
-  :font
-    :size 24px
-    :weight bold
-  +box-shadow($black_fifty_shadow)
+    :size 11px
+  :color #575852
+  +border-radius($button_radius)
+  +box-shadow($black_twenty_five_shadow)
+  +hover-opacity(0.95, true)
   &:before
     :content ''
-    :position absolute
-    :width 7px
-    :height= $navigation_button + 1
-    :top 0
-    :left 0
+    +absoluted
+    +border-radius($button_radius)
+    +box-shadow('inset 0 -2px 0 rgba(0, 0, 0, 0.25)')
+  &.is-active
+    :height= $height - 1
     :margin
-      :left 100%
-    :background url(/images/arrows/buttons/right_grey_big.png) no-repeat
+      :top 1px
+    &:before
+      +box-shadow('inset 0 -1px 0 rgba(0, 0, 0, 0.25)')

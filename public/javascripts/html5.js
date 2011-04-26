@@ -1,0 +1,10 @@
+document.createElement('SECTION');
+document.createElement('HEADER');
+document.createElement('ASIDE');
+document.createElement('NAV');
+document.createElement('MENU');
+document.createElement('VIDEO');
+document.createElement('AUDIO');
+document.createElement('TIME');
+document.createElement('ARTICLE');
+document.createElement('FOOTER');
