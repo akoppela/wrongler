@@ -1,0 +1,141 @@
+/* start tip
+
+#container #start-tip
+  :position absolute
+  :top= $baseline / 4
+  :left= $ninesixty_gutter_width / 2
+  :right= $ninesixty_gutter_width / 2
+  :z-index 10
+  :border 3px solid #ffe89d
+  :background #feefbd
+  :padding
+    :top= $baseline / 4
+    :bottom= $baseline / 4
+  +box-shadow($black_twenty_five_shadow)
+  +children-inline
+  > section
+    :position relative
+    :width 40%
+    :min-height 160px
+    :margin
+      :right -1px
+    &:before
+      :content ''
+      :position absolute
+      :width 1px
+      :height 100%
+      :left 100%
+      :top 0
+      :margin
+        :left -2px
+      :background #ecd68d
+  section
+    > *
+      +colors($light_black, $white_seventy_five_shadow)
+      :padding
+        :left= $ninesixty_gutter_width * 1.5
+        :right= $ninesixty_gutter_width * 1.5
+    > h2
+      :line-height= $baseline * 1.5
+      :font
+        :family Cambria, Georgia, Arial
+        :size 24px
+    > p
+      :margin
+        :top= $baseline / 2
+      :line-height 16px
+      &.black
+        :color= $black
+  > aside
+    :position relative
+    :width 60%
+    :min-height 160px
+    :text
+      :align left
+    :border
+      :left 1px solid #fffbee
+    +children-inline
+    > .button
+      :position absolute
+      :width 135px
+      :line-height 16px
+      :top 0
+      :left 100%
+      :margin
+        :left -150px
+      :padding
+        :left= $ninesixty_gutter_width / 2
+        :right= $ninesixty_gutter_width / 2
+      :background #d0c397
+      :font
+        :size 11px
+      +border-radius(7px)
+      +box-shadow($white_seventy_five_shadow)
+      +hover-opacity
+      > span
+        :display block
+        :background url(/images/icons/close.png) no-repeat right center
+      &:before
+        :content ''
+        +absoluted
+        +border-radius(7px)
+        +box-shadow('inset 0 2px 0 rgba(0, 0, 0, 0.1)')
+    > .baloon
+      :display block
+      :position absolute
+      :padding
+        :left 7px
+        :right 7px
+        :top 5px
+        :bottom 5px
+      :background #decc91
+      :line-height 14px
+      +border-radius(3px)
+      +box-shadow($white_seventy_five_shadow)
+      > p
+        +colors($light_black, $white_seventy_five_shadow)
+      > a
+        :position relative
+        +colors($blue, $white_seventy_five_shadow)
+        +hover-underline
+      &:before
+        :content ''
+        +absoluted
+        +border-radius(3px)
+        +box-shadow('inset 0 1px 0 rgba(0, 0, 0, 0.15)')
+      &:after
+        :content ''
+        :position absolute
+        :width 15px
+        :height 14px
+        :top 100%
+        :background url(/images/arrows/baloon.png) no-repeat
+      &.im-best
+        :width 47px
+        :top 104px
+        :left 100%
+        :margin
+          :left -145px
+        &:after
+          :left 38px
+      &.dont-understand
+        :width 130px
+        :top 32px
+        :left 100%
+        :margin
+          :left -154px
+        &:after
+          :left 55px
+    > section
+      :margin
+        :right 164px
+    &:before
+      :content ''
+      :position absolute
+      :width 71px
+      :height 71px
+      :top 79px
+      :left 100%
+      :margin
+        :left -85px
+      :background url(/images/icons/chicken.png) no-repeat
