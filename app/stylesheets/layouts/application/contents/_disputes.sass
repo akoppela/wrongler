@@ -1,0 +1,70 @@
+/* disputes
+
+#container .disputes
+  > article
+    :padding
+      :top= $baseline * 0.75
+      :left= $ninesixty_gutter_width
+      :right= $ninesixty_gutter_width
+      :bottom= $baseline * 0.75
+    :background url(/images/gradients/vertical/fade.png) repeat-x
+    > header
+      > h2
+        > p
+          +inline-block
+          :float left
+          :height= $baseline - 1
+          :margin
+            :right= $ninesixty_gutter_width / 2
+          :padding
+            :left= $ninesixty_gutter_width / 2
+            :right= $ninesixty_gutter_width / 2
+          :background= $lightest_brown
+          +colors($light_grey, $white_twenty_five_shadow)
+          +border-radius(3px)
+          +box-shadow($black_twenty_five_shadow)
+        > a
+          :position relative
+          :top -1px
+          :display block
+          :font
+            :size 19px
+            :family Cambria, Georgia, Arial
+          :color= $blue
+          +hover-underline
+    > footer
+      :margin
+        :top 1px
+      :height= $baseline - 1
+      :font
+        :size 11px
+      > section
+        :color= $light_grey
+        > div
+          :margin
+            :right 50%
+          +children-inline
+          > a
+            +hover-underline
+          > time
+            :font
+              :style italic
+          & + p
+            :margin
+              :top= -$baseline
+              :left 50%
+        > p
+          :margin
+            :right 20%
+        & + aside
+          :margin
+            :top= -$baseline
+      > aside
+        +children-inline
+        > a
+          +hover-underline
+    &.sponsored > header > h2 > a > span
+      :color= $red
+    & ~ article
+      :border
+        :top 1px solid #e4e4e1

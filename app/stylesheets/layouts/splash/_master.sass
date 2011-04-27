@@ -19,7 +19,7 @@ $container_form_shadow = '0 1px 0 rgba(255, 255, 255, 0.75)'
 html
   :height 100%
   :min-width= $min_width + $free_space
-  :background #585952 url(/images/backgrounds/grey_lined.png)
+  :background= $light_black url(/images/backgrounds/grey_lined.png)
   
 html, html a
   :color= $black
@@ -76,7 +76,7 @@ body
       :align center
     > span
       :display block
-      :color #585952
+      :color= $light_black
   > form
     +line-height($container, $container_form)
     :width= $container_form_width
@@ -93,7 +93,7 @@ body
       +border-radius(3px)
       +box-shadow($container_form_shadow)
       > input[type="text"], > .input[type="text"]
-        :background #fff !important
+        :background= $white !important
         :height= $container_form_input
         :padding
           :left= $ninesixty_gutter_width

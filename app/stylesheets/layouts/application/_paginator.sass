@@ -1,0 +1,43 @@
+/* paginator
+$paginator = $baseline * 2
+
+#container .paginator
+  :margin
+    :top= $baseline
+    :bottom= -$baseline / 4
+  :border
+    :top 1px solid #e4e4df
+  :background url(/images/gradients/vertical/fade.png) repeat-x
+  > section, > div, > aside
+    :height= $paginator
+    :line-height= $paginator
+    :overflow hidden
+  > section, > aside
+    :padding
+      :left= $ninesixty_gutter_width
+      :right= $ninesixty_gutter_width
+    > a
+      :font
+        :family Cambria, Georgia, Arial
+        :size 20px
+      +hover-underline
+      &.is-disabled
+        :color= $light_grey
+        :text
+          :decoration none !important
+        :cursor default
+  > section
+    & + div
+      :margin
+        :top= -$paginator
+  > div
+    :text
+      :align center
+    > p
+      :margin
+        :top 2px
+      > span
+        :color= $light_grey
+    & + aside
+      :margin
+        :top= -$paginator

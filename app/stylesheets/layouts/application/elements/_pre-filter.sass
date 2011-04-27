@@ -1,0 +1,31 @@
+/* pre filter
+$pre_filter = 26px
+
+#container .pre-filter
+  :background= $light_grey
+  :border
+    :bottom 2px solid #8c8d81
+  > section, > aside
+    :height= $pre_filter - 2
+    :line-height= $pre_filter
+    :padding
+      :left= $ninesixty_gutter_width
+      :right= $ninesixty_gutter_width
+    +children-inline
+  > section
+    > p
+      :color= $white
+    & + aside
+      :margin
+        :top= -$pre_filter + 2
+  > aside
+    > p
+      :color #e6e7e3
+      & + menu
+        :margin
+          :left= $ninesixty_gutter_width / 2
+    > menu
+      +line-height($pre_filter, $button)
+      > .button
+        +inline-block
+        +button

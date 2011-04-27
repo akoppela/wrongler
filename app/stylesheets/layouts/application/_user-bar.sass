@@ -8,7 +8,7 @@ $user_bar_shadow = 'inset 0 2px 0 rgba(255, 255, 255, 0.25)'
   @if $side == 'right'
     $reverse_side = 'left'
   :position relative
-  :background #585952
+  :background= $light_black
   +border-radius($container_radius, 'top', $side)
   +box-shadow($user_bar_shadow)
   &:before
