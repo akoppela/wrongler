@@ -3,14 +3,17 @@
   %aside<>
     %nav<>
       %li>
-        %p= link_to 'Помощь', '#'
-        = link_to raw('<span>Куда я попал?</span>'), '#'
+        .button
+          %p= link_to 'Помощь', '#'
+          = link_to raw('<span>Куда я попал?</span>'), '#'
+      %li.is-selected>
+        .button
+          %p= link_to 'Споры', '#'
+          %span 12 ставок
       %li>
-        %p= link_to 'Споры', '#'
-        %span 12 ставок
-      %li>
-        %p= link_to 'Аукционы', '#'
-        %span 2 ставки
+        .button
+          %p= link_to 'Аукционы', '#'
+          %span 2 ставки
     %menu<>
       %li<>
         %a.button{:href => '#'}= raw('НАЧАТЬ<span>СПОР</span>')

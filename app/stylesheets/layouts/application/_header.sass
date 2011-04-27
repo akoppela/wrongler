@@ -15,14 +15,31 @@ $header_nav_color = #878979
 #container > header
   :position relative
   > h1
+    :position relative
     :height= $header
+    :margin
+      :left 4px
+      :right 4px
     > a
       :display block
-      :width 100%
       :height 100%
       :background= url(/images/icons/logo_big.png) no-repeat $ninesixty_gutter_width * 1.5 center
       +indented
       +hover-opacity
+    &:before, &:after
+      :content ''
+      :position absolute
+      :width 50%
+      :height 4px
+      :top 100%
+      :left 0
+      :margin
+        :top -4px
+      :background url(/images/backgrounds/header_shadow.png) repeat-x left top
+    &:after
+      :left 50%
+      :background
+        :position right top
     & + aside
       :margin
         :top= -$header
@@ -33,91 +50,139 @@ $header_nav_color = #878979
       :left= $header_logo
     +children-inline
     > nav
-      :height 100%
+      :height= $header
       +children-inline
       > li
-        :height 100%
+        :position relative
+        :height= $header
         :padding
-          :left= $ninesixty_gutter_width * 2 + 2px
-          :right= $ninesixty_gutter_width * 2
+          :left 2px
         :background url(/images/separators/header_double_line.png) no-repeat left bottom
-        :text
-          :align center
-        > p
-          :margin
-            :top= $baseline / 2
-          :line-height= $baseline * 1.5 - 2
-          > a
-            +inline-block
+        > .button
+          :position relative
+          :height= $header
+          :padding
+            :left= $ninesixty_gutter_width * 2
+            :right= $ninesixty_gutter_width * 2
+          :text
+            :align center
+          :overflow hidden
+          > p
+            :margin
+              :top= $baseline / 2
+            :line-height= $baseline * 1.5 - 2
+            > a
+              +inline-block
+              :position relative
+              :height= $baseline * 1.5
+              +colors($header_nav_color, $white_seventy_five_shadow)
+              :border
+                :bottom= 1px solid $header_nav_color
+              :font
+                :size 24px
+                :family Cambria, Georgia, Arial
+              &:before
+                :content ''
+                :position absolute
+                :width 100%
+                :height 1px
+                :top 100%
+                :left 0
+                :margin
+                  :top 1px
+                :background #d0d2c3
+              &:after
+                :content ''
+                :position absolute
+                :width 8px
+                :height 5px
+                :top 100%
+                :left 50%
+                :margin
+                  :top 1px
+                  :left -3px
+                :background url(/images/arrows/nav_bottom.png) no-repeat
+              &:hover
+                +colors($white, $black_twenty_five_shadow)
+                :border
+                  :color #cfd0c7
+                &:before
+                  :background #888a79
+                &:after
+                  :background
+                    :image url(/images/arrows/nav_bottom_white.png)
+          > a, > span
             :position relative
-            :height= $baseline * 1.5
-            +colors($header_nav_color, $white_seventy_five_shadow)
-            :border
-              :bottom= 1px solid $header_nav_color
+            +inline-block
+            :height 16px
+            :line-height 16px
+            :margin
+              :top 7px
+            :padding
+              :left 8px
+              :right 8px
+            :color= $white
             :font
-              :size 24px
-              :family Cambria, Georgia, Arial
+              :size 11px
+            +border-radius(7px)
+            +box-shadow($white_seventy_five_shadow)
             &:before
               :content ''
-              :position absolute
-              :width 100%
-              :height 1px
-              :top 100%
-              :left 0
-              :margin
-                :top 1px
-              :background #d0d2c3
-            &:after
-              :content ''
-              :position absolute
-              :width 8px
-              :height 5px
-              :top 100%
-              :left 50%
-              :margin
-                :top 1px
-                :left -3px
-              :background url(/images/arrows/nav_bottom.png) no-repeat
-            &:hover
+              +absoluted
+              +border-radius(7px)
+              +box-shadow('inset 0 2px 0 rgba(0, 0, 0, 0.1)')
+          > a
+            :background #949584
+            > span
+              :display block
+              :height 14px
+            &:hover > span
+              :height 13px
+              :border
+                :bottom 1px #d0d1ca dotted
+          > span
+            :background #4e4e49
+        &.is-selected
+          :height= $header - 6
+          :padding
+            :bottom 2px
+          +box-shadow('inset 0 -1px 0 rgba(0, 0, 0, 0.1)')
+          > .button
+            :height= $header - 6
+            :background url(/images/gradients/vertical/nav_active.png) repeat-x left bottom
+            > p > a
               +colors($white, $black_twenty_five_shadow)
               :border
                 :color #cfd0c7
+              :cursor default
               &:before
                 :background #888a79
               &:after
                 :background
-                  :image url(/images/arrows/nav_bottom_white.png) no-repeat
-        > a, > span
-          :position relative
-          +inline-block
-          :height 16px
-          :line-height 16px
-          :margin
-            :top 7px
-          :padding
-            :left 8px
-            :right 8px
-          :color= $white
-          :font
-            :size 11px
-          +border-radius(7px)
-          +box-shadow($white_seventy_five_shadow)
+                  :image url(/images/arrows/nav_bottom_white.png)
+            &:before, &:after
+              :content ''
+              :position absolute
+              :width 50%
+              :height 47px
+              :left 0
+              :top 100%
+              :margin
+                :top -47px
+              :background url(/images/gradients/vertical/nav_active_sides.png) no-repeat left top
+            &:after
+              :left 50%
+              :background
+                :position right top
           &:before
             :content ''
-            +absoluted
-            +border-radius(7px)
-            +box-shadow('inset 0 2px 0 rgba(0, 0, 0, 0.1)')
-        > a
-          :background #949584
-          > span
-            :display block
-            :height 14px
-          &:hover > span
-            :height 13px
-            :border
-              :bottom 1px #d0d1ca dotted
-        > span
-          :background #4e4e49
+            :position absolute
+            :z-index 1
+            :top 100%
+            :left 1px
+            :width 100%
+            :height 4px
+            :background= $white
     > menu
       +line-height($header, $header_button_wrapper)
       :padding
@@ -179,7 +244,7 @@ $header_nav_color = #878979
     :top 100%
     :left 0
     :margin
-      :top -5px
+      :top -4px
     :background url(/images/backgrounds/left_top_corner.png) no-repeat
   &:after
     :margin
