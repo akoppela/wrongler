@@ -235,7 +235,8 @@ time {
       #container .filter > section > menu > a.is-selected {
         color: #9d9e91;
         height: 15px;
-        border-bottom: 1px dotted #9d9e91; }
+        border-bottom: 1px dotted #9d9e91;
+        cursor: default; }
       #container .filter > section > menu > a ~ a {
         margin-left: 20px; }
   #container .filter > section + aside {
@@ -1052,6 +1053,9 @@ body {
     box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
     -moz-box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
     -webkit-box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25); }
+    #container .disputes > article > header > h2 > p > span {
+      padding-right: 12px;
+      background: url(/images/icons/ruble_grey.png) no-repeat right center; }
   #container .disputes > article > header > h2 > a {
     position: relative;
     top: -1px;
@@ -1103,8 +1107,195 @@ body {
         text-decoration: underline; }
   #container .disputes > article.sponsored > header > h2 > a > span {
     color: #963a21; }
+  #container .disputes > article.closed > header > h2 > p {
+    background-image: url(/images/backgrounds/disabled_button.png); }
+  #container .disputes > article.closed > header > h2 > a > span {
+    color: #9d9e91; }
   #container .disputes > article ~ article {
     border-top: 1px solid #e4e4e1; }
+
+/* auctions */
+#container .auctions {
+  padding-top: 10px;
+  padding-left: 5px;
+  padding-right: 5px; }
+  #container .auctions > * {
+    zoom: 1;
+    display: inline;
+    display: -moz-inline-box;
+    display: inline-block;
+    *display: inline;
+    vertical-align: top; }
+  #container .auctions > article {
+    width: 50%; }
+    #container .auctions > article > * {
+      margin-left: 10px;
+      margin-right: 10px; }
+    #container .auctions > article > time {
+      font-size: 11px;
+      font-style: italic;
+      color: #9d9e91; }
+    #container .auctions > article > h2 {
+      font-family: Cambria, Georgia, Arial;
+      font-size: 19px;
+      color: #419ccc;
+      text-decoration: none; }
+      #container .auctions > article > h2:hover {
+        text-decoration: underline; }
+      #container .auctions > article > h2 > a {
+        color: #419ccc; }
+    #container .auctions > article > .thumb {
+      position: relative;
+      margin-top: 10px;
+      border: 1px solid #e5e5e2;
+      height: 148px;
+      text-align: center;
+      background: no-repeat center bottom; }
+      #container .auctions > article > .thumb:before, #container .auctions > article > .thumb:after {
+        content: "";
+        position: absolute;
+        width: 9px;
+        height: 100%;
+        top: 0;
+        left: 0;
+        background: url(/images/gradients/vertical/auctions_thumb_fade_left.png) repeat-y left top; }
+      #container .auctions > article > .thumb:after {
+        left: 100%;
+        margin-left: -9px;
+        background-image: url(/images/gradients/vertical/auctions_thumb_fade_right.png); }
+    #container .auctions > article > .raise {
+      position: relative;
+      margin-top: -31px;
+      text-align: center; }
+      #container .auctions > article > .raise > div {
+        zoom: 1;
+        display: inline;
+        display: -moz-inline-box;
+        display: inline-block;
+        *display: inline;
+        vertical-align: top;
+        height: 39px;
+        line-height: 38px;
+        padding-left: 10px;
+        padding-right: 10px;
+        background: #e2e4d1;
+        -moz-border-radius: 3px;
+        -o-border-radius: 3px;
+        -ms-border-radius: 3px;
+        -khtml-border-radius: 3px;
+        -webkit-border-radius: 3px;
+        border-radius: 3px;
+        box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+        -moz-box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+        -webkit-box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25); }
+        #container .auctions > article > .raise > div > * {
+          zoom: 1;
+          display: inline;
+          display: -moz-inline-box;
+          display: inline-block;
+          *display: inline;
+          vertical-align: top; }
+        #container .auctions > article > .raise > div p {
+          font-size: 29px;
+          font-family: Cambria, Georgia, Arial;
+          padding-right: 23px;
+          color: #585952;
+          text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+          background: url(/images/icons/ruble_big.png) no-repeat right 10px; }
+          #container .auctions > article > .raise > div p + menu {
+            margin-left: 10px; }
+        #container .auctions > article > .raise > div > menu {
+          height: 16px;
+          padding-top: 12px;
+          padding-bottom: 12px;
+          line-height: 16px; }
+          #container .auctions > article > .raise > div > menu > .button {
+            zoom: 1;
+            display: inline;
+            display: -moz-inline-box;
+            display: inline-block;
+            *display: inline;
+            vertical-align: top;
+            position: relative;
+            height: 16px;
+            line-height: 14px;
+            padding-left: 6px;
+            padding-right: 6px;
+            background: white;
+            font-size: 11px;
+            color: #575852;
+            -moz-border-radius: 7px;
+            -o-border-radius: 7px;
+            -ms-border-radius: 7px;
+            -khtml-border-radius: 7px;
+            -webkit-border-radius: 7px;
+            border-radius: 7px;
+            box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+            -moz-box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+            -webkit-box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+            opacity: 0.95;
+            -moz-opacity: 0.95;
+            filter: progid:DXImageTransform.Microsoft.Alpha(opacity=95); }
+            #container .auctions > article > .raise > div > menu > .button:hover {
+              opacity: 1;
+              -moz-opacity: 1;
+              filter: progid:DXImageTransform.Microsoft.Alpha(opacity=100); }
+            #container .auctions > article > .raise > div > menu > .button:before {
+              content: "";
+              position: absolute;
+              top: 0;
+              left: 0;
+              right: 0;
+              bottom: 0;
+              -moz-border-radius: 7px;
+              -o-border-radius: 7px;
+              -ms-border-radius: 7px;
+              -khtml-border-radius: 7px;
+              -webkit-border-radius: 7px;
+              border-radius: 7px;
+              box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.25);
+              -moz-box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.25);
+              -webkit-box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.25); }
+            #container .auctions > article > .raise > div > menu > .button.is-active {
+              height: 15px;
+              margin-top: 1px; }
+              #container .auctions > article > .raise > div > menu > .button.is-active:before {
+                box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+                -moz-box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+                -webkit-box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25); }
+    #container .auctions > article:first-child + article ~ article {
+      margin-top: 20px; }
+    #container .auctions > article.closed > h2 > a {
+      color: #9d9e91; }
+    #container .auctions > article.closed > .raise > div {
+      display: block;
+      margin-left: 15px;
+      margin-right: 15px;
+      text-align: left; }
+      #container .auctions > article.closed > .raise > div > section, #container .auctions > article.closed > .raise > div > aside {
+        display: block;
+        height: 39px; }
+      #container .auctions > article.closed > .raise > div > section {
+        line-height: 13px;
+        height: 26px;
+        padding-top: 7px;
+        padding-bottom: 7px;
+        padding-bottom: 6px; }
+        #container .auctions > article.closed > .raise > div > section > i {
+          display: block;
+          font-size: 11px;
+          color: #9d9e91; }
+        #container .auctions > article.closed > .raise > div > section > span {
+          display: block; }
+          #container .auctions > article.closed > .raise > div > section > span > a {
+            text-decoration: none; }
+            #container .auctions > article.closed > .raise > div > section > span > a:hover {
+              text-decoration: underline; }
+        #container .auctions > article.closed > .raise > div > section + aside {
+          margin-top: -39px; }
+      #container .auctions > article.closed > .raise > div > aside > p {
+        color: #9d9e91;
+        background-image: url(/images/icons/ruble_big_grey.png); }
 
 /* paginator */
 #container .paginator {

@@ -1,0 +1,52 @@
+.filter
+  %section<
+    %menu<>
+      = link_to 'Все', '#'
+      = link_to 'Мои', '#'
+      = link_to 'Прошедшие', '#', :class => 'is-selected'
+%section.auctions<
+  %article>
+    %time{:title => '25 сентября 1954'} Закончится через 2 дня
+    %h2= link_to 'Apple iPod Touch 4G 32GB', '#'
+    .thumb{:style => 'background-image: url(/images/icons/auctions_iphone.jpg);'}
+    %section.raise
+      %div<
+        %p> 325
+        %menu>
+          %a.button{:href => '#'} Поставить
+  %article.closed>
+    %time{:title => '25 сентября 1954'} Закончен
+    %h2= link_to 'Amazon Kindle 3 Wi-Fi', '#'
+    .thumb{:style => 'background-image: url(/images/icons/auctions_kindle.jpg);'}
+    %section.raise
+      %div
+        %section
+          %i Победитель
+          %span= link_to 'Василий Алибабаевич', '#'
+        %aside
+          %p> 2999
+  %article>
+    %time{:title => '25 сентября 1954'} Закончится через 2 дня
+    %h2= link_to 'Apple iPod Touch 4G 32GB', '#'
+    .thumb{:style => 'background-image: url(/images/icons/auctions_iphone.jpg);'}
+    %section.raise
+      %div<
+        %p> 325
+        %menu>
+          %a.button{:href => '#'} Поставить
+  %article>
+    %time{:title => '25 сентября 1954'} Закончится через 2 дня
+    %h2= link_to 'Amazon Kindle 3 Wi-Fi', '#'
+    .thumb{:style => 'background-image: url(/images/icons/auctions_kindle.jpg);'}
+    %section.raise
+      %div<
+        %p> 220
+        %menu>
+          %a.button{:href => '#'} Поставить
+.paginator
+  %section
+    = link_to 'Cюда', '#', :class => 'is-disabled'
+  %div
+    %p= raw('8<span> споров из </span>324')
+  %aside
+    = link_to 'Туда', '#'

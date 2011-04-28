@@ -1,0 +1,125 @@
+/* auctions
+$auctions_thumb = 150px
+
+$auctions_raise = $baseline * 2
+
+#container .auctions
+  :padding
+    :top= $baseline / 2
+    :left= $ninesixty_gutter_width / 2
+    :right= $ninesixty_gutter_width / 2
+  +children-inline
+  > article
+    :width 50%
+    > *
+      :margin
+        :left= $ninesixty_gutter_width
+        :right= $ninesixty_gutter_width
+    > time
+      :font
+        :size 11px
+        :style italic
+      :color= $light_grey
+    > h2
+      :font
+        :family Cambria, Georgia, Arial
+        :size 19px
+      :color= $blue
+      +hover-underline
+      > a
+        :color= $blue
+    > .thumb
+      :position relative
+      :margin
+        :top= $baseline / 2
+      :border 1px solid #e5e5e2
+      :height= $auctions_thumb - 2
+      :text
+        :align center
+      :background no-repeat center bottom
+      &:before, &:after
+        :content ''
+        :position absolute
+        :width 9px
+        :height 100%
+        :top 0
+        :left 0
+        :background url(/images/gradients/vertical/auctions_thumb_fade_left.png) repeat-y left top
+      &:after
+        :left 100%
+        :margin
+          :left -9px
+        :background
+          :image url(/images/gradients/vertical/auctions_thumb_fade_right.png)
+    > .raise
+      :position relative
+      :margin
+        :top -31px
+      :text
+        :align center
+      > div
+        +inline-block
+        :height= $auctions_raise - 1
+        :line-height= $auctions_raise - 2
+        :padding
+          :left= $ninesixty_gutter_width
+          :right= $ninesixty_gutter_width
+        :background= $lightest_brown
+        +border-radius(3px)
+        +box-shadow($black_twenty_five_shadow)
+        +children-inline
+        p
+          :font
+            :size 29px
+            :family Cambria, Georgia, Arial
+          :padding
+            :right 23px
+          +colors($light_black, $white_fifty_shadow)
+          :background url(/images/icons/ruble_big.png) no-repeat right 10px
+          & + menu
+            :margin
+              :left= $ninesixty_gutter_width
+        > menu
+          +line-height($auctions_raise, $button)
+          :line-height= $button
+          > .button
+            +inline-block
+            +button
+    &:first-child + article ~ article
+      :margin
+        :top= $baseline
+    &.closed
+      > h2 > a
+        :color= $light_grey
+      > .raise
+        > div
+          :display block
+          :margin
+            :left= $ninesixty_gutter_width * 1.5
+            :right= $ninesixty_gutter_width * 1.5
+          :text
+            :align left
+          > section, > aside
+            :display block
+            :height= $auctions_raise - 1
+          > section
+            :line-height 13px
+            +line-height($auctions_raise, 26px)
+            :padding
+              :bottom= ($auctions_raise - 26) / 2 - 1
+            > i
+              :display block
+              :font
+                :size 11px
+              :color= $light_grey
+            > span
+              :display block
+              > a
+                +hover-underline
+            & + aside
+              :margin
+                :top= -$auctions_raise + 1
+          > aside > p
+            :color= $light_grey
+            :background
+              :image url(/images/icons/ruble_big_grey.png)

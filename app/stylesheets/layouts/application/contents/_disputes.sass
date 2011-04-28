@@ -23,6 +23,10 @@
           +colors($light_grey, $white_twenty_five_shadow)
           +border-radius(3px)
           +box-shadow($black_twenty_five_shadow)
+          > span
+            :padding
+              :right 12px
+            :background url(/images/icons/ruble_grey.png) no-repeat right center
         > a
           :position relative
           :top -1px
@@ -65,6 +69,12 @@
           +hover-underline
     &.sponsored > header > h2 > a > span
       :color= $red
+    &.closed > header > h2
+      > p
+        :background
+          :image url(/images/backgrounds/disabled_button.png)
+      > a > span
+        :color= $light_grey
     & ~ article
       :border
         :top 1px solid #e4e4e1

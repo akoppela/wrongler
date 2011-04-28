@@ -1,5 +1,5 @@
 Wrongler::Application.routes.draw do
-  resources :disputes
+  resources :disputes, :auctions
   
   root :to => "welcome#index"
 end
