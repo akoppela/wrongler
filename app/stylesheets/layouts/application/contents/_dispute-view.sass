@@ -1,0 +1,206 @@
+/* dispute view
+$dispute_view_checkbox = $baseline * 1.5
+
+
+#container #dispute-view
+  :padding
+    :left= $ninesixty_gutter_width
+    :right= $ninesixty_gutter_width
+    :bottom= $baseline
+  > .checkboxes
+    +children-inline
+    > section, > aside
+      :width 50%
+      > .checkbox
+        :margin
+          :top= $baseline
+        :height= $dispute_view_checkbox
+        :overflow hidden
+        :background #e4e4e1
+        :border
+          :bottom 2px solid #cdcdca
+        +box-shadow($black_twenty_five_shadow)
+        > section
+          +line-height($dispute_view_checkbox, $form_checkbox - 1)
+          :width= $form_checkbox
+          :padding
+            :left= $ninesixty_gutter_width
+            :right= $ninesixty_gutter_width
+          :background url(/images/gradients/vertical/dispute_view_checkbox.png) repeat-y right top
+          > .input[type="checkbox"]
+            +checkbox
+          & + aside
+            :margin
+              :top= -$dispute_view_checkbox
+              :left= $form_checkbox + $ninesixty_gutter_width * 2
+            :padding
+              :left 1px
+        > aside
+          :height= $dispute_view_checkbox
+          :line-height= $dispute_view_checkbox + 2
+          :background url(/images/separators/dispute_view_checkbox.png) repeat-y
+          :text
+            :align left
+          > label
+            :display block
+            :padding
+              :left= $ninesixty_gutter_width
+              :right= $ninesixty_gutter_width
+            :cursor pointer
+            :font
+              :style italic
+            +colors($light_black, $white_seventy_five_shadow)
+            > span
+              +inline-block
+              :height 23px
+            &:hover > span
+              :height 22px
+              :border
+                :bottom= 1px dotted $light_black
+    > section
+      > .checkbox
+        :margin
+          :right= $ninesixty_gutter_width * 1.5
+    > aside
+      :text
+        :align left
+      > .checkbox
+        :margin
+          :left= $ninesixty_gutter_width * 1.5
+  > .information
+    :margin
+      :top= $baseline * 2
+    +children-inline
+    > section
+      :margin
+        :right= $pictures_width * 2 + $ninesixty_gutter_width * 3
+      > header
+        :overflow hidden
+        :padding
+          :bottom= $baseline
+        > .judge
+          :overflow hidden
+          :width 180px
+          :height= $avatar
+          :margin
+            :top= $baseline / 2
+          :line-height 14px
+          :text
+            :align right
+          > p, > span
+            :display block
+            :margin
+              :right= $avatar + $ninesixty_gutter_width
+          > p
+            :margin
+              :top -2px
+            :color= $light_grey
+            :font
+              :size 11px
+            & + span
+              :margin
+                :top= $baseline / 4
+          > a
+            +inline-block
+            :height= $avatar
+            :width= $avatar
+            :margin
+              :top= -$avatar
+            +hover-opacity
+            > img
+              :display block
+              :width 100%
+              :height 100%
+          & + .baloon
+            :margin
+              :left 180px + $ninesixty_gutter_width * 2
+              :top= -$avatar - $baseline / 2
+        > .baloon
+          :position relative
+          :background #eaebe8
+          :padding
+            :top= $baseline / 2 + 2
+            :left= $ninesixty_gutter_width * 2
+            :right= $ninesixty_gutter_width * 2
+            :bottom= $baseline * 0.75
+          > h3
+            +line-height(28px, 22px, true)
+            :font
+              :family Cambria, Georgia, Arial
+              :size 22px
+            :color= $light_grey
+            & + p
+              :margin
+                :top= $baseline / 2
+          &:before
+            :content ''
+            :position absolute
+            :width 13px
+            :height 13px
+            :left -13px
+            :top 49px
+            :background url(/images/arrows/dispute_view_baloon.png) no-repeat
+      > .describe
+        :margin
+          :right= $ninesixty_gutter_width * 8
+        > h3
+          :line-height 30px
+          :font
+            :family Cambria, Georgia, Arial
+            :size 22px
+          :color= $light_grey
+          & + p
+            :margin
+              :top= $baseline
+        > p
+          :margin
+            :top= $baseline / 2
+    > aside
+      :width= $pictures_width * 2 + $ninesixty_gutter_width + 20
+      :margin
+        :left -($pictures_width * 2 + $ninesixty_gutter_width + 20)
+      > h3
+        +inline-block
+        :line-height 30px
+        :font
+          :family Cambria, Georgia, Arial
+          :size 22px
+        :color= $light_grey
+        :white-space nowrap
+      > menu
+        :margin
+          :top= $baseline / 4
+        :text
+          :align right
+        +children-inline
+        > a
+          :position relative
+          :width= $pictures_width
+          :height= $pictures_height
+          :margin
+            :top= $baseline / 2
+            :left= $ninesixty_gutter_width
+          +hover-opacity(0.9, true)
+          &:before
+            :content ''
+            +absoluted
+            :background #b6b7ae
+            +opacity(0.5, true)
+          &.video:after
+            :content ''
+            +absoluted
+            :background url(/images/arrows/play.png) no-repeat center
+      > p
+        +inline-block
+        :width= $pictures_width * 2 + $ninesixty_gutter_width
+        :margin
+          :top= $baseline / 4
+        :height= $baseline
+        :text
+          :align center
+        > a
+          +inline-block
+          :font
+            :size 11px
+          :color= $light_grey
+          +hover-dotted($light_grey, 17px)

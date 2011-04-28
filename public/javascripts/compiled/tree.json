@@ -16,6 +16,16 @@
       "provides": [
         "Wrongler.Widget.Input"
       ],
+      "Checkbox": {
+        "provides": [
+          "Wrongler.Widget.Input.Checkbox"
+        ],
+        "requires": [
+          "Wrongler.Widget.Input",
+          "Widgets/LSD.Widget.Input.Checkbox"
+        ],
+        "desc": "Boolean checkbox type of input"
+      },
       "requires": [
         "Wrongler.Widget",
         "Native/LSD.Native.Input.*",

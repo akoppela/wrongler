@@ -242,6 +242,9 @@ time {
   #container .filter > section + aside {
     margin-top: -30px; }
 
+/* form */
+/* pictures */
+/* avatar */
 /* master */
 html {
   background: none; }
@@ -823,6 +826,62 @@ body {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   -moz-box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   -webkit-box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5); }
+  #container #content > header {
+    font-size: 11px; }
+    #container #content > header > * {
+      height: 40px;
+      line-height: 40px; }
+    #container #content > header time {
+      display: inline;
+      font-style: italic;
+      color: #9d9e91; }
+    #container #content > header > section, #container #content > header > aside {
+      padding-left: 10px;
+      padding-right: 10px; }
+    #container #content > header > section {
+      color: #585952; }
+      #container #content > header > section + div {
+        margin-top: -40px; }
+    #container #content > header > div {
+      color: #585952;
+      text-align: center; }
+      #container #content > header > div + aside {
+        margin-top: -40px; }
+    #container #content > header > aside > p {
+      color: #9d9e91; }
+    #container #content > header + section {
+      border-top: 1px solid #e4e4df;
+      background: url(/images/gradients/vertical/fade.png) repeat-x; }
+  #container #content > section > aside > p {
+    height: 18px;
+    padding-top: 16px;
+    padding-bottom: 16px;
+    padding-top: 18px;
+    padding-bottom: 14px;
+    line-height: 18px;
+    font-family: Cambria, Georgia, Arial;
+    font-size: 19px; }
+    #container #content > section > aside > p > a {
+      zoom: 1;
+      display: inline;
+      display: -moz-inline-box;
+      display: inline-block;
+      *display: inline;
+      vertical-align: top;
+      color: #9d9e91;
+      height: 20px; }
+      #container #content > section > aside > p > a:hover {
+        height: 19px;
+        border-bottom: 1px dotted #9d9e91; }
+  #container #content > section > aside + h2 {
+    margin-top: -50px; }
+  #container #content > section > h2 {
+    padding-top: 10px;
+    padding-bottom: 10px;
+    line-height: 30px;
+    margin-right: 200px;
+    font-family: Cambria, Georgia, Arial;
+    font-size: 29px; }
   #container #content:before, #container #content:after {
     content: "";
     position: absolute;
@@ -1127,7 +1186,8 @@ body {
     *display: inline;
     vertical-align: top; }
   #container .auctions > article {
-    width: 50%; }
+    width: 50%;
+    padding-bottom: 20px; }
     #container .auctions > article > * {
       margin-left: 10px;
       margin-right: 10px; }
@@ -1263,8 +1323,6 @@ body {
                 box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25);
                 -moz-box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25);
                 -webkit-box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25); }
-    #container .auctions > article:first-child + article ~ article {
-      margin-top: 20px; }
     #container .auctions > article.closed > h2 > a {
       color: #9d9e91; }
     #container .auctions > article.closed > .raise > div {
@@ -1296,6 +1354,246 @@ body {
       #container .auctions > article.closed > .raise > div > aside > p {
         color: #9d9e91;
         background-image: url(/images/icons/ruble_big_grey.png); }
+
+/* dispute view */
+#container #dispute-view {
+  padding-left: 10px;
+  padding-right: 10px;
+  padding-bottom: 20px; }
+  #container #dispute-view > .checkboxes > * {
+    zoom: 1;
+    display: inline;
+    display: -moz-inline-box;
+    display: inline-block;
+    *display: inline;
+    vertical-align: top; }
+  #container #dispute-view > .checkboxes > section, #container #dispute-view > .checkboxes > aside {
+    width: 50%; }
+    #container #dispute-view > .checkboxes > section > .checkbox, #container #dispute-view > .checkboxes > aside > .checkbox {
+      margin-top: 20px;
+      height: 30px;
+      overflow: hidden;
+      background: #e4e4e1;
+      border-bottom: 2px solid #cdcdca;
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+      -moz-box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+      -webkit-box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25); }
+      #container #dispute-view > .checkboxes > section > .checkbox > section, #container #dispute-view > .checkboxes > aside > .checkbox > section {
+        height: 14px;
+        padding-top: 8px;
+        padding-bottom: 8px;
+        width: 15px;
+        padding-left: 10px;
+        padding-right: 10px;
+        background: url(/images/gradients/vertical/dispute_view_checkbox.png) repeat-y right top; }
+        #container #dispute-view > .checkboxes > section > .checkbox > section > .input[type="checkbox"], #container #dispute-view > .checkboxes > aside > .checkbox > section > .input[type="checkbox"] {
+          height: 15px;
+          width: 15px;
+          background: url(/images/icons/checkbox.png) no-repeat;
+          cursor: pointer; }
+          #container #dispute-view > .checkboxes > section > .checkbox > section > .input[type="checkbox"].is-checked, #container #dispute-view > .checkboxes > aside > .checkbox > section > .input[type="checkbox"].is-checked {
+            background-image: url(/images/icons/checkbox_checked.png); }
+        #container #dispute-view > .checkboxes > section > .checkbox > section + aside, #container #dispute-view > .checkboxes > aside > .checkbox > section + aside {
+          margin-top: -30px;
+          margin-left: 35px;
+          padding-left: 1px; }
+      #container #dispute-view > .checkboxes > section > .checkbox > aside, #container #dispute-view > .checkboxes > aside > .checkbox > aside {
+        height: 30px;
+        line-height: 32px;
+        background: url(/images/separators/dispute_view_checkbox.png) repeat-y;
+        text-align: left; }
+        #container #dispute-view > .checkboxes > section > .checkbox > aside > label, #container #dispute-view > .checkboxes > aside > .checkbox > aside > label {
+          display: block;
+          padding-left: 10px;
+          padding-right: 10px;
+          cursor: pointer;
+          font-style: italic;
+          color: #585952;
+          text-shadow: 0 1px 0 rgba(255, 255, 255, 0.75); }
+          #container #dispute-view > .checkboxes > section > .checkbox > aside > label > span, #container #dispute-view > .checkboxes > aside > .checkbox > aside > label > span {
+            zoom: 1;
+            display: inline;
+            display: -moz-inline-box;
+            display: inline-block;
+            *display: inline;
+            vertical-align: top;
+            height: 23px; }
+          #container #dispute-view > .checkboxes > section > .checkbox > aside > label:hover > span, #container #dispute-view > .checkboxes > aside > .checkbox > aside > label:hover > span {
+            height: 22px;
+            border-bottom: 1px dotted #585952; }
+  #container #dispute-view > .checkboxes > section > .checkbox {
+    margin-right: 15px; }
+  #container #dispute-view > .checkboxes > aside {
+    text-align: left; }
+    #container #dispute-view > .checkboxes > aside > .checkbox {
+      margin-left: 15px; }
+  #container #dispute-view > .information {
+    margin-top: 40px; }
+    #container #dispute-view > .information > * {
+      zoom: 1;
+      display: inline;
+      display: -moz-inline-box;
+      display: inline-block;
+      *display: inline;
+      vertical-align: top; }
+    #container #dispute-view > .information > section {
+      margin-right: 150px; }
+      #container #dispute-view > .information > section > header {
+        overflow: hidden;
+        padding-bottom: 20px; }
+        #container #dispute-view > .information > section > header > .judge {
+          overflow: hidden;
+          width: 180px;
+          height: 45px;
+          margin-top: 10px;
+          line-height: 14px;
+          text-align: right; }
+          #container #dispute-view > .information > section > header > .judge > p, #container #dispute-view > .information > section > header > .judge > span {
+            display: block;
+            margin-right: 55px; }
+          #container #dispute-view > .information > section > header > .judge > p {
+            margin-top: -2px;
+            color: #9d9e91;
+            font-size: 11px; }
+            #container #dispute-view > .information > section > header > .judge > p + span {
+              margin-top: 5px; }
+          #container #dispute-view > .information > section > header > .judge > a {
+            zoom: 1;
+            display: inline;
+            display: -moz-inline-box;
+            display: inline-block;
+            *display: inline;
+            vertical-align: top;
+            height: 45px;
+            width: 45px;
+            margin-top: -45px;
+            opacity: 0.9;
+            -moz-opacity: 0.9; }
+            #container #dispute-view > .information > section > header > .judge > a:hover {
+              opacity: 1;
+              -moz-opacity: 1; }
+            #container #dispute-view > .information > section > header > .judge > a > img {
+              display: block;
+              width: 100%;
+              height: 100%; }
+          #container #dispute-view > .information > section > header > .judge + .baloon {
+            margin-left: 200px;
+            margin-top: -55px; }
+        #container #dispute-view > .information > section > header > .baloon {
+          position: relative;
+          background: #eaebe8;
+          padding-top: 12px;
+          padding-left: 20px;
+          padding-right: 20px;
+          padding-bottom: 15px; }
+          #container #dispute-view > .information > section > header > .baloon > h3 {
+            padding-top: 3px;
+            padding-bottom: 3px;
+            font-family: Cambria, Georgia, Arial;
+            font-size: 22px;
+            color: #9d9e91; }
+            #container #dispute-view > .information > section > header > .baloon > h3 + p {
+              margin-top: 10px; }
+          #container #dispute-view > .information > section > header > .baloon:before {
+            content: "";
+            position: absolute;
+            width: 13px;
+            height: 13px;
+            left: -13px;
+            top: 49px;
+            background: url(/images/arrows/dispute_view_baloon.png) no-repeat; }
+      #container #dispute-view > .information > section > .describe {
+        margin-right: 80px; }
+        #container #dispute-view > .information > section > .describe > h3 {
+          line-height: 30px;
+          font-family: Cambria, Georgia, Arial;
+          font-size: 22px;
+          color: #9d9e91; }
+          #container #dispute-view > .information > section > .describe > h3 + p {
+            margin-top: 20px; }
+        #container #dispute-view > .information > section > .describe > p {
+          margin-top: 10px; }
+    #container #dispute-view > .information > aside {
+      width: 150px;
+      margin-left: -150px; }
+      #container #dispute-view > .information > aside > h3 {
+        zoom: 1;
+        display: inline;
+        display: -moz-inline-box;
+        display: inline-block;
+        *display: inline;
+        vertical-align: top;
+        line-height: 30px;
+        font-family: Cambria, Georgia, Arial;
+        font-size: 22px;
+        color: #9d9e91;
+        white-space: nowrap; }
+      #container #dispute-view > .information > aside > menu {
+        margin-top: 5px;
+        text-align: right; }
+        #container #dispute-view > .information > aside > menu > * {
+          zoom: 1;
+          display: inline;
+          display: -moz-inline-box;
+          display: inline-block;
+          *display: inline;
+          vertical-align: top; }
+        #container #dispute-view > .information > aside > menu > a {
+          position: relative;
+          width: 60px;
+          height: 40px;
+          margin-top: 10px;
+          margin-left: 10px;
+          opacity: 0.9;
+          -moz-opacity: 0.9;
+          filter: progid:DXImageTransform.Microsoft.Alpha(opacity=90); }
+          #container #dispute-view > .information > aside > menu > a:hover {
+            opacity: 1;
+            -moz-opacity: 1;
+            filter: progid:DXImageTransform.Microsoft.Alpha(opacity=100); }
+          #container #dispute-view > .information > aside > menu > a:before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #b6b7ae;
+            opacity: 0.5;
+            -moz-opacity: 0.5;
+            filter: progid:DXImageTransform.Microsoft.Alpha(opacity=50); }
+          #container #dispute-view > .information > aside > menu > a.video:after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url(/images/arrows/play.png) no-repeat center; }
+      #container #dispute-view > .information > aside > p {
+        zoom: 1;
+        display: inline;
+        display: -moz-inline-box;
+        display: inline-block;
+        *display: inline;
+        vertical-align: top;
+        width: 130px;
+        margin-top: 5px;
+        height: 20px;
+        text-align: center; }
+        #container #dispute-view > .information > aside > p > a {
+          zoom: 1;
+          display: inline;
+          display: -moz-inline-box;
+          display: inline-block;
+          *display: inline;
+          vertical-align: top;
+          font-size: 11px;
+          color: #9d9e91;
+          height: 17px; }
+          #container #dispute-view > .information > aside > p > a:hover {
+            height: 16px;
+            border-bottom: 1px dotted #9d9e91; }
 
 /* paginator */
 #container .paginator {

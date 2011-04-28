@@ -1,0 +1,58 @@
+%header
+  %section
+    %p= raw('Спор начат <time title="54 октября 1943">2 часа назад</time>')
+  %div
+    %p= raw('Будет завершен <time title="54 октября 1943">через неделю (22 cентября 2010)</time>')
+  %aside
+    %p Спорт / Футбол
+%section#dispute-view
+  %aside<
+    %p= link_to '28 комментариев', '#'
+  %h2 Где будут проходить летние олимпийские игры 2014 года?
+  .checkboxes<
+    %section>
+      .checkbox<
+        %section>
+          %input{:type => 'checkbox', :id => 'first_checkbox'}
+        %aside>
+          %label{:for => 'first_checkbox'}= raw('<span>Конечно же, Ливерпуль.</span>')
+    %aside>
+      .checkbox<
+        %section>
+          %input{:type => 'checkbox', :id => 'second_checkbox'}
+        %aside>
+          %label{:for => 'second_checkbox'}= raw('<span>Ну какие вопросы. Это Манчестер!</span>')
+  .information<
+    %section>
+      %header<
+        .judge
+          %p Судья данного спора
+          %span Василий
+          %span Алибабаевич
+          %a{:href => '#'}= raw('<img src="/images/icons/avatar.png" alt="Василий Алибабаевич" />')
+        .baloon
+          %h3 Определение результата
+          %p Все решит матч на Энфилде, 22 сентября 2010 года.
+          %p Внимание! При ничьей все ставки сгорают.
+      .describe
+        %h3 Информация к размышлению
+        %p Полузащитник «Ливерпуля» Дирк Кюйт поделился мнением об игре команды в матче групповой стадии Лиги Европы с «Утрехтом» (0:0). 
+        %p «Мы с Торресом неплохо сыграли сегодня. С «Сандерлендом» и «Вест Бромом» это сработало, так что, думаю, мы можем хорошо взаимодействовать, хотя для нас и команды это была не лучшая игра. 
+        %p Матч получился очень сложным. С самого начала было тяжело. Мы провели не лучшую встречу, но будем продолжать бороться. Создали несколько хороших моментов, однако и соперник не подкачал, так что 0:0 – нормальный результат. 
+        %p Хорошо, что нам удалось сохранить свои ворота в неприкосновенности. Выездная ничья в еврокубках – не такой уж плохой результат, у нас четыре очка после двух матчей, так что будем двигаться дальше», – цитирует Кюйта официальный сайт клуба.
+    %aside>
+      %h3 Фото и видео
+      %menu<
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#', :class => 'video'
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#', :class => 'video'
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#', :class => 'video'
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#'
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#'
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#'
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#'
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#', :class => 'video'
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#'
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#'
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#', :class => 'video'
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#', :class => 'video'
+      %p= link_to 'еще 15 фотографий', '#'

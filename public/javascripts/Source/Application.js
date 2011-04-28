@@ -30,8 +30,7 @@ Wrongler.Application = new LSD.Application(document);
 // Transformations
 Wrongler.Transformations = {
   'a.button': 'button',
-  'a.button[type="submit"]': 'input[type="submit"]',
-  'section.dropdown': 'dropdown'
+  'a.button[type="submit"]': 'input[type="submit"]'
 };
 Wrongler.Widget.Body.prototype.addLayoutTransformations(Wrongler.Transformations);
 Wrongler.Widget.Body.prototype.options.layout.options.context = 'element';

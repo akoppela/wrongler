@@ -11,6 +11,8 @@ $auctions_raise = $baseline * 2
   +children-inline
   > article
     :width 50%
+    :padding
+      :bottom= $baseline
     > *
       :margin
         :left= $ninesixty_gutter_width
@@ -85,9 +87,6 @@ $auctions_raise = $baseline * 2
           > .button
             +inline-block
             +button
-    &:first-child + article ~ article
-      :margin
-        :top= $baseline
     &.closed
       > h2 > a
         :color= $light_grey

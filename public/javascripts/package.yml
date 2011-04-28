@@ -9,4 +9,5 @@ sources:
   - Source/Widget.js
   - Source/Widget/Body.js
   - Source/Widget/Input.js
+  - Source/Widget/Input/Checkbox.js
   - Source/Application.js
