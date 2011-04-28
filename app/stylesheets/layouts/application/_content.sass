@@ -47,6 +47,9 @@ $content_section_header = $baseline * 2.5
       :background url(/images/gradients/vertical/fade.png) repeat-x
   > section
     > aside
+      :padding
+        :left= $ninesixty_gutter_width
+        :right= $ninesixty_gutter_width
       > p
         +line-height($content_section_header, $baseline - 2)
         :padding
@@ -65,6 +68,8 @@ $content_section_header = $baseline * 2.5
           :top= -$content_section_header
     > h2
       +line-height($content_section_header, 30px, true)
+      :padding
+        :left= $ninesixty_gutter_width
       :line-height 30px
       :margin
         :right 200px

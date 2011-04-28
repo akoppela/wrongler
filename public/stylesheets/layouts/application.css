@@ -156,7 +156,7 @@ time {
       padding-right: 6px;
       background: white;
       font-size: 11px;
-      color: #575852;
+      color: #585952;
       -moz-border-radius: 7px;
       -o-border-radius: 7px;
       -ms-border-radius: 7px;
@@ -461,7 +461,7 @@ body {
         padding-right: 6px;
         background: white;
         font-size: 11px;
-        color: #575852;
+        color: #585952;
         -moz-border-radius: 7px;
         -o-border-radius: 7px;
         -ms-border-radius: 7px;
@@ -852,32 +852,36 @@ body {
     #container #content > header + section {
       border-top: 1px solid #e4e4df;
       background: url(/images/gradients/vertical/fade.png) repeat-x; }
-  #container #content > section > aside > p {
-    height: 18px;
-    padding-top: 16px;
-    padding-bottom: 16px;
-    padding-top: 18px;
-    padding-bottom: 14px;
-    line-height: 18px;
-    font-family: Cambria, Georgia, Arial;
-    font-size: 19px; }
-    #container #content > section > aside > p > a {
-      zoom: 1;
-      display: inline;
-      display: -moz-inline-box;
-      display: inline-block;
-      *display: inline;
-      vertical-align: top;
-      color: #9d9e91;
-      height: 20px; }
-      #container #content > section > aside > p > a:hover {
-        height: 19px;
-        border-bottom: 1px dotted #9d9e91; }
-  #container #content > section > aside + h2 {
-    margin-top: -50px; }
+  #container #content > section > aside {
+    padding-left: 10px;
+    padding-right: 10px; }
+    #container #content > section > aside > p {
+      height: 18px;
+      padding-top: 16px;
+      padding-bottom: 16px;
+      padding-top: 18px;
+      padding-bottom: 14px;
+      line-height: 18px;
+      font-family: Cambria, Georgia, Arial;
+      font-size: 19px; }
+      #container #content > section > aside > p > a {
+        zoom: 1;
+        display: inline;
+        display: -moz-inline-box;
+        display: inline-block;
+        *display: inline;
+        vertical-align: top;
+        color: #9d9e91;
+        height: 20px; }
+        #container #content > section > aside > p > a:hover {
+          height: 19px;
+          border-bottom: 1px dotted #9d9e91; }
+    #container #content > section > aside + h2 {
+      margin-top: -50px; }
   #container #content > section > h2 {
     padding-top: 10px;
     padding-bottom: 10px;
+    padding-left: 10px;
     line-height: 30px;
     margin-right: 200px;
     font-family: Cambria, Georgia, Arial;
@@ -1283,7 +1287,7 @@ body {
             padding-right: 6px;
             background: white;
             font-size: 11px;
-            color: #575852;
+            color: #585952;
             -moz-border-radius: 7px;
             -o-border-radius: 7px;
             -ms-border-radius: 7px;
@@ -1357,77 +1361,80 @@ body {
 
 /* dispute view */
 #container #dispute-view {
-  padding-left: 10px;
-  padding-right: 10px;
   padding-bottom: 20px; }
-  #container #dispute-view > .checkboxes > * {
-    zoom: 1;
-    display: inline;
-    display: -moz-inline-box;
-    display: inline-block;
-    *display: inline;
-    vertical-align: top; }
-  #container #dispute-view > .checkboxes > section, #container #dispute-view > .checkboxes > aside {
-    width: 50%; }
-    #container #dispute-view > .checkboxes > section > .checkbox, #container #dispute-view > .checkboxes > aside > .checkbox {
-      margin-top: 20px;
-      height: 30px;
-      overflow: hidden;
-      background: #e4e4e1;
-      border-bottom: 2px solid #cdcdca;
-      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
-      -moz-box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
-      -webkit-box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25); }
-      #container #dispute-view > .checkboxes > section > .checkbox > section, #container #dispute-view > .checkboxes > aside > .checkbox > section {
-        height: 14px;
-        padding-top: 8px;
-        padding-bottom: 8px;
-        width: 15px;
-        padding-left: 10px;
-        padding-right: 10px;
-        background: url(/images/gradients/vertical/dispute_view_checkbox.png) repeat-y right top; }
-        #container #dispute-view > .checkboxes > section > .checkbox > section > .input[type="checkbox"], #container #dispute-view > .checkboxes > aside > .checkbox > section > .input[type="checkbox"] {
-          height: 15px;
-          width: 15px;
-          background: url(/images/icons/checkbox.png) no-repeat;
-          cursor: pointer; }
-          #container #dispute-view > .checkboxes > section > .checkbox > section > .input[type="checkbox"].is-checked, #container #dispute-view > .checkboxes > aside > .checkbox > section > .input[type="checkbox"].is-checked {
-            background-image: url(/images/icons/checkbox_checked.png); }
-        #container #dispute-view > .checkboxes > section > .checkbox > section + aside, #container #dispute-view > .checkboxes > aside > .checkbox > section + aside {
-          margin-top: -30px;
-          margin-left: 35px;
-          padding-left: 1px; }
-      #container #dispute-view > .checkboxes > section > .checkbox > aside, #container #dispute-view > .checkboxes > aside > .checkbox > aside {
+  #container #dispute-view > .checkboxes {
+    padding-left: 10px;
+    padding-right: 10px; }
+    #container #dispute-view > .checkboxes > * {
+      zoom: 1;
+      display: inline;
+      display: -moz-inline-box;
+      display: inline-block;
+      *display: inline;
+      vertical-align: top; }
+    #container #dispute-view > .checkboxes > section, #container #dispute-view > .checkboxes > aside {
+      width: 50%; }
+      #container #dispute-view > .checkboxes > section > .checkbox, #container #dispute-view > .checkboxes > aside > .checkbox {
+        margin-top: 20px;
         height: 30px;
-        line-height: 32px;
-        background: url(/images/separators/dispute_view_checkbox.png) repeat-y;
-        text-align: left; }
-        #container #dispute-view > .checkboxes > section > .checkbox > aside > label, #container #dispute-view > .checkboxes > aside > .checkbox > aside > label {
-          display: block;
+        overflow: hidden;
+        background: #e4e4e1;
+        border-bottom: 2px solid #cdcdca;
+        box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+        -moz-box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+        -webkit-box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25); }
+        #container #dispute-view > .checkboxes > section > .checkbox > section, #container #dispute-view > .checkboxes > aside > .checkbox > section {
+          height: 14px;
+          padding-top: 8px;
+          padding-bottom: 8px;
+          width: 15px;
           padding-left: 10px;
           padding-right: 10px;
-          cursor: pointer;
-          font-style: italic;
-          color: #585952;
-          text-shadow: 0 1px 0 rgba(255, 255, 255, 0.75); }
-          #container #dispute-view > .checkboxes > section > .checkbox > aside > label > span, #container #dispute-view > .checkboxes > aside > .checkbox > aside > label > span {
-            zoom: 1;
-            display: inline;
-            display: -moz-inline-box;
-            display: inline-block;
-            *display: inline;
-            vertical-align: top;
-            height: 23px; }
-          #container #dispute-view > .checkboxes > section > .checkbox > aside > label:hover > span, #container #dispute-view > .checkboxes > aside > .checkbox > aside > label:hover > span {
-            height: 22px;
-            border-bottom: 1px dotted #585952; }
-  #container #dispute-view > .checkboxes > section > .checkbox {
-    margin-right: 15px; }
-  #container #dispute-view > .checkboxes > aside {
-    text-align: left; }
-    #container #dispute-view > .checkboxes > aside > .checkbox {
-      margin-left: 15px; }
+          background: url(/images/gradients/vertical/dispute_view_checkbox.png) repeat-y right top; }
+          #container #dispute-view > .checkboxes > section > .checkbox > section > .input[type="checkbox"], #container #dispute-view > .checkboxes > aside > .checkbox > section > .input[type="checkbox"] {
+            height: 15px;
+            width: 15px;
+            background: url(/images/icons/checkbox.png) no-repeat;
+            cursor: pointer; }
+            #container #dispute-view > .checkboxes > section > .checkbox > section > .input[type="checkbox"].is-checked, #container #dispute-view > .checkboxes > aside > .checkbox > section > .input[type="checkbox"].is-checked {
+              background-image: url(/images/icons/checkbox_checked.png); }
+          #container #dispute-view > .checkboxes > section > .checkbox > section + aside, #container #dispute-view > .checkboxes > aside > .checkbox > section + aside {
+            margin-top: -30px;
+            margin-left: 35px;
+            padding-left: 1px; }
+        #container #dispute-view > .checkboxes > section > .checkbox > aside, #container #dispute-view > .checkboxes > aside > .checkbox > aside {
+          height: 30px;
+          line-height: 32px;
+          background: url(/images/separators/dispute_view_checkbox.png) repeat-y;
+          text-align: left; }
+          #container #dispute-view > .checkboxes > section > .checkbox > aside > label, #container #dispute-view > .checkboxes > aside > .checkbox > aside > label {
+            display: block;
+            padding-left: 10px;
+            padding-right: 10px;
+            cursor: pointer;
+            font-style: italic;
+            color: #585952;
+            text-shadow: 0 1px 0 rgba(255, 255, 255, 0.75); }
+            #container #dispute-view > .checkboxes > section > .checkbox > aside > label > span, #container #dispute-view > .checkboxes > aside > .checkbox > aside > label > span {
+              zoom: 1;
+              display: inline;
+              display: -moz-inline-box;
+              display: inline-block;
+              *display: inline;
+              vertical-align: top;
+              height: 23px; }
+            #container #dispute-view > .checkboxes > section > .checkbox > aside > label:hover > span, #container #dispute-view > .checkboxes > aside > .checkbox > aside > label:hover > span {
+              height: 22px;
+              border-bottom: 1px dotted #585952; }
+    #container #dispute-view > .checkboxes > section > .checkbox {
+      margin-right: 15px; }
+    #container #dispute-view > .checkboxes > aside {
+      text-align: left; }
+      #container #dispute-view > .checkboxes > aside > .checkbox {
+        margin-left: 15px; }
   #container #dispute-view > .information {
+    padding-left: 10px;
+    padding-right: 10px;
     margin-top: 40px; }
     #container #dispute-view > .information > * {
       zoom: 1;
@@ -1485,7 +1492,10 @@ body {
           padding-top: 12px;
           padding-left: 20px;
           padding-right: 20px;
-          padding-bottom: 15px; }
+          padding-bottom: 15px;
+          box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+          -moz-box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+          -webkit-box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25); }
           #container #dispute-view > .information > section > header > .baloon > h3 {
             padding-top: 3px;
             padding-bottom: 3px;
@@ -1594,6 +1604,177 @@ body {
           #container #dispute-view > .information > aside > p > a:hover {
             height: 16px;
             border-bottom: 1px dotted #9d9e91; }
+
+/* comments */
+#container .comments > h3 {
+  margin-top: 5px;
+  padding-left: 10px;
+  padding-right: 10px;
+  font-family: Cambria, Georgia, Arial;
+  font-size: 19px;
+  line-height: 30px;
+  color: #9d9e91; }
+#container .comments > form {
+  padding-left: 10px;
+  padding-right: 10px;
+  padding-bottom: 15px;
+  height: 64px;
+  text-align: right; }
+  #container .comments > form > .textarea {
+    margin-right: 80px;
+    padding-top: 4px;
+    padding-left: 4px;
+    padding-right: 4px;
+    padding-bottom: 4px;
+    border: 1px solid #e4e4e1;
+    text-align: left; }
+    #container .comments > form > .textarea > textarea {
+      display: block;
+      width: 100%;
+      line-height: 18px;
+      height: 54px; }
+    #container .comments > form > .textarea + aside {
+      margin-top: -64px; }
+  #container .comments > form > aside {
+    zoom: 1;
+    display: inline;
+    display: -moz-inline-box;
+    display: inline-block;
+    *display: inline;
+    vertical-align: top;
+    overflow: hidden;
+    width: 75px;
+    margin-left: 5px;
+    height: 58px;
+    padding-top: 3px;
+    padding-bottom: 3px;
+    text-align: left; }
+    #container .comments > form > aside > .button {
+      display: block;
+      position: relative;
+      height: 16px;
+      line-height: 14px;
+      padding-left: 6px;
+      padding-right: 6px;
+      background: white;
+      font-size: 11px;
+      color: #585952;
+      -moz-border-radius: 7px;
+      -o-border-radius: 7px;
+      -ms-border-radius: 7px;
+      -khtml-border-radius: 7px;
+      -webkit-border-radius: 7px;
+      border-radius: 7px;
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+      -moz-box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+      -webkit-box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+      opacity: 0.95;
+      -moz-opacity: 0.95;
+      filter: progid:DXImageTransform.Microsoft.Alpha(opacity=95);
+      background: #c6c9af;
+      text-align: center; }
+      #container .comments > form > aside > .button:hover {
+        opacity: 1;
+        -moz-opacity: 1;
+        filter: progid:DXImageTransform.Microsoft.Alpha(opacity=100); }
+      #container .comments > form > aside > .button:before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        -moz-border-radius: 7px;
+        -o-border-radius: 7px;
+        -ms-border-radius: 7px;
+        -khtml-border-radius: 7px;
+        -webkit-border-radius: 7px;
+        border-radius: 7px;
+        box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.25);
+        -moz-box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.25);
+        -webkit-box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.25); }
+      #container .comments > form > aside > .button.is-active {
+        height: 15px;
+        margin-top: 1px; }
+        #container .comments > form > aside > .button.is-active:before {
+          box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+          -moz-box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+          -webkit-box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25); }
+      #container .comments > form > aside > .button.smiles {
+        background: #e0e2d4 url(/images/icons/smiles.png) no-repeat center 6px;
+        height: 37px; }
+        #container .comments > form > aside > .button.smiles.is-active {
+          height: 36px; }
+        #container .comments > form > aside > .button.smiles + .button {
+          margin-top: 5px; }
+          #container .comments > form > aside > .button.smiles + .button.is-active {
+            margin-top: 6px; }
+#container .comments > article {
+  padding-top: 15px;
+  padding-left: 10px;
+  padding-right: 10px;
+  padding-bottom: 10px; }
+  #container .comments > article > header, #container .comments > article > aside {
+    height: 16px;
+    line-height: 16px;
+    font-size: 11px; }
+  #container .comments > article > header > * {
+    zoom: 1;
+    display: inline;
+    display: -moz-inline-box;
+    display: inline-block;
+    *display: inline;
+    vertical-align: top; }
+  #container .comments > article > header > p {
+    color: #9d9e91; }
+    #container .comments > article > header > p > * {
+      zoom: 1;
+      display: inline;
+      display: -moz-inline-box;
+      display: inline-block;
+      *display: inline;
+      vertical-align: top; }
+    #container .comments > article > header > p > a {
+      padding-left: 21px;
+      background: no-repeat left center; }
+      #container .comments > article > header > p > a:hover > span {
+        text-decoration: underline; }
+      #container .comments > article > header > p > a.grey {
+        color: #9d9e91;
+        padding-left: 0;
+        text-decoration: none; }
+        #container .comments > article > header > p > a.grey:hover {
+          text-decoration: underline; }
+  #container .comments > article > header + aside {
+    margin-top: -16px; }
+  #container .comments > article > aside > * {
+    zoom: 1;
+    display: inline;
+    display: -moz-inline-box;
+    display: inline-block;
+    *display: inline;
+    vertical-align: top; }
+  #container .comments > article > aside > time {
+    color: #9d9e91;
+    font-style: italic; }
+  #container .comments > article > section {
+    margin-top: 6px; }
+    #container .comments > article > section > p {
+      line-height: 18px;
+      font-style: italic; }
+  #container .comments > article ~ article {
+    border-top: 1px dotted #d4d4d2; }
+#container .comments > .no-comments {
+  padding-top: 100px;
+  padding-bottom: 100px;
+  line-height: 30px;
+  text-align: center;
+  font-family: Cambria, Georgia, Arial;
+  font-size: 29px;
+  color: #9d9e91; }
+  #container .comments > .no-comments > span {
+    display: block;
+    font-size: 19px; }
 
 /* paginator */
 #container .paginator {

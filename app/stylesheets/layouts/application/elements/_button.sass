@@ -21,7 +21,7 @@ $button_radius = $button / 2 - 1
   :background= $white
   :font
     :size 11px
-  :color #575852
+  :color= $light_black
   +border-radius($button_radius)
   +box-shadow($black_twenty_five_shadow)
   +hover-opacity(0.95, true)
@@ -36,3 +36,7 @@ $button_radius = $button / 2 - 1
       :top 1px
     &:before
       +box-shadow('inset 0 -1px 0 rgba(0, 0, 0, 0.25)')
+
+= brown-button
+  +button
+  :background #c6c9af

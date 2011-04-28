@@ -1,0 +1,41 @@
+%header
+  %section
+    %p= raw('Спор начат <time title="54 октября 1943">2 часа назад</time>')
+  %div
+    %p= raw('Будет завершен <time title="54 октября 1943">через неделю (22 cентября 2010)</time>')
+  %aside
+    %p Спорт / Футбол
+%section.comments
+  %aside<
+    %p= link_to 'Обратно к спору', '#'
+  %h2 Где будут проходить летние олимпийские игры 2014 года?
+  %h3 Напиши свой комментарий
+  %form{:action => '#', :method => 'post'}
+    .textarea
+      %textarea
+    %aside
+      %a.button.smiles
+      %a.button{:type => 'submit'} Отправить
+  %article
+    %header<
+      %p= raw("#{link_to raw('<span>Василий Алибабаевич</span>'), '#', :style => 'background-image: url(/images/icons/avatar_small.png);'}")
+    %aside<
+      %time{:title => '45 октября 1943'}> 2 часа назад
+    %section
+      %p Арши полюбэ будет в составе, даже с одной ногой, так что об этом не стоит даже говорить. Я бы еще до кучи Касаева поставил слева. И Быстров справа. Впереди Керж, под ним Арши. Денисов и Семак (жаль его не берет дик) в центре. Вот так бы и сыграл! Вперед Россия! Вперед дармоеды! :))
+  - 3.times do
+    %article
+      %header<
+        %p= raw("#{link_to raw('<span>Василий Алибабаевич</span>'), '#', :style => 'background-image: url(/images/icons/avatar_small.png);'} отвечает #{link_to 'Сильвестру Сталоне', '#', :class => 'grey'}")
+      %aside<
+        %time{:title => '45 октября 1943'}> позавчера, 10:21
+      %section
+        %p Молодой (Литвак) не мешки ворочает, а старый (Рабинер) понимает, что не мешки ворочать можно хотя бы дня за четыре до матча, тогда немешкиворочанье успеют забыть. И аккуратно готовит к непобеде.
+  %p.no-comments= raw('Комментариев к сожалению нет.<span>Ваш будет первым. Ура!</span>')
+.paginator
+  %section
+    = link_to 'Cюда', '#', :class => 'is-disabled'
+  %div
+    %p= raw('8<span> комментариев из </span>324')
+  %aside
+    = link_to 'Туда', '#'

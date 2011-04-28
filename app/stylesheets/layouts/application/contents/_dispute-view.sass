@@ -4,10 +4,11 @@ $dispute_view_checkbox = $baseline * 1.5
 
 #container #dispute-view
   :padding
-    :left= $ninesixty_gutter_width
-    :right= $ninesixty_gutter_width
     :bottom= $baseline
   > .checkboxes
+    :padding
+      :left= $ninesixty_gutter_width
+      :right= $ninesixty_gutter_width
     +children-inline
     > section, > aside
       :width 50%
@@ -68,6 +69,9 @@ $dispute_view_checkbox = $baseline * 1.5
         :margin
           :left= $ninesixty_gutter_width * 1.5
   > .information
+    :padding
+      :left= $ninesixty_gutter_width
+      :right= $ninesixty_gutter_width
     :margin
       :top= $baseline * 2
     +children-inline
@@ -123,6 +127,7 @@ $dispute_view_checkbox = $baseline * 1.5
             :left= $ninesixty_gutter_width * 2
             :right= $ninesixty_gutter_width * 2
             :bottom= $baseline * 0.75
+          +box-shadow($black_twenty_five_shadow)
           > h3
             +line-height(28px, 22px, true)
             :font
