@@ -7,7 +7,6 @@
       :left= $ninesixty_gutter_width
       :right= $ninesixty_gutter_width
       :bottom= $baseline * 0.75
-    :background url(/images/gradients/vertical/fade.png) repeat-x
     > header
       > h2
         > p
@@ -78,3 +77,35 @@
     & ~ article
       :border
         :top 1px solid #e4e4e1
+      :background url(/images/gradients/vertical/fade.png) repeat-x
+  &.own > article
+    :background url(/images/icons/hand.png) no-repeat 20px center
+    > div
+      :width 70px
+      +line-height($baseline * 2)
+      :margin
+        :right= $ninesixty_gutter_width
+      :text
+        :align center
+      > p
+        +inline-block
+        :height= $baseline - 1
+        :padding
+          :left= $ninesixty_gutter_width / 2
+          :right= $ninesixty_gutter_width / 2
+        :background= $red
+        :font
+          :size 11px
+        +colors($white, 'none')
+        +border-radius(3px)
+        +box-shadow($black_twenty_five_shadow)
+      & + header
+        :margin
+          :top= -$baseline * 2
+    > header, > footer
+      :margin
+        :left 80px
+    &.closed
+      :background none
+    &.wined > div > p
+      :background= $green

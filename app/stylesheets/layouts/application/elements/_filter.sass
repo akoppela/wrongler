@@ -1,6 +1,8 @@
 /* filter
 $filter = 32px
 
+$filter_own_header = $baseline * 2
+
 #container .filter
   :background= $lightest_brown
   :border
@@ -32,4 +34,107 @@ $filter = 32px
     & + aside
       :margin
         :top= -$filter + 2
-  > aside
+  &.user-header
+    > section, > aside
+      :height= $avatar
+      :padding 6px
+      > h2, > p
+        :display block
+        :line-height 32px
+        :padding
+          :bottom= $avatar - 32
+        :font
+          :size 18px
+        :background no-repeat left center
+      > span
+        :display block
+        :margin
+          :top -27px
+        :font
+          :size 11px
+    > section
+      > h2
+        :padding
+          :left= $avatar + $ninesixty_gutter_width
+      > span
+        :margin
+          :left= $avatar + $ninesixty_gutter_width
+        :padding
+          :left= $ninesixty_gutter_width
+        :color= $light_grey
+        :background url(/images/icons/egg_grey.png) no-repeat left center
+      & + aside
+        :margin
+          :top= -$avatar - 12px
+    > aside
+      > p, > span
+        :padding
+          :right 6px
+      > p
+        :color= $light_grey
+        > span
+          :color= $light_black
+    & + .own-header
+      :margin
+        :top 3px
+  &.own-header
+    :background #e5e0b6
+    :border
+      :color #cec9a3
+    > section, > aside
+      :height= $filter_own_header - 2
+      :line-height= $filter_own_header - 2
+      :padding
+        :left= $ninesixty_gutter_width
+        :right= $ninesixty_gutter_width
+      > .menu
+        +line-height($filter_own_header, $button)
+        :padding
+          :bottom= ($filter_own_header - $button) / 2 - 2
+        :line-height= $button
+        > .button
+          +inline-block
+          +button
+    > section
+      > p
+        :font
+          :family Cambria, Georgia, Arial
+          :size 23px
+        :padding
+          :right= $ninesixty_gutter_width * 2
+        :background url(/images/icons/ruble_medium.png) no-repeat right center
+        > span
+          :color= $light_grey
+        & + .menu
+          :margin
+            :left= $ninesixty_gutter_width
+      > .menu + span
+        :margin
+          :left= $ninesixty_gutter_width
+      > span
+        +line-height($filter_own_header - 2)
+        :line-height= $baseline
+        :position relative
+        :padding
+          :right= $ninesixty_gutter_width * 2
+        :border
+          :right 1px solid #c2be9d
+        :font
+          :size 11px
+        > a
+          :display block
+          +hover-dotted($light_black, 17px)
+        &:before
+          :content ''
+          :position absolute
+          :width 1px
+          :height 100%
+          :top 0
+          :left 100%
+          :bottom 2px
+          :margin
+            :left 1px
+          :background #f2efda
+      & + aside
+        :margin
+          :top= -$filter_own_header + 2

@@ -1,0 +1,169 @@
+.filter.user-header
+  %section<
+    %h2{:style => 'background-image: url(/images/icons/avatar.png);'} Арнольд Шварцнеггер
+    %span 2566
+  %aside<
+    %p= raw('Участвовал в <span>30 спорах</span> и <span>5 аукционах</span>.')
+    %span Выиграл  — 20. Проиграл — 15.
+.filter.own-header
+  %section<
+    %p>= raw('452<span>,4</span>')
+    .menu>
+      %a.button{:href => '#'} Пополнить счет
+    %span>= link_to 'История операций', '#'  
+  %aside<
+    .menu>
+      %a.button{:href => '#'} Редактировать профиль
+%section.auctions<
+  %article>
+    %time{:title => '25 сентября 1954'} Закончится через 2 дня
+    %h2= link_to 'Apple iPod Touch 4G 32GB', '#'
+    .thumb{:style => 'background-image: url(/images/icons/auctions_iphone.jpg);'}
+    %section.raise.own
+      %div<
+        %header
+          %p Ваша ставка бита.
+          %p.aside= raw('Вы ставили <span>3 раза</span>.')
+        %section<
+          %p> 325
+          %menu>
+            %a.button{:href => '#'} Поставить
+          %p.grey +25
+  %article.closed.wined>
+    %time{:title => '25 сентября 1954'} Закончен
+    %h2= link_to 'Amazon Kindle 3 Wi-Fi', '#'
+    .thumb{:style => 'background-image: url(/images/icons/auctions_kindle.jpg);'}
+    %section.raise
+      %div
+        %section
+          %i Ты выиграл
+          %span Василий Алибабаевич
+        %aside
+          %p> 2999
+  %article>
+%section.disputes.own
+  %h3 3 вызова и 6 результатов
+  %article.sponsored
+    %header
+      %h2<
+        %p>= raw('<span>256,6</span>')
+        = link_to raw('<span>Какая карта лучше Visa или Mastercard?</span>'), '#'
+    %footer
+      %section
+        %div= raw("#{link_to 'Арнольд Шварцнеггер', '#'}, <time title='25 сентября 1954'>2 часа назад</time>")
+        %p Финансы / Банки
+      %aside<
+        = link_to '27 комментариев'
+  %article
+    %header
+      %h2<
+        %p>= raw('<span>256,6</span>')
+        = link_to raw('<span>Ливер против МЮ. Завтра.</span>'), '#'
+    %footer
+      %section
+        %div= raw("#{link_to 'Василий Алибабаевич', '#'}, <time title='25 сентября 1954'>2 часа назад</time>")
+        %p Спорт / Футбол
+      %aside<
+        = link_to '27 комментариев'
+  %article.closed
+    %div
+      %p -246,8
+    %header
+      %h2<
+        %p>= raw('<span>8947,9</span>')
+        = link_to raw('<span>Где будут проходить летние олимпийские игры 2014 года?</span>'), '#'
+    %footer
+      %section
+        %div= raw("#{link_to 'Сильвестр Сталоне', '#'}, <time title='25 сентября 1954'>вчера, 12:55</time>")
+        %p Спорт
+      %aside<
+        = link_to '7 комментариев'
+  %article.closed.wined
+    %div
+      %p +345,2
+    %header
+      %h2<
+        %p>= raw('<span>87,9</span>')
+        = link_to raw('<span>Какое ультра-длинное название спора. Я даже не знаю зачем такое длинное название кому-нибудь может понадобится.</span>'), '#'
+    %footer
+      %section
+        %div= raw("#{link_to 'Кусачий собак', '#'}, <time title='25 сентября 1954'>31 октября 2008</time>")
+        %p Политика
+      %aside<
+        = link_to '5288 комментариев'
+%section.activities
+  %h3 Его активность
+  %article.recently
+    %section
+      %p= raw("Выиграл спор «#{link_to 'Медведев против Путина 2012'}».")
+    %aside
+      %time{:title => '23 сентября 1954'} час назад
+  %article
+    %section
+      %p= raw("Оставил комментарий в аукционе «#{link_to 'Apple iPad 16GB'}».")
+    %aside
+      %time{:title => '23 сентября 1954'} вчера, 11:31
+  %article
+    %section
+      %p= raw("Выиграл спор «#{link_to 'Медведев против Путина 2012'}».")
+    %aside
+      %time{:title => '23 сентября 1954'} 22 ноября 2010, 09:11
+  %article
+    %section
+      %p= raw("Выиграл спор «#{link_to 'Медведев против Путина 2012'}».")
+    %aside
+      %time{:title => '23 сентября 1954'} 10 ноября 2010, 22:57
+  %p.what-else= link_to 'Что он делал раньше?', '#'
+%section.disputes
+  %h3 Его споры
+  %article.sponsored
+    %header
+      %h2<
+        %p>= raw('<span>256,6</span>')
+        = link_to raw('<span>Какая карта лучше Visa или Mastercard?</span>'), '#'
+    %footer
+      %section
+        %div= raw("#{link_to 'Арнольд Шварцнеггер', '#'}, <time title='25 сентября 1954'>2 часа назад</time>")
+        %p Финансы / Банки
+      %aside<
+        = link_to '27 комментариев'
+  %article
+    %header
+      %h2<
+        %p>= raw('<span>256,6</span>')
+        = link_to raw('<span>Ливер против МЮ. Завтра.</span>'), '#'
+    %footer
+      %section
+        %div= raw("#{link_to 'Василий Алибабаевич', '#'}, <time title='25 сентября 1954'>2 часа назад</time>")
+        %p Спорт / Футбол
+      %aside<
+        = link_to '27 комментариев'
+  %article.closed
+    %header
+      %h2<
+        %p>= raw('<span>8947,9</span>')
+        = link_to raw('<span>Где будут проходить летние олимпийские игры 2014 года?</span>'), '#'
+    %footer
+      %section
+        %div= raw("#{link_to 'Сильвестр Сталоне', '#'}, <time title='25 сентября 1954'>вчера, 12:55</time>")
+        %p Спорт
+      %aside<
+        = link_to '7 комментариев'
+  %article
+    %header
+      %h2<
+        %p>= raw('<span>87,9</span>')
+        = link_to raw('<span>Какое ультра-длинное название спора. Я даже не знаю зачем такое длинное название кому-нибудь может понадобится.</span>'), '#'
+    %footer
+      %section
+        %div= raw("#{link_to 'Кусачий собак', '#'}, <time title='25 сентября 1954'>31 октября 2008</time>")
+        %p Политика
+      %aside<
+        = link_to '5288 комментариев'
+.paginator
+  %section
+    = link_to 'Cюда', '#', :class => 'is-disabled'
+  %div
+    %p= raw('8<span> споров из </span>324')
+  %aside
+    = link_to 'Туда', '#'

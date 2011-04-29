@@ -2,6 +2,7 @@
 $auctions_thumb = 150px
 
 $auctions_raise = $baseline * 2
+$auctions_own_raise = $baseline * 3
 
 #container .auctions
   :padding
@@ -78,15 +79,69 @@ $auctions_raise = $baseline * 2
             :right 23px
           +colors($light_black, $white_fifty_shadow)
           :background url(/images/icons/ruble_big.png) no-repeat right 10px
+          &.grey
+            :color= $light_grey
+            :background none
+            :padding
+              :right 0
           & + menu
             :margin
               :left= $ninesixty_gutter_width
-        > menu
+        menu
           +line-height($auctions_raise, $button)
           :line-height= $button
           > .button
             +inline-block
             +button
+          & + p
+            :margin
+              :left= $ninesixty_gutter_width
+      &.own
+        :margin
+          :top -51px
+        > div
+          :height= $auctions_own_raise - 1
+          :display block
+          :margin
+            :left= $ninesixty_gutter_width * 4.5
+            :right= $ninesixty_gutter_width * 4.5
+          > header
+            :display block
+            :height 22px
+            :line-height 22px
+            :text
+              :align left
+            > p
+              :font
+                :family Arial
+                :size 11px
+                :style italic
+              :padding 0
+              +text-shadow('none')
+              :background none
+              &.aside
+                :color= $light_grey
+                :text
+                  :align right
+                > span
+                  :color= $light_black
+              & + .aside
+                :margin
+                  :top -22px
+            & + section
+              :border
+                :top 1px solid #a9ab9d
+          > section
+            :display block
+            :margin
+              :left= -$ninesixty_gutter_width
+              :right= -$ninesixty_gutter_width
+            :line-height 36px
+            :height 36px
+            +children-inline
+            > p
+              :background
+                :position right 9px
     &.closed
       > h2 > a
         :color= $light_grey
@@ -122,3 +177,12 @@ $auctions_raise = $baseline * 2
             :color= $light_grey
             :background
               :image url(/images/icons/ruble_big_grey.png)
+      &.wined
+        > .raise > div
+          :background= $green
+          > section > i
+            :color= $white
+          > aside > p
+            +colors($white, $white_ten_shadow)
+            :background
+              :image url(/images/icons/ruble_big_white.png)

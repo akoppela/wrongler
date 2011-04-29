@@ -114,6 +114,7 @@ time {
   src: local("Cambria"), url("/fonts/cambria.eot") format("truetype"); }
 
 /* button */
+/* avatar */
 /* pre filter */
 #container .pre-filter {
   background: #9d9e91;
@@ -241,10 +242,145 @@ time {
         margin-left: 20px; }
   #container .filter > section + aside {
     margin-top: -30px; }
+  #container .filter.user-header > section, #container .filter.user-header > aside {
+    height: 45px;
+    padding: 6px; }
+    #container .filter.user-header > section > h2, #container .filter.user-header > section > p, #container .filter.user-header > aside > h2, #container .filter.user-header > aside > p {
+      display: block;
+      line-height: 32px;
+      padding-bottom: 13px;
+      font-size: 18px;
+      background: no-repeat left center; }
+    #container .filter.user-header > section > span, #container .filter.user-header > aside > span {
+      display: block;
+      margin-top: -27px;
+      font-size: 11px; }
+  #container .filter.user-header > section > h2 {
+    padding-left: 55px; }
+  #container .filter.user-header > section > span {
+    margin-left: 55px;
+    padding-left: 10px;
+    color: #9d9e91;
+    background: url(/images/icons/egg_grey.png) no-repeat left center; }
+  #container .filter.user-header > section + aside {
+    margin-top: -57px; }
+  #container .filter.user-header > aside > p, #container .filter.user-header > aside > span {
+    padding-right: 6px; }
+  #container .filter.user-header > aside > p {
+    color: #9d9e91; }
+    #container .filter.user-header > aside > p > span {
+      color: #585952; }
+  #container .filter.user-header + .own-header {
+    margin-top: 3px; }
+  #container .filter.own-header {
+    background: #e5e0b6;
+    border-color: #cec9a3; }
+    #container .filter.own-header > section, #container .filter.own-header > aside {
+      height: 38px;
+      line-height: 38px;
+      padding-left: 10px;
+      padding-right: 10px; }
+      #container .filter.own-header > section > .menu, #container .filter.own-header > aside > .menu {
+        height: 16px;
+        padding-top: 12px;
+        padding-bottom: 12px;
+        padding-bottom: 10px;
+        line-height: 16px; }
+        #container .filter.own-header > section > .menu > .button, #container .filter.own-header > aside > .menu > .button {
+          zoom: 1;
+          display: inline;
+          display: -moz-inline-box;
+          display: inline-block;
+          *display: inline;
+          vertical-align: top;
+          position: relative;
+          height: 16px;
+          line-height: 14px;
+          padding-left: 6px;
+          padding-right: 6px;
+          background: white;
+          font-size: 11px;
+          color: #585952;
+          -moz-border-radius: 7px;
+          -o-border-radius: 7px;
+          -ms-border-radius: 7px;
+          -khtml-border-radius: 7px;
+          -webkit-border-radius: 7px;
+          border-radius: 7px;
+          box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+          -moz-box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+          -webkit-box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+          opacity: 0.95;
+          -moz-opacity: 0.95;
+          filter: progid:DXImageTransform.Microsoft.Alpha(opacity=95); }
+          #container .filter.own-header > section > .menu > .button:hover, #container .filter.own-header > aside > .menu > .button:hover {
+            opacity: 1;
+            -moz-opacity: 1;
+            filter: progid:DXImageTransform.Microsoft.Alpha(opacity=100); }
+          #container .filter.own-header > section > .menu > .button:before, #container .filter.own-header > aside > .menu > .button:before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            -moz-border-radius: 7px;
+            -o-border-radius: 7px;
+            -ms-border-radius: 7px;
+            -khtml-border-radius: 7px;
+            -webkit-border-radius: 7px;
+            border-radius: 7px;
+            box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.25);
+            -moz-box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.25);
+            -webkit-box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.25); }
+          #container .filter.own-header > section > .menu > .button.is-active, #container .filter.own-header > aside > .menu > .button.is-active {
+            height: 15px;
+            margin-top: 1px; }
+            #container .filter.own-header > section > .menu > .button.is-active:before, #container .filter.own-header > aside > .menu > .button.is-active:before {
+              box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+              -moz-box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+              -webkit-box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25); }
+    #container .filter.own-header > section > p {
+      font-family: Cambria, Georgia, Arial;
+      font-size: 23px;
+      padding-right: 20px;
+      background: url(/images/icons/ruble_medium.png) no-repeat right center; }
+      #container .filter.own-header > section > p > span {
+        color: #9d9e91; }
+      #container .filter.own-header > section > p + .menu {
+        margin-left: 10px; }
+    #container .filter.own-header > section > .menu + span {
+      margin-left: 10px; }
+    #container .filter.own-header > section > span {
+      height: 20px;
+      padding-top: 9px;
+      padding-bottom: 9px;
+      line-height: 20px;
+      position: relative;
+      padding-right: 20px;
+      border-right: 1px solid #c2be9d;
+      font-size: 11px; }
+      #container .filter.own-header > section > span > a {
+        display: block;
+        height: 17px; }
+        #container .filter.own-header > section > span > a:hover {
+          height: 16px;
+          border-bottom: 1px dotted #585952; }
+      #container .filter.own-header > section > span:before {
+        content: "";
+        position: absolute;
+        width: 1px;
+        height: 100%;
+        top: 0;
+        left: 100%;
+        bottom: 2px;
+        margin-left: 1px;
+        background: #f2efda; }
+    #container .filter.own-header > section + aside {
+      margin-top: -38px; }
 
 /* form */
 /* pictures */
-/* avatar */
 /* master */
 html {
   background: none; }
@@ -889,6 +1025,14 @@ body {
     margin-right: 200px;
     font-family: Cambria, Georgia, Arial;
     font-size: 29px; }
+  #container #content > section > h3 {
+    line-height: 30px;
+    padding-left: 10px;
+    padding-right: 10px;
+    font-family: Cambria, Georgia, Arial;
+    font-size: 22px; }
+  #container #content > section.activities + .disputes {
+    margin-top: 20px; }
   #container #content:before, #container #content:after {
     content: "";
     position: absolute;
@@ -1093,8 +1237,7 @@ body {
   padding-top: 15px;
   padding-left: 10px;
   padding-right: 10px;
-  padding-bottom: 15px;
-  background: url(/images/gradients/vertical/fade.png) repeat-x; }
+  padding-bottom: 15px; }
   #container .disputes > article > header > h2 > p {
     zoom: 1;
     display: inline;
@@ -1178,7 +1321,48 @@ body {
   #container .disputes > article.closed > header > h2 > a > span {
     color: #9d9e91; }
   #container .disputes > article ~ article {
-    border-top: 1px solid #e4e4e1; }
+    border-top: 1px solid #e4e4e1;
+    background: url(/images/gradients/vertical/fade.png) repeat-x; }
+#container .disputes.own > article {
+  background: url(/images/icons/hand.png) no-repeat 20px center; }
+  #container .disputes.own > article > div {
+    width: 70px;
+    height: 20px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    margin-right: 10px;
+    text-align: center; }
+    #container .disputes.own > article > div > p {
+      zoom: 1;
+      display: inline;
+      display: -moz-inline-box;
+      display: inline-block;
+      *display: inline;
+      vertical-align: top;
+      height: 19px;
+      padding-left: 5px;
+      padding-right: 5px;
+      background: #963a21;
+      font-size: 11px;
+      color: white;
+      text-shadow: none;
+      -moz-border-radius: 3px;
+      -o-border-radius: 3px;
+      -ms-border-radius: 3px;
+      -khtml-border-radius: 3px;
+      -webkit-border-radius: 3px;
+      border-radius: 3px;
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+      -moz-box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+      -webkit-box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25); }
+    #container .disputes.own > article > div + header {
+      margin-top: -40px; }
+  #container .disputes.own > article > header, #container .disputes.own > article > footer {
+    margin-left: 80px; }
+  #container .disputes.own > article.closed {
+    background: none; }
+  #container .disputes.own > article.wined > div > p {
+    background: #b3c752; }
 
 /* auctions */
 #container .auctions {
@@ -1269,14 +1453,18 @@ body {
           color: #585952;
           text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
           background: url(/images/icons/ruble_big.png) no-repeat right 10px; }
+          #container .auctions > article > .raise > div p.grey {
+            color: #9d9e91;
+            background: none;
+            padding-right: 0; }
           #container .auctions > article > .raise > div p + menu {
             margin-left: 10px; }
-        #container .auctions > article > .raise > div > menu {
+        #container .auctions > article > .raise > div menu {
           height: 16px;
           padding-top: 12px;
           padding-bottom: 12px;
           line-height: 16px; }
-          #container .auctions > article > .raise > div > menu > .button {
+          #container .auctions > article > .raise > div menu > .button {
             zoom: 1;
             display: inline;
             display: -moz-inline-box;
@@ -1303,11 +1491,11 @@ body {
             opacity: 0.95;
             -moz-opacity: 0.95;
             filter: progid:DXImageTransform.Microsoft.Alpha(opacity=95); }
-            #container .auctions > article > .raise > div > menu > .button:hover {
+            #container .auctions > article > .raise > div menu > .button:hover {
               opacity: 1;
               -moz-opacity: 1;
               filter: progid:DXImageTransform.Microsoft.Alpha(opacity=100); }
-            #container .auctions > article > .raise > div > menu > .button:before {
+            #container .auctions > article > .raise > div menu > .button:before {
               content: "";
               position: absolute;
               top: 0;
@@ -1323,13 +1511,58 @@ body {
               box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.25);
               -moz-box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.25);
               -webkit-box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.25); }
-            #container .auctions > article > .raise > div > menu > .button.is-active {
+            #container .auctions > article > .raise > div menu > .button.is-active {
               height: 15px;
               margin-top: 1px; }
-              #container .auctions > article > .raise > div > menu > .button.is-active:before {
+              #container .auctions > article > .raise > div menu > .button.is-active:before {
                 box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25);
                 -moz-box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25);
                 -webkit-box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25); }
+          #container .auctions > article > .raise > div menu + p {
+            margin-left: 10px; }
+      #container .auctions > article > .raise.own {
+        margin-top: -51px; }
+        #container .auctions > article > .raise.own > div {
+          height: 59px;
+          display: block;
+          margin-left: 45px;
+          margin-right: 45px; }
+          #container .auctions > article > .raise.own > div > header {
+            display: block;
+            height: 22px;
+            line-height: 22px;
+            text-align: left; }
+            #container .auctions > article > .raise.own > div > header > p {
+              font-family: Arial;
+              font-size: 11px;
+              font-style: italic;
+              padding: 0;
+              text-shadow: none;
+              background: none; }
+              #container .auctions > article > .raise.own > div > header > p.aside {
+                color: #9d9e91;
+                text-align: right; }
+                #container .auctions > article > .raise.own > div > header > p.aside > span {
+                  color: #585952; }
+              #container .auctions > article > .raise.own > div > header > p + .aside {
+                margin-top: -22px; }
+            #container .auctions > article > .raise.own > div > header + section {
+              border-top: 1px solid #a9ab9d; }
+          #container .auctions > article > .raise.own > div > section {
+            display: block;
+            margin-left: -10px;
+            margin-right: -10px;
+            line-height: 36px;
+            height: 36px; }
+            #container .auctions > article > .raise.own > div > section > * {
+              zoom: 1;
+              display: inline;
+              display: -moz-inline-box;
+              display: inline-block;
+              *display: inline;
+              vertical-align: top; }
+            #container .auctions > article > .raise.own > div > section > p {
+              background-position: right 9px; }
     #container .auctions > article.closed > h2 > a {
       color: #9d9e91; }
     #container .auctions > article.closed > .raise > div {
@@ -1361,6 +1594,14 @@ body {
       #container .auctions > article.closed > .raise > div > aside > p {
         color: #9d9e91;
         background-image: url(/images/icons/ruble_big_grey.png); }
+    #container .auctions > article.closed.wined > .raise > div {
+      background: #b3c752; }
+      #container .auctions > article.closed.wined > .raise > div > section > i {
+        color: white; }
+      #container .auctions > article.closed.wined > .raise > div > aside > p {
+        color: white;
+        text-shadow: 0 1px 0 rgba(255, 255, 255, 0.1);
+        background-image: url(/images/icons/ruble_big_white.png); }
 
 /* dispute view */
 #container #dispute-view {
@@ -1845,6 +2086,7 @@ body {
         vertical-align: top;
         height: 58px;
         line-height: 58px;
+        overflow: hidden;
         margin-top: 30px;
         margin-left: 10px;
         padding-left: 19px;
@@ -1979,6 +2221,35 @@ body {
           text-decoration: none; }
           #container #auction-view > .information > aside > .characteristic > p > a:hover {
             text-decoration: underline; }
+
+/* activities */
+#container .activities {
+  margin-top: 5px; }
+  #container .activities > article {
+    padding-left: 10px;
+    padding-right: 10px; }
+    #container .activities > article > section, #container .activities > article > aside {
+      height: 30px;
+      line-height: 30px;
+      color: #9d9e91; }
+    #container .activities > article > section > p > a {
+      text-decoration: none; }
+      #container .activities > article > section > p > a:hover {
+        text-decoration: underline; }
+    #container .activities > article > section + aside {
+      margin-top: -30px; }
+    #container .activities > article.recently > aside > time {
+      color: #585952; }
+    #container .activities > article ~ article {
+      border-top: 1px solid #e9e9e7; }
+  #container .activities > .what-else {
+    margin-top: 5px;
+    margin-left: 10px;
+    margin-right: 10px; }
+    #container .activities > .what-else > a {
+      text-decoration: none; }
+      #container .activities > .what-else > a:hover {
+        text-decoration: underline; }
 
 /* paginator */
 #container .paginator {

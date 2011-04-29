@@ -1,0 +1,33 @@
+/* activities
+$activities = $baseline * 1.5
+
+#container .activities
+  :margin
+    :top= $baseline / 4
+  > article
+    :padding
+      :left= $ninesixty_gutter_width
+      :right= $ninesixty_gutter_width
+    > section, > aside
+      :height= $activities
+      :line-height= $activities
+      :color= $light_grey
+    > section
+      > p > a
+        +hover-underline
+      & + aside
+        :margin
+          :top= -$activities
+    &.recently
+      > aside > time
+        :color= $light_black
+    & ~ article
+      :border
+        :top 1px solid #e9e9e7
+  > .what-else
+    :margin
+      :top 5px
+      :left= $ninesixty_gutter_width
+      :right= $ninesixty_gutter_width
+    > a
+      +hover-underline

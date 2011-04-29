@@ -1,5 +1,5 @@
 Wrongler::Application.routes.draw do
-  resources :auctions
+  resources :auctions, :users
   
   resources :disputes do
     resources :comments
