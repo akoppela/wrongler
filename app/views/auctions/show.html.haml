@@ -1,0 +1,38 @@
+%header
+  %section
+    %p= raw('Аукцион начат <time title="54 октября 1943">2 часа назад</time>')
+  %div
+    %p= raw('Будет завершен <time title="54 октября 1943">через неделю (22 cентября 2010)</time>')
+  %aside
+    %p= raw('Шаг ставки — <span>25 рублей</span>')
+%section#auction-view
+  %aside<
+    %p 281 ставка
+  %h2 Apple iPod Touch 4G 32 GB
+  .information<
+    %section>
+      .thumb= raw('<img src="/images/icons/picture_big.jpg" alt="Apple iPod Touch" />')
+    %aside>
+      .describe
+        %h3 Кто победит?
+        %p Аукцион может кончиться также внезапно как начался. Либо по достижению определенной суммы, либо в день окончания в случайное время.
+      .raise<
+        %p> 325
+        %menu<>
+          %a.button{:href => '#'}> Поставить
+        %span +25
+      .last-raises
+        %p Последние несколько ставок:
+        %ul
+          %li<
+            %span> 325
+            = link_to raw('<span>Сильвестр Сталоне</span>'), '#', :style => 'background-image: url(/images/icons/avatar_small.png);'
+          %li<
+            %span> 300
+            = link_to raw('<span>Жан Клод Ван-Дамм</span>'), '#', :style => 'background-image: url(/images/icons/avatar_small.png);'
+          %li<
+            %span> 275
+            = link_to raw('<span>Дольф Лунгрен</span>'), '#', :style => 'background-image: url(/images/icons/avatar_small.png);'
+      .characteristic
+        %p Подробные характеристики на сайте производителя:
+        %p= link_to 'http://www.apple.com/ipodtouch/', '#'

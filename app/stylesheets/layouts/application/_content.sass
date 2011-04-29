@@ -41,6 +41,8 @@ $content_section_header = $baseline * 2.5
     > aside
       > p
         :color= $light_grey
+        > span
+          :color= $light_black
     & + section
       :border
         :top 1px solid #e4e4df
@@ -56,6 +58,7 @@ $content_section_header = $baseline * 2.5
           :top= ($content_section_header - $baseline + 2) / 2 + 2
           :bottom= ($content_section_header - $baseline + 2) / 2 - 2
         :line-height= $baseline - 2
+        :color= $light_grey
         :font
           :family Cambria, Georgia, Arial
           :size 19px

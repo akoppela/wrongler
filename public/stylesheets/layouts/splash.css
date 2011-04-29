@@ -269,7 +269,6 @@ body {
           -khtml-border-radius: 3px;
           -webkit-border-radius: 3px;
           border-radius: 3px;
-          background: url(/images/icons/touch.png) no-repeat right center;
           box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.2);
           -moz-box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.2);
           -webkit-box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.2); }

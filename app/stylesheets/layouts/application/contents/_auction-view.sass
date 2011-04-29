@@ -1,0 +1,147 @@
+/* auction view
+$auction_view_raise = $baseline * 3
+
+#container #auction-view
+  :padding
+    :bottom= $baseline
+  > .information
+    :margin
+      :top= $baseline * 1.75
+    :padding
+      :left= $ninesixty_gutter_width
+      :right= $ninesixty_gutter_width
+    +children-inline
+    > section, > aside
+      :width 50%
+    > section
+      > .thumb
+        :position relative
+        :overflow hidden
+        :text
+          :align center
+        :margin
+          :right= $ninesixty_gutter_width
+        > img
+          +inline-block
+        &:before
+          :content ''
+          :position absolute
+          :width 9px
+          :height 100%
+          :top 0
+          :left 100%
+          :margin
+            :left -9px
+          :background url(/images/gradients/vertical/auctions_thumb_fade_right.png) repeat-y left top
+    > aside
+      :text
+        :align left
+      > .describe  
+        :background #eaebe8
+        :padding
+          :top= $baseline / 2 + 2
+          :left= $ninesixty_gutter_width * 2
+          :right= $ninesixty_gutter_width * 2
+          :bottom= $baseline * 0.75
+        :margin
+          :left= $ninesixty_gutter_width
+        +box-shadow($black_twenty_five_shadow)
+        > h3
+          +line-height(28px, 22px, true)
+          :font
+            :family Cambria, Georgia, Arial
+            :size 22px
+          :color= $light_grey
+          & + p
+            :margin
+              :top= $baseline / 2
+      > .raise
+        +inline-block
+        :height= $auction_view_raise - 2
+        :line-height= $auction_view_raise - 2
+        :margin
+          :top= $baseline * 1.5
+          :left= $ninesixty_gutter_width
+        :padding
+          :left= $ninesixty_gutter_width * 2 - 1
+          :right= $ninesixty_gutter_width * 2 - 1
+        :border 1px solid #d4d4d2
+        +children-inline
+        > p, > span
+          :font
+            :family Cambria, Georgia, Arial
+            :size 29px
+        > p
+          :padding
+            :right 23px
+          :background url(/images/icons/ruble_big.png) no-repeat right 20px
+          & + menu
+            :margin
+              :left= $ninesixty_gutter_width * 1.5
+        > menu
+          +line-height($auction_view_raise - 2, $button)
+          > .button
+            +inline-block
+            +brown-button
+          & + span
+            :margin
+              :left= $ninesixty_gutter_width
+        > span
+          :color #c6c9af
+          :font
+            :size 22px
+      > .last-raises
+        :margin
+          :top= $baseline / 4
+          :left= $ninesixty_gutter_width
+        > p
+          :color= $light_grey
+          :font
+            :size 11px
+            :style italic
+        > ul
+          :margin
+            :top= $baseline / 4
+          > li
+            +line-height($baseline, $avatar_small)
+            :line-height= $avatar_small
+            :overflow hidden
+            +children-inline
+            > span
+              :min-width 40px
+              :font
+                :size 14px
+                :style italic
+              :text
+                :align right
+              & + a
+                :margin
+                  :left= $ninesixty_gutter_width
+            > a
+              :padding
+                :left= $avatar_small + $ninesixty_gutter_width / 2
+              :background no-repeat left center
+              &:hover > span
+                :text
+                  :decoration underline
+            &:first-child
+              > span
+                :color= $light_grey
+                :margin
+                  :top -1px
+              & + li
+                > span
+                  :font
+                    :size 12px
+                & + li
+                  > span
+                    :font
+                      :size 11px
+      > .characteristic
+        :line-height 18px
+        :margin
+          :top= $baseline
+          :left= $ninesixty_gutter_width
+        > p > a
+          :color= $blue
+          +hover-underline
