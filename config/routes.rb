@@ -6,4 +6,5 @@ Wrongler::Application.routes.draw do
   end
   
   root :to => "welcome#index"
+  get 'help' => 'help#index'
 end

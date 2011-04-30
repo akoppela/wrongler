@@ -1,0 +1,162 @@
+/* help
+
+#container #help
+  :padding
+    :bottom= $baseline
+  +children-inline
+  > section, > aside
+    :width 50%
+  > section
+    > h2
+      :overflow hidden
+      +line-height($content_section_header, 30px, true)
+      :padding
+        :left= $ninesixty_gutter_width
+        :right= $ninesixty_gutter_width
+      :line-height 30px
+      :font
+        :family Cambria, Georgia, Arial
+        :size 29px
+      > span
+        +inline-block
+        +line-height(30px)
+        :color= $light_grey
+        :margin
+          :top -1px
+          :left= $ninesixty_gutter_width / 2
+        :font
+          :family Arial
+          :size 11px
+    > article
+      +list-fix
+      :margin
+        :top= $baseline / 4
+        :left= $ninesixty_gutter_width
+        :right= $ninesixty_gutter_width
+      > h3
+        :font
+          :family Cambria, Georgia, Arial
+          :size 17px
+        :color= $light_grey
+        :cursor pointer
+        > span
+          +inline-block
+          :height 19px
+        &:hover > span
+          :height 18px
+          :border
+            :bottom= 1px dotted $black
+      > section
+        :display none
+        :margin
+          :left= $ninesixty_gutter_width * 2
+        > p
+          :margin
+            :top= $baseline / 2
+      & ~ article
+        :margin
+          :top= $baseline / 2
+      &.is-selected
+        > h3 > span
+          :color= $black
+        > section
+          :display block
+  > aside
+    :text
+      :align left
+    > form
+      :margin
+        :top= $baseline
+        :left= $ninesixty_gutter_width
+        :right= $ninesixty_gutter_width
+      :padding
+        :bottom= $baseline / 4
+      :background #e4e4e1
+      :border
+        :bottom 2px solid #cdcdca
+      +box-shadow($black_twenty_five_shadow)
+      > p
+        :padding
+          :left= $ninesixty_gutter_width
+          :right= $ninesixty_gutter_width
+        :line-height 30px
+        :font
+          :style italic
+        :background url(/images/gradients/vertical/help_form.png) repeat-x left bottom
+        +colors($light_black, $white_seventy_five_shadow)
+      > section
+        :padding= $ninesixty_gutter_width
+        :border
+          :top 1px solid #f2f2f0
+        > .textarea
+          :border 1px solid #c3c4bc
+          :padding
+            :top= $baseline / 2
+            :left= $ninesixty_gutter_width - 1
+            :right= $ninesixty_gutter_width - 1
+            :bottom= $baseline / 2
+          :background #f0f0ef
+          > textarea
+            :width 100%
+            :height= $baseline * 4
+            :background none
+            :font
+              :size 14px
+              :style italic
+            :color= $light_black
+            &.is-placeheld
+              :color= $light_grey
+        > p
+          :margin
+            :top= $baseline / 2
+          :font
+            :style italic
+          +colors($light_grey, $white_seventy_five_shadow)
+          & + menu
+            :margin
+              :top= -$baseline
+        > menu
+          +line-height($baseline, $button)
+          :text
+            :align right
+          > .button
+            +inline-block
+            +black-button
+        > span
+          :margin
+            :top= $baseline * 1.5
+          :display block
+          :font
+            :size 14px
+          +colors($light_black, $white_seventy_five_shadow)
+          :text
+            :align center
+          & + menu
+            :margin
+              :top= $baseline * 0.75
+            :padding
+              :bottom= $baseline * 1.5
+            :text
+              :align center
+      & + p
+        :margin
+          :top= $baseline
+    > p
+      :margin
+        :top= $baseline * 0.75 - 2
+        :left= $ninesixty_gutter_width
+        :right= $ninesixty_gutter_width
+      :font
+        :style italic
+      +colors($light_grey, $white_seventy_five_shadow)
+    > h2
+      :margin
+        :top -3px
+        :left= $ninesixty_gutter_width
+        :right= $ninesixty_gutter_width
+      :line-height 24px
+      :font
+        :family Cambria, Georgia, Arial
+        :size 23px
+      > a
+        +hover-underline

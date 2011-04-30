@@ -27,10 +27,9 @@ $auctions_own_raise = $baseline * 3
       :font
         :family Cambria, Georgia, Arial
         :size 19px
-      :color= $blue
-      +hover-underline
       > a
         :color= $blue
+        +hover-underline
     > .thumb
       :position relative
       :margin
@@ -143,7 +142,7 @@ $auctions_own_raise = $baseline * 3
               :background
                 :position right 9px
     &.closed
-      > h2 > a
+      > h2 > a > span
         :color= $light_grey
       > .raise
         > div

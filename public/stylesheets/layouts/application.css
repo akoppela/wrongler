@@ -990,10 +990,10 @@ body {
     #container #content > header + section {
       border-top: 1px solid #e4e4df;
       background: url(/images/gradients/vertical/fade.png) repeat-x; }
-  #container #content > section > aside {
+  #container #content > section > aside.header {
     padding-left: 10px;
     padding-right: 10px; }
-    #container #content > section > aside > p {
+    #container #content > section > aside.header > p {
       height: 18px;
       padding-top: 16px;
       padding-bottom: 16px;
@@ -1003,7 +1003,7 @@ body {
       color: #9d9e91;
       font-family: Cambria, Georgia, Arial;
       font-size: 19px; }
-      #container #content > section > aside > p > a {
+      #container #content > section > aside.header > p > a {
         zoom: 1;
         display: inline;
         display: -moz-inline-box;
@@ -1012,10 +1012,10 @@ body {
         vertical-align: top;
         color: #9d9e91;
         height: 20px; }
-        #container #content > section > aside > p > a:hover {
+        #container #content > section > aside.header > p > a:hover {
           height: 19px;
           border-bottom: 1px dotted #9d9e91; }
-    #container #content > section > aside + h2 {
+    #container #content > section > aside.header + h2 {
       margin-top: -50px; }
   #container #content > section > h2 {
     padding-top: 10px;
@@ -1388,13 +1388,12 @@ body {
       color: #9d9e91; }
     #container .auctions > article > h2 {
       font-family: Cambria, Georgia, Arial;
-      font-size: 19px;
-      color: #419ccc;
-      text-decoration: none; }
-      #container .auctions > article > h2:hover {
-        text-decoration: underline; }
+      font-size: 19px; }
       #container .auctions > article > h2 > a {
-        color: #419ccc; }
+        color: #419ccc;
+        text-decoration: none; }
+        #container .auctions > article > h2 > a:hover {
+          text-decoration: underline; }
     #container .auctions > article > .thumb {
       position: relative;
       margin-top: 10px;
@@ -1563,7 +1562,7 @@ body {
               vertical-align: top; }
             #container .auctions > article > .raise.own > div > section > p {
               background-position: right 9px; }
-    #container .auctions > article.closed > h2 > a {
+    #container .auctions > article.closed > h2 > a > span {
       color: #9d9e91; }
     #container .auctions > article.closed > .raise > div {
       display: block;
@@ -2250,6 +2249,215 @@ body {
       text-decoration: none; }
       #container .activities > .what-else > a:hover {
         text-decoration: underline; }
+
+/* help */
+#container #help {
+  padding-bottom: 20px; }
+  #container #help > * {
+    zoom: 1;
+    display: inline;
+    display: -moz-inline-box;
+    display: inline-block;
+    *display: inline;
+    vertical-align: top; }
+  #container #help > section, #container #help > aside {
+    width: 50%; }
+  #container #help > section > h2 {
+    overflow: hidden;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    padding-left: 10px;
+    padding-right: 10px;
+    line-height: 30px;
+    font-family: Cambria, Georgia, Arial;
+    font-size: 29px; }
+    #container #help > section > h2 > span {
+      zoom: 1;
+      display: inline;
+      display: -moz-inline-box;
+      display: inline-block;
+      *display: inline;
+      vertical-align: top;
+      height: 20px;
+      padding-top: 5px;
+      padding-bottom: 5px;
+      color: #9d9e91;
+      margin-top: -1px;
+      margin-left: 5px;
+      font-family: Arial;
+      font-size: 11px; }
+  #container #help > section > article {
+    zoom: 1;
+    vertical-align: top;
+    margin-top: 5px;
+    margin-left: 10px;
+    margin-right: 10px; }
+    #container #help > section > article > h3 {
+      font-family: Cambria, Georgia, Arial;
+      font-size: 17px;
+      color: #9d9e91;
+      cursor: pointer; }
+      #container #help > section > article > h3 > span {
+        zoom: 1;
+        display: inline;
+        display: -moz-inline-box;
+        display: inline-block;
+        *display: inline;
+        vertical-align: top;
+        height: 19px; }
+      #container #help > section > article > h3:hover > span {
+        height: 18px;
+        border-bottom: 1px dotted #333333; }
+    #container #help > section > article > section {
+      display: none;
+      margin-left: 20px; }
+      #container #help > section > article > section > p {
+        margin-top: 10px; }
+    #container #help > section > article ~ article {
+      margin-top: 10px; }
+    #container #help > section > article.is-selected > h3 > span {
+      color: #333333; }
+    #container #help > section > article.is-selected > section {
+      display: block; }
+  #container #help > aside {
+    text-align: left; }
+    #container #help > aside > form {
+      margin-top: 20px;
+      margin-left: 10px;
+      margin-right: 10px;
+      padding-bottom: 5px;
+      background: #e4e4e1;
+      border-bottom: 2px solid #cdcdca;
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+      -moz-box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+      -webkit-box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25); }
+      #container #help > aside > form > p {
+        padding-left: 10px;
+        padding-right: 10px;
+        line-height: 30px;
+        font-style: italic;
+        background: url(/images/gradients/vertical/help_form.png) repeat-x left bottom;
+        color: #585952;
+        text-shadow: 0 1px 0 rgba(255, 255, 255, 0.75); }
+      #container #help > aside > form > section {
+        padding: 10px;
+        border-top: 1px solid #f2f2f0; }
+        #container #help > aside > form > section > .textarea {
+          border: 1px solid #c3c4bc;
+          padding-top: 10px;
+          padding-left: 9px;
+          padding-right: 9px;
+          padding-bottom: 10px;
+          background: #f0f0ef; }
+          #container #help > aside > form > section > .textarea > textarea {
+            width: 100%;
+            height: 80px;
+            background: none;
+            font-size: 14px;
+            font-style: italic;
+            color: #585952; }
+            #container #help > aside > form > section > .textarea > textarea.is-placeheld {
+              color: #9d9e91; }
+        #container #help > aside > form > section > p {
+          margin-top: 10px;
+          font-style: italic;
+          color: #9d9e91;
+          text-shadow: 0 1px 0 rgba(255, 255, 255, 0.75); }
+          #container #help > aside > form > section > p + menu {
+            margin-top: -20px; }
+        #container #help > aside > form > section > menu {
+          height: 16px;
+          padding-top: 2px;
+          padding-bottom: 2px;
+          text-align: right; }
+          #container #help > aside > form > section > menu > .button {
+            zoom: 1;
+            display: inline;
+            display: -moz-inline-box;
+            display: inline-block;
+            *display: inline;
+            vertical-align: top;
+            position: relative;
+            height: 16px;
+            line-height: 14px;
+            padding-left: 6px;
+            padding-right: 6px;
+            background: white;
+            font-size: 11px;
+            color: #585952;
+            -moz-border-radius: 7px;
+            -o-border-radius: 7px;
+            -ms-border-radius: 7px;
+            -khtml-border-radius: 7px;
+            -webkit-border-radius: 7px;
+            border-radius: 7px;
+            box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+            -moz-box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+            -webkit-box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+            opacity: 0.95;
+            -moz-opacity: 0.95;
+            filter: progid:DXImageTransform.Microsoft.Alpha(opacity=95);
+            background: #585952;
+            color: white;
+            text-shadow: 0 1px 0 rgba(0, 0, 0, 0.25); }
+            #container #help > aside > form > section > menu > .button:hover {
+              opacity: 1;
+              -moz-opacity: 1;
+              filter: progid:DXImageTransform.Microsoft.Alpha(opacity=100); }
+            #container #help > aside > form > section > menu > .button:before {
+              content: "";
+              position: absolute;
+              top: 0;
+              left: 0;
+              right: 0;
+              bottom: 0;
+              -moz-border-radius: 7px;
+              -o-border-radius: 7px;
+              -ms-border-radius: 7px;
+              -khtml-border-radius: 7px;
+              -webkit-border-radius: 7px;
+              border-radius: 7px;
+              box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.25);
+              -moz-box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.25);
+              -webkit-box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.25); }
+            #container #help > aside > form > section > menu > .button.is-active {
+              height: 15px;
+              margin-top: 1px; }
+              #container #help > aside > form > section > menu > .button.is-active:before {
+                box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+                -moz-box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+                -webkit-box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25); }
+        #container #help > aside > form > section > span {
+          margin-top: 30px;
+          display: block;
+          font-size: 14px;
+          color: #585952;
+          text-shadow: 0 1px 0 rgba(255, 255, 255, 0.75);
+          text-align: center; }
+          #container #help > aside > form > section > span + menu {
+            margin-top: 15px;
+            padding-bottom: 30px;
+            text-align: center; }
+      #container #help > aside > form + p {
+        margin-top: 20px; }
+    #container #help > aside > p {
+      margin-top: 13px;
+      margin-left: 10px;
+      margin-right: 10px;
+      font-style: italic;
+      color: #9d9e91;
+      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.75); }
+    #container #help > aside > h2 {
+      margin-top: -3px;
+      margin-left: 10px;
+      margin-right: 10px;
+      line-height: 24px;
+      font-family: Cambria, Georgia, Arial;
+      font-size: 23px; }
+      #container #help > aside > h2 > a {
+        text-decoration: none; }
+        #container #help > aside > h2 > a:hover {
+          text-decoration: underline; }
 
 /* paginator */
 #container .paginator {
