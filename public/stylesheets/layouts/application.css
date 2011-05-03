@@ -133,6 +133,11 @@ time {
       vertical-align: top; }
   #container .pre-filter > section > p {
     color: white; }
+    #container .pre-filter > section > p > a {
+      color: white;
+      text-decoration: none; }
+      #container .pre-filter > section > p > a:hover {
+        text-decoration: underline; }
   #container .pre-filter > section + aside {
     margin-top: -24px; }
   #container .pre-filter > aside > p {
@@ -197,6 +202,13 @@ time {
           box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25);
           -moz-box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25);
           -webkit-box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25); }
+      #container .pre-filter > aside > menu > .button > b {
+        font-weight: normal;
+        display: none; }
+      #container .pre-filter > aside > menu > .button[hidden] > span {
+        display: none; }
+      #container .pre-filter > aside > menu > .button[hidden] > b {
+        display: inherit; }
 
 /* filter */
 #container .filter {
@@ -229,19 +241,61 @@ time {
       display: inline-block;
       *display: inline;
       vertical-align: top;
-      height: 16px; }
+      text-decoration: none; }
       #container .filter > section > menu > a:hover {
-        height: 15px;
-        border-bottom: 1px dotted #585952; }
+        text-decoration: underline; }
       #container .filter > section > menu > a.is-selected {
         color: #9d9e91;
         height: 15px;
-        border-bottom: 1px dotted #9d9e91;
+        text-decoration: none;
         cursor: default; }
       #container .filter > section > menu > a ~ a {
         margin-left: 20px; }
   #container .filter > section + aside {
     margin-top: -30px; }
+  #container .filter > aside > .range {
+    height: 4px;
+    padding-top: 13px;
+    padding-bottom: 13px;
+    padding-left: 21px;
+    background: url(/images/separators/filter_brown.png) repeat-y left top; }
+    #container .filter > aside > .range > .input[type="range"] {
+      position: relative;
+      width: 151px;
+      height: 4px;
+      background: #585952;
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+      -moz-box-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+      -webkit-box-shadow: 0 1px 0 rgba(255, 255, 255, 0.5); }
+      #container .filter > aside > .range > .input[type="range"] > .thumb {
+        display: block;
+        position: relative;
+        width: 1px;
+        height: 16px;
+        top: -6px;
+        cursor: pointer; }
+        #container .filter > aside > .range > .input[type="range"] > .thumb:before {
+          content: "";
+          position: absolute;
+          width: 11px;
+          height: 16px;
+          left: -5px;
+          top: 0;
+          background: url(/images/icons/thumb.png) no-repeat; }
+      #container .filter > aside > .range > .input[type="range"]:before {
+        content: "";
+        position: absolute;
+        width: 100%;
+        height: 10px;
+        top: 0;
+        left: 0;
+        background: url(/images/separators/deleniya.png) repeat-x left top; }
+    #container .filter > aside > .range + p {
+      margin-left: 15px; }
+  #container .filter > aside > p > a {
+    text-decoration: none; }
+    #container .filter > aside > p > a:hover {
+      text-decoration: underline; }
   #container .filter.user-header > section, #container .filter.user-header > aside {
     height: 45px;
     padding: 6px; }
@@ -378,6 +432,8 @@ time {
         background: #f2efda; }
     #container .filter.own-header > section + aside {
       margin-top: -38px; }
+  #container .filter[hidden] {
+    display: none; }
 
 /* form */
 /* pictures */
@@ -1011,10 +1067,9 @@ body {
         *display: inline;
         vertical-align: top;
         color: #9d9e91;
-        height: 20px; }
+        text-decoration: none; }
         #container #content > section > aside.header > p > a:hover {
-          height: 19px;
-          border-bottom: 1px dotted #9d9e91; }
+          text-decoration: underline; }
     #container #content > section > aside.header + h2 {
       margin-top: -50px; }
   #container #content > section > h2 {
@@ -1314,6 +1369,8 @@ body {
       text-decoration: none; }
       #container .disputes > article > footer > aside > a:hover {
         text-decoration: underline; }
+      #container .disputes > article > footer > aside > a.many {
+        color: #963a21; }
   #container .disputes > article.sponsored > header > h2 > a > span {
     color: #963a21; }
   #container .disputes > article.closed > header > h2 > p {
@@ -1634,12 +1691,12 @@ body {
           padding-left: 10px;
           padding-right: 10px;
           background: url(/images/gradients/vertical/dispute_view_checkbox.png) repeat-y right top; }
-          #container #dispute-view > .checkboxes > section > .checkbox > section > .input[type="checkbox"], #container #dispute-view > .checkboxes > aside > .checkbox > section > .input[type="checkbox"] {
+          #container #dispute-view > .checkboxes > section > .checkbox > section > .input[type="radio"], #container #dispute-view > .checkboxes > aside > .checkbox > section > .input[type="radio"] {
             height: 15px;
             width: 15px;
             background: url(/images/icons/checkbox.png) no-repeat;
             cursor: pointer; }
-            #container #dispute-view > .checkboxes > section > .checkbox > section > .input[type="checkbox"].is-checked, #container #dispute-view > .checkboxes > aside > .checkbox > section > .input[type="checkbox"].is-checked {
+            #container #dispute-view > .checkboxes > section > .checkbox > section > .input[type="radio"].is-checked, #container #dispute-view > .checkboxes > aside > .checkbox > section > .input[type="radio"].is-checked {
               background-image: url(/images/icons/checkbox_checked.png); }
           #container #dispute-view > .checkboxes > section > .checkbox > section + aside, #container #dispute-view > .checkboxes > aside > .checkbox > section + aside {
             margin-top: -30px;

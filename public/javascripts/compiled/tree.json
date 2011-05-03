@@ -31,7 +31,27 @@
         "Native/LSD.Native.Input.*",
         "LSD/LSD.Mixin.Placeholder"
       ],
-      "desc": "A base class for all kinds of form controls"
+      "Radio": {
+        "provides": [
+          "Wrongler.Widget.Input.Radio"
+        ],
+        "requires": [
+          "Wrongler.Widget.Input",
+          "Widgets/LSD.Widget.Input.Radio"
+        ],
+        "desc": "A radio button, set of connected widgets that steal checkedness from each other"
+      },
+      "desc": "A base class for all kinds of form controls",
+      "Range": {
+        "provides": [
+          "Wrongler.Widget.Input.Range"
+        ],
+        "requires": [
+          "Wrongler.Widget.Input",
+          "Widgets/LSD.Widget.Input.Range"
+        ],
+        "desc": "Range slider input"
+      }
     },
     "Body": {
       "provides": [
@@ -57,6 +77,7 @@
       "Wrongler",
       "Wrongler.Widget.*",
       "Native/LSD.Native.Form",
+      "Native/LSD.Native.Textarea",
       "Native/LSD.Native.Button",
       "Native/LSD.Native.Label",
       "Widgets/LSD.Widget.Select",

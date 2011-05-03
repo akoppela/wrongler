@@ -13,6 +13,7 @@ requires:
   - Wrongler
   - Wrongler.Widget.*
   - Native/LSD.Native.Form
+  - Native/LSD.Native.Textarea
   - Native/LSD.Native.Button
   - Native/LSD.Native.Label
   - Widgets/LSD.Widget.Select
@@ -32,5 +33,5 @@ Wrongler.Transformations = {
   'a.button': 'button',
   'a.button[type="submit"]': 'input[type="submit"]'
 };
-Wrongler.Widget.Body.prototype.addLayoutTransformations(Wrongler.Transformations);
+Wrongler.Widget.Body.prototype.options.mutations = Wrongler.Transformations;
 Wrongler.Widget.Body.prototype.options.layout.options.context = 'element';

@@ -1,11 +1,11 @@
 .pre-filter
   %section<
-    %p> Все тематики
+    %p>= link_to 'Все тематики', '#'
   %aside<
     %p> Настройте что вам интересно.
     %menu<>
-      %a.button{:href => '#'} Настроить
-.filter
+      %a.button#set-button{:href => '#', :target => '::page #disputes-filter, ::page #set-button', :interaction => 'display'}= raw('<span>Настроить</span><b>Скрыть</b>')
+.filter#disputes-filter{:hidden => 'hidden'}
   %section<
     %menu<>
       = link_to 'Новые', '#'
@@ -14,7 +14,9 @@
       = link_to 'Приватные', '#'
       = link_to 'Прошлые', '#', :class => 'is-selected'
   %aside<
-    %p> Любые ставки
+    .range<>
+      %input{:type => 'range'}>
+    %p>= link_to 'Любые ставки', '#'
 %section.disputes
   %article.sponsored
     %header
@@ -59,7 +61,7 @@
         %div= raw("#{link_to 'Кусачий собак', '#'}, <time title='25 сентября 1954'>31 октября 2008</time>")
         %p Политика
       %aside<
-        = link_to '5288 комментариев'
+        = link_to '5288 комментариев', '#', :class => 'many'
 .paginator
   %section
     = link_to 'Cюда', '#', :class => 'is-disabled'

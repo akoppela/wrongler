@@ -18,4 +18,12 @@ provides: [Wrongler.Widget.Input.Checkbox]
 ...
 */
 
-Wrongler.Widget.Input.Checkbox = LSD.Widget.Input.Checkbox;
+Wrongler.Widget.Input.Checkbox = new Class({
+  Extends: LSD.Widget.Input.Checkbox,
+  
+  options: {
+    element: {
+      tag: 'div'
+    }
+  }
+});

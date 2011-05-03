@@ -5,7 +5,7 @@
       %li>
         .button
           %p= link_to 'Помощь', '#'
-          = link_to raw('<span>Куда я попал?</span>'), '#'
+          = link_to raw('<span>Куда я попал?</span>'), '#', :target => '::page #start-tip', :interaction => 'display'
       %li.is-selected>
         .button
           %p= link_to 'Споры', '#'

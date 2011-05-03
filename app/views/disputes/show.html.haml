@@ -13,15 +13,15 @@
     %section>
       .checkbox<
         %section>
-          %input{:type => 'checkbox', :id => 'first_checkbox'}
+          %input{:type => 'radio', :name => 'dispute_radio', :id => 'first_radio'}
         %aside>
-          %label{:for => 'first_checkbox'}= raw('<span>Конечно же, Ливерпуль.</span>')
+          %label{:for => 'first_radio'}= raw('<span>Конечно же, Ливерпуль.</span>')
     %aside>
       .checkbox<
         %section>
-          %input{:type => 'checkbox', :id => 'second_checkbox'}
+          %input{:type => 'radio', :name => 'dispute_radio', :id => 'second_radio'}
         %aside>
-          %label{:for => 'second_checkbox'}= raw('<span>Ну какие вопросы. Это Манчестер!</span>')
+          %label{:for => 'second_radio'}= raw('<span>Ну какие вопросы. Это Манчестер!</span>')
   .information<
     %section>
       %header<

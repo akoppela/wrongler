@@ -21,12 +21,12 @@ $filter_own_header = $baseline * 2
       :line-height 18px
       > a
         +inline-block
-        +hover-dotted($light_black, 16px)
+        +hover-underline
         &.is-selected
           :color= $light_grey
           :height 15px
-          :border
-            :bottom= 1px dotted $light_grey
+          :text
+            :decoration none
           :cursor default
         & ~ a
           :margin
@@ -34,6 +34,46 @@ $filter_own_header = $baseline * 2
     & + aside
       :margin
         :top= -$filter + 2
+  > aside
+    > .range
+      +line-height($filter - 2, 4px)
+      :padding
+        :left= $ninesixty_gutter_width * 2 + 1
+      :background url(/images/separators/filter_brown.png) repeat-y left top
+      > .input[type="range"]
+        :position relative
+        :width 151px
+        :height 4px
+        :background #585952
+        +box-shadow($white_fifty_shadow)
+        > .thumb
+          :display block
+          :position relative
+          :width 1px
+          :height 16px
+          :top -6px
+          :cursor pointer
+          &:before
+            :content ''
+            :position absolute
+            :width 11px
+            :height 16px
+            :left -5px
+            :top 0
+            :background url(/images/icons/thumb.png) no-repeat
+        &:before
+          :content ''
+          :position absolute
+          :width 100%
+          :height 10px
+          :top 0
+          :left 0
+          :background url(/images/separators/deleniya.png) repeat-x left top
+      & + p
+        :margin
+          :left= $ninesixty_gutter_width * 1.5
+    > p > a
+      +hover-underline
   &.user-header
     > section, > aside
       :height= $avatar
@@ -138,3 +178,5 @@ $filter_own_header = $baseline * 2
       & + aside
         :margin
           :top= -$filter_own_header + 2
+  &[hidden]
+    :display none

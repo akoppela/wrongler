@@ -15,6 +15,9 @@ $pre_filter = 26px
   > section
     > p
       :color= $white
+      > a
+        :color= $white
+        +hover-underline
     & + aside
       :margin
         :top= -$pre_filter + 2
@@ -29,3 +32,12 @@ $pre_filter = 26px
       > .button
         +inline-block
         +button
+        > b
+          :font
+            :weight normal
+          :display none
+        &[hidden]
+          > span
+            :display none
+          > b
+            :display inherit

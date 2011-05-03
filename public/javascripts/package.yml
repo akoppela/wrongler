@@ -10,4 +10,6 @@ sources:
   - Source/Widget/Body.js
   - Source/Widget/Input.js
   - Source/Widget/Input/Checkbox.js
+  - Source/Widget/Input/Radio.js
+  - Source/Widget/Input/Range.js
   - Source/Application.js
