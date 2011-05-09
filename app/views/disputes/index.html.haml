@@ -4,8 +4,8 @@
   %aside<
     %p> Настройте что вам интересно.
     %menu<>
-      %a.button#set-button{:href => '#', :target => '::page #disputes-filter, ::page #set-button', :interaction => 'display'}= raw('<span>Настроить</span><b>Скрыть</b>')
-.filter#disputes-filter{:hidden => 'hidden'}
+      %a.button#set-button{:href => '#', :target => '::page #disputes-filter :display(), ::page #set-button :state(expanded)'}= raw('<span>Настроить</span><b>Скрыть</b>')
+.filter#disputes-filter{:hidden => 'hidden', :animation => 'slide'}
   %section<
     %menu<>
       = link_to 'Новые', '#'
@@ -15,8 +15,8 @@
       = link_to 'Прошлые', '#', :class => 'is-selected'
   %aside<
     .range<>
-      %input{:type => 'range'}>
-    %p>= link_to 'Любые ставки', '#'
+      %input{:type => 'range', :target => '::page #raises span :set()'}>
+    %p>= link_to raw('<span>Любые</span> ставки'), '#', :id => 'raises'
 %section.disputes
   %article.sponsored
     %header
@@ -54,7 +54,7 @@
   %article
     %header
       %h2<
-        %p>= raw('<span>87,9</span>')
+        %p.many>= raw('<span>123187,9</span>')
         = link_to raw('<span>Какое ультра-длинное название спора. Я даже не знаю зачем такое длинное название кому-нибудь может понадобится.</span>'), '#'
     %footer
       %section

@@ -72,6 +72,9 @@ $filter_own_header = $baseline * 2
       & + p
         :margin
           :left= $ninesixty_gutter_width * 1.5
+        :width 100px
+        :text
+          :align left
     > p > a
       +hover-underline
   &.user-header
@@ -180,3 +183,4 @@ $filter_own_header = $baseline * 2
           :top= -$filter_own_header + 2
   &[hidden]
     :display none
+    :height 0

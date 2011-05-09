@@ -61,7 +61,41 @@
         "Wrongler.Widget",
         "Native/LSD.Native.Body"
       ],
-      "desc": "Body widget"
+      "Dialog.Lightbox": {
+        "provides": [
+          "Wrongler.Widget.Body.Dialog.Lightbox"
+        ],
+        "requires": [
+          "Wrongler.Widget.Body.Dialog",
+          "LSD/LSD.Mixin.Focus"
+        ],
+        "desc": "An in-page independent document (like iphone app page)"
+      },
+      "desc": "Body widget",
+      "Dialog": {
+        "provides": [
+          "Wrongler.Widget.Body.Dialog"
+        ],
+        "requires": [
+          "Wrongler.Widget.Body",
+          "Native/LSD.Native.Body",
+          "LSD/LSD.Trait.Fieldset"
+        ],
+        "desc": "An in-page independent document (like iphone app page)"
+      }
+    },
+    "Animated": {
+      "provides": [
+        "Wrongler.Widget.Animated"
+      ],
+      "requires": [
+        "Wrongler.Widget",
+        "LSD/LSD.Native",
+        "LSD/LSD.Mixin.Animation",
+        "LSD/LSD.Mixin.Focus",
+        "Core/Fx.Transitions"
+      ],
+      "desc": "Basic widget animated"
     },
     "requires": [
       "Wrongler",

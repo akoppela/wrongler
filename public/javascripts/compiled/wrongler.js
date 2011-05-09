@@ -4312,6 +4312,300 @@ Macro.delegate = function(name, method) {
 };
 /*
 ---
+
+name: Fx
+
+description: Contains the basic animation logic to be extended by all other Fx Classes.
+
+license: MIT-style license.
+
+requires: [Chain, Events, Options]
+
+provides: Fx
+
+...
+*/
+
+(function(){
+
+var Fx = this.Fx = new Class({
+
+	Implements: [Chain, Events, Options],
+
+	options: {
+		/*
+		onStart: nil,
+		onCancel: nil,
+		onComplete: nil,
+		*/
+		fps: 60,
+		unit: false,
+		duration: 500,
+		frames: null,
+		frameSkip: true,
+		link: 'ignore'
+	},
+
+	initialize: function(options){
+		this.subject = this.subject || this;
+		this.setOptions(options);
+	},
+
+	getTransition: function(){
+		return function(p){
+			return -(Math.cos(Math.PI * p) - 1) / 2;
+		};
+	},
+
+	step: function(now){
+		if (this.options.frameSkip){
+			var diff = (this.time != null) ? (now - this.time) : 0, frames = diff / this.frameInterval;
+			this.time = now;
+			this.frame += frames;
+		} else {
+			this.frame++;
+		}
+		
+		if (this.frame < this.frames){
+			var delta = this.transition(this.frame / this.frames);
+			this.set(this.compute(this.from, this.to, delta));
+		} else {
+			this.frame = this.frames;
+			this.set(this.compute(this.from, this.to, 1));
+			this.stop();
+		}
+	},
+
+	set: function(now){
+		return now;
+	},
+
+	compute: function(from, to, delta){
+		return Fx.compute(from, to, delta);
+	},
+
+	check: function(){
+		if (!this.isRunning()) return true;
+		switch (this.options.link){
+			case 'cancel': this.cancel(); return true;
+			case 'chain': this.chain(this.caller.pass(arguments, this)); return false;
+		}
+		return false;
+	},
+
+	start: function(from, to){
+		if (!this.check(from, to)) return this;
+		this.from = from;
+		this.to = to;
+		this.frame = (this.options.frameSkip) ? 0 : -1;
+		this.time = null;
+		this.transition = this.getTransition();
+		var frames = this.options.frames, fps = this.options.fps, duration = this.options.duration;
+		this.duration = Fx.Durations[duration] || duration.toInt();
+		this.frameInterval = 1000 / fps;
+		this.frames = frames || Math.round(this.duration / this.frameInterval);
+		this.fireEvent('start', this.subject);
+		pushInstance.call(this, fps);
+		return this;
+	},
+	
+	stop: function(){
+		if (this.isRunning()){
+			this.time = null;
+			pullInstance.call(this, this.options.fps);
+			if (this.frames == this.frame){
+				this.fireEvent('complete', this.subject);
+				if (!this.callChain()) this.fireEvent('chainComplete', this.subject);
+			} else {
+				this.fireEvent('stop', this.subject);
+			}
+		}
+		return this;
+	},
+	
+	cancel: function(){
+		if (this.isRunning()){
+			this.time = null;
+			pullInstance.call(this, this.options.fps);
+			this.frame = this.frames;
+			this.fireEvent('cancel', this.subject).clearChain();
+		}
+		return this;
+	},
+	
+	pause: function(){
+		if (this.isRunning()){
+			this.time = null;
+			pullInstance.call(this, this.options.fps);
+		}
+		return this;
+	},
+	
+	resume: function(){
+		if ((this.frame < this.frames) && !this.isRunning()) pushInstance.call(this, this.options.fps);
+		return this;
+	},
+	
+	isRunning: function(){
+		var list = instances[this.options.fps];
+		return list && list.contains(this);
+	}
+
+});
+
+Fx.compute = function(from, to, delta){
+	return (to - from) * delta + from;
+};
+
+Fx.Durations = {'short': 250, 'normal': 500, 'long': 1000};
+
+// global timers
+
+var instances = {}, timers = {};
+
+var loop = function(){
+	var now = Date.now();
+	for (var i = this.length; i--;){
+		var instance = this[i];
+		if (instance) instance.step(now);
+	}
+};
+
+var pushInstance = function(fps){
+	var list = instances[fps] || (instances[fps] = []);
+	list.push(this);
+	if (!timers[fps]) timers[fps] = loop.periodical(Math.round(1000 / fps), list);
+};
+
+var pullInstance = function(fps){
+	var list = instances[fps];
+	if (list){
+		list.erase(this);
+		if (!list.length && timers[fps]){
+			delete instances[fps];
+			timers[fps] = clearInterval(timers[fps]);
+		}
+	}
+};
+
+})();
+
+/*
+---
+
+name: Fx.Transitions
+
+description: Contains a set of advanced transitions to be used with any of the Fx Classes.
+
+license: MIT-style license.
+
+credits:
+  - Easing Equations by Robert Penner, <http://www.robertpenner.com/easing/>, modified and optimized to be used with MooTools.
+
+requires: Fx
+
+provides: Fx.Transitions
+
+...
+*/
+
+Fx.implement({
+
+	getTransition: function(){
+		var trans = this.options.transition || Fx.Transitions.Sine.easeInOut;
+		if (typeof trans == 'string'){
+			var data = trans.split(':');
+			trans = Fx.Transitions;
+			trans = trans[data[0]] || trans[data[0].capitalize()];
+			if (data[1]) trans = trans['ease' + data[1].capitalize() + (data[2] ? data[2].capitalize() : '')];
+		}
+		return trans;
+	}
+
+});
+
+Fx.Transition = function(transition, params){
+	params = Array.from(params);
+	var easeIn = function(pos){
+		return transition(pos, params);
+	};
+	return Object.append(easeIn, {
+		easeIn: easeIn,
+		easeOut: function(pos){
+			return 1 - transition(1 - pos, params);
+		},
+		easeInOut: function(pos){
+			return (pos <= 0.5 ? transition(2 * pos, params) : (2 - transition(2 * (1 - pos), params))) / 2;
+		}
+	});
+};
+
+Fx.Transitions = {
+
+	linear: function(zero){
+		return zero;
+	}
+
+};
+
+//<1.2compat>
+
+Fx.Transitions = new Hash(Fx.Transitions);
+
+//</1.2compat>
+
+Fx.Transitions.extend = function(transitions){
+	for (var transition in transitions) Fx.Transitions[transition] = new Fx.Transition(transitions[transition]);
+};
+
+Fx.Transitions.extend({
+
+	Pow: function(p, x){
+		return Math.pow(p, x && x[0] || 6);
+	},
+
+	Expo: function(p){
+		return Math.pow(2, 8 * (p - 1));
+	},
+
+	Circ: function(p){
+		return 1 - Math.sin(Math.acos(p));
+	},
+
+	Sine: function(p){
+		return 1 - Math.cos(p * Math.PI / 2);
+	},
+
+	Back: function(p, x){
+		x = x && x[0] || 1.618;
+		return Math.pow(p, 2) * ((x + 1) * p - x);
+	},
+
+	Bounce: function(p){
+		var value;
+		for (var a = 0, b = 1; 1; a += b, b /= 2){
+			if (p >= (7 - 4 * a) / 11){
+				value = b * b - Math.pow((11 - 6 * a - 11 * p) / 4, 2);
+				break;
+			}
+		}
+		return value;
+	},
+
+	Elastic: function(p, x){
+		return Math.pow(2, 10 * --p) * Math.cos(20 * p * Math.PI * (x && x[0] || 1) / 3);
+	}
+
+});
+
+['Quad', 'Cubic', 'Quart', 'Quint'].each(function(transition, i){
+	Fx.Transitions[transition] = new Fx.Transition(function(p){
+		return Math.pow(p, i + 2);
+	});
+});
+
+/*
+---
 name: ART
 description: "The heart of ART."
 requires: [Core/Class, Color/Color, Table/Table]
@@ -6424,6 +6718,185 @@ States.get = function(name) {
 /*
 ---
  
+script: Checkbox.js
+ 
+description: Abstract command
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD
+ 
+provides: 
+  - LSD.Command
+  - LSD.Command.Command
+ 
+...
+*/
+
+LSD.Command = new Class({
+  options: {
+    id: null,
+    action: null
+  },
+  
+  Implements: [Options, Events, States],
+  
+  initialize: function(document, options) {
+    this.setOptions(options);
+    if (document) {
+      this.document = document;
+      if (!this.document.commands) this.document.commands = {};
+      this.document.commands[this.options.id] = this;
+    }
+  },
+  
+  click: function() {
+    this.fireEvent('click', arguments);
+  },
+  
+  attach: function(widget) {
+    var states = this.$states;
+    var events = widget.events._command = {}, self = this;
+    Object.each(states, function(state, name) {
+      events[state.enabler] = function() {
+        self[state.enabler].apply(widget, arguments)
+      }
+      events[state.disabler] = function() {
+        self[state.disabler].apply(widget, arguments)
+      }
+    });
+    if (widget.options.events.command) this.addEvents(widget.options.events.command);
+    this.addEvents(events);
+  },
+  
+  detach: function(widget) {
+    if (widget.options.events.command) this.removeEvents(widget.options.events.command);
+		var events = widget.events._command;
+		if (events) this.removeEvents(events);
+  }
+});
+
+LSD.Command.prototype.addState('disabled');
+
+LSD.Command.Command = LSD.Command;
+/*
+---
+ 
+script: Checkbox.js
+ 
+description: Two-state command (can be on and off)
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Command
+ 
+provides: 
+  - LSD.Command.Checkbox
+ 
+...
+*/
+
+/*
+  Checkbox commands are useful when you need to track and toggle
+  state of some linked object. 
+  
+  Provide your custom logic hooking on *check* and *uncheck*
+  state transitions. Use *checked* property to get the current state.
+  
+  Examples:
+    - Button that toggles visibility of a sidebar
+    - Context menu item that shows or hides line numbers in editor
+*/
+
+LSD.Command.Checkbox = new Class({
+  Extends: LSD.Command,
+  
+  options: {
+    states: Array.fast('checked')
+  },
+
+  click: function() {
+    this.parent.apply(this, arguments);
+    this.toggle();
+  }
+});
+/*
+---
+ 
+script: Radio.js
+ 
+description: A command that is linked with others by name (one of many)
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Command
+ 
+provides: 
+  - LSD.Command.Radio
+ 
+...
+*/
+
+/*
+  Radio groupping is a way to links commands together to allow
+  only one in the group be active at the moment of time.
+  
+  Activation (*check*ing) of the commands deactivates all 
+  other commands in a radiogroup.
+  
+  Examples: 
+    - Tabs on top of a content window
+    - List of currently open documents in a context menu that
+      shows which of them is the one you edit now and an 
+      ability to switch between documents
+*/
+
+LSD.Command.Radio = new Class({
+  Extends: LSD.Command,
+  
+  options: {
+    radiogroup: false
+  },
+  
+  initialize: function() {
+    this.parent.apply(this, arguments);
+    var name = this.options.radiogroup || this.options.name;
+    if (name) {
+      var groups = this.document.radiogroups;
+      if (!groups) groups = this.document.radiogroups = {};
+      var group = groups[name];
+      if (!group) group = groups[name] = [];
+      group.push(this);
+      this.group = group;
+    }
+    this.addEvent('check', function() {
+      group.each(function(command) {
+        if (command != this){
+          command.uncheck();
+        }
+      }, this);
+    })
+  },
+  
+  click: function() {
+    this.parent.apply(this, arguments);
+    this.check();
+  }
+});
+
+LSD.Command.prototype.addState('checked');
+/*
+---
+ 
 script: Interpolation.js
  
 description: A logic to render (and nest) widgets out of the key-value hash or dom tree
@@ -6848,7 +7321,8 @@ LSD.Layout.prototype = Object.append(new Options, {
     if (element.nodeType != 1) return true;
     var tag = LSD.toLowerCase(element.tagName);
     if (!mutated) {
-     var source = (element.type && element.type != tag) ? tag + '-' + element.type : tag;
+      var type = element.getAttribute('type');
+      var source = (type && type != tag) ? tag + '-' + type : tag;
     } else var source = mutated.source;
     var klass = this.context.find(LSD.toLowerCase(source));
     if (!klass) return;
@@ -6923,183 +7397,6 @@ LSD.Layout.extract = function(element) {
 
 }();
 
-/*
----
- 
-script: Checkbox.js
- 
-description: Abstract command
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD
- 
-provides: 
-  - LSD.Command
-  - LSD.Command.Command
- 
-...
-*/
-
-LSD.Command = new Class({
-  options: {
-    id: null,
-    action: null
-  },
-  
-  Implements: [Options, Events, States],
-  
-  initialize: function(document, options) {
-    this.setOptions(options);
-    if (document) {
-      this.document = document;
-      if (!this.document.commands) this.document.commands = {};
-      this.document.commands[this.options.id] = this;
-    }
-  },
-  
-  click: function() {
-    this.fireEvent('click', arguments);
-  },
-  
-  attach: function(widget) {
-    var states = this.$states;
-    var events = widget.events._command = {}, self = this;
-    Object.each(states, function(state, name) {
-      events[state.enabler] = function() {
-        self[state.enabler].apply(widget, arguments)
-      }
-      events[state.disabler] = function() {
-        self[state.disabler].apply(widget, arguments)
-      }
-    });
-    if (widget.options.events.command) this.addEvents(widget.options.events.command);
-    this.addEvents(events);
-  },
-  
-  detach: function(widget) {
-    if (widget.options.events.command) this.removeEvents(widget.options.events.command);
-		var events = widget.events._command;
-		if (events) this.removeEvents(events);
-  }
-});
-
-LSD.Command.prototype.addState('disabled');
-
-LSD.Command.Command = LSD.Command;
-/*
----
- 
-script: Checkbox.js
- 
-description: Two-state command (can be on and off)
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Command
- 
-provides: 
-  - LSD.Command.Checkbox
- 
-...
-*/
-
-/*
-  Checkbox commands are useful when you need to track and toggle
-  state of some linked object. 
-  
-  Provide your custom logic hooking on *check* and *uncheck*
-  state transitions. Use *checked* property to get the current state.
-  
-  Examples:
-    - Button that toggles visibility of a sidebar
-    - Context menu item that shows or hides line numbers in editor
-*/
-
-LSD.Command.Checkbox = new Class({
-  Extends: LSD.Command,
-  
-  options: {
-    states: Array.fast('checked')
-  },
-
-  click: function() {
-    this.parent.apply(this, arguments);
-    this.toggle();
-  }
-});
-/*
----
- 
-script: Radio.js
- 
-description: A command that is linked with others by name (one of many)
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Command
- 
-provides: 
-  - LSD.Command.Radio
- 
-...
-*/
-
-/*
-  Radio groupping is a way to links commands together to allow
-  only one in the group be active at the moment of time.
-  
-  Activation (*check*ing) of the commands deactivates all 
-  other commands in a radiogroup.
-  
-  Examples: 
-    - Tabs on top of a content window
-    - List of currently open documents in a context menu that
-      shows which of them is the one you edit now and an 
-      ability to switch between documents
-*/
-
-LSD.Command.Radio = new Class({
-  Extends: LSD.Command,
-  
-  options: {
-    radiogroup: false
-  },
-  
-  initialize: function() {
-    this.parent.apply(this, arguments);
-    var name = this.options.radiogroup || this.options.name;
-    if (name) {
-      var groups = this.document.radiogroups;
-      if (!groups) groups = this.document.radiogroups = {};
-      var group = groups[name];
-      if (!group) group = groups[name] = [];
-      group.push(this);
-      this.group = group;
-    }
-    this.addEvent('check', function() {
-      group.each(function(command) {
-        if (command != this) command.uncheck();
-      }, this);
-    })
-  },
-  
-  click: function() {
-    this.parent.apply(this, arguments);
-    this.check();
-  }
-});
-
-LSD.Command.prototype.addState('checked');
 /*
 ---
  
@@ -7474,7 +7771,7 @@ LSD.Action.Display = LSD.Action.build({
   
   getState: function(target) {
     var element = (target.element || target);
-    return !(target.hidden || (element.getStyle && (element.getStyle('display') == 'none')));
+    return !(target.hidden || (target.getAttribute && target.getAttribute('hidden')) || (element.getStyle && (element.getStyle('display') == 'none')));
   }
 });
 /*
@@ -7660,6 +7957,37 @@ LSD.Action.Append = LSD.Action.build({
     var children = Array.prototype.slice.call(fragment.childNodes, 0);
     document.id(target).appendChild(fragment);
     widget.fireEvent('DOMNodeInserted', children);
+  }
+});
+/*
+---
+ 
+script: Set.js
+ 
+description: Changes or synchronizes values
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Action
+
+provides:
+  - LSD.Action.Set
+ 
+...
+*/
+
+LSD.Action.Set = LSD.Action.build({
+  enable: function(target, value) {
+    switch (Element.get(target, 'tag')) {
+      case 'input': case 'textarea':
+        if (target.applyValue) target.applyValue(value);
+        else target.value = value; break;
+      default: 
+        if (!target.lsd) target.set('html', value); break;
+    }
   }
 });
 /*
@@ -8103,79 +8431,6 @@ LSD.Trait.Date = new Class({
 /*
 ---
  
-script: Placeholder.js
- 
-description: Placeholder for form fileds.
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Mixin
-
- 
-provides:   
-  - LSD.Mixin.Placeholder
- 
-...
-*/
-
-
-LSD.Mixin.Placeholder = new Class({
-  behaviour: '[placeholder]',
-  
-  options: {
-    actions: {
-      placeholder: {
-        enable: function(){
-          this.element.set('autocomplete', 'off');
-          this.onPlacehold();
-        }
-      }
-    },
-    events: {
-      enabled: {
-        element: {
-          'focus': 'onUnplacehold',
-          'blur': 'onPlacehold',
-          'keypress': 'onUnplacehold'
-        }
-      }
-    },
-    states: {
-      placeheld: {
-        enabler: 'placehold',
-        disabler: 'unplacehold'
-      }
-    }
-  },
-  
-  getPlaceholder: Macro.getter('placeholder', function(){
-    return this.attributes.placeholder;
-  }),
-  
-  onUnplacehold: function(){
-    if(this.placeheld){
-      this.applyValue('');
-      this.unplacehold();
-      return true;
-    };
-  },
-  
-  onPlacehold: function(){
-    var value = this.getRawValue();
-    if(value.match(/^\s*$/) || value == this.getPlaceholder()){
-      this.applyValue(this.getPlaceholder());
-      this.placehold();
-      return true;
-    };
-  }
-  
-});
-/*
----
- 
 script: Fieldset.js
  
 description: Wrapper around set of form fields
@@ -8396,6 +8651,79 @@ Object.append(LSD.Trait.Fieldset, {
 /*
 ---
  
+script: Placeholder.js
+ 
+description: Placeholder for form fileds.
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Mixin
+
+ 
+provides:   
+  - LSD.Mixin.Placeholder
+ 
+...
+*/
+
+
+LSD.Mixin.Placeholder = new Class({
+  behaviour: '[placeholder]',
+  
+  options: {
+    actions: {
+      placeholder: {
+        enable: function(){
+          this.element.set('autocomplete', 'off');
+          this.onPlacehold();
+        }
+      }
+    },
+    events: {
+      enabled: {
+        element: {
+          'focus': 'onUnplacehold',
+          'blur': 'onPlacehold',
+          'keypress': 'onUnplacehold'
+        }
+      }
+    },
+    states: {
+      placeheld: {
+        enabler: 'placehold',
+        disabler: 'unplacehold'
+      }
+    }
+  },
+  
+  getPlaceholder: Macro.getter('placeholder', function(){
+    return this.attributes.placeholder;
+  }),
+  
+  onUnplacehold: function(){
+    if(this.placeheld){
+      this.applyValue('');
+      this.unplacehold();
+      return true;
+    };
+  },
+  
+  onPlacehold: function(){
+    var value = this.getRawValue();
+    if(value.match(/^\s*$/) || value == this.getPlaceholder()){
+      this.applyValue(this.getPlaceholder());
+      this.placehold();
+      return true;
+    };
+  }
+  
+});
+/*
+---
+ 
 script: States.js
  
 description: Define class states and methods metaprogrammatically
@@ -8601,63 +8929,6 @@ LSD.Module.Shape = new Class({
 /*
 ---
  
-script: Dialog.js
- 
-description: Work with dialog
- 
-license: Public domain (http://unlicense.org).
- 
-requires:
-  - LSD.Mixin
- 
-provides: 
-  - LSD.Mixin.Dialog
- 
-...
-*/
-
-LSD.Mixin.Dialog = new Class({
-  behaviour: '[dialog]',
-  
-  options: {
-    layout: {
-      dialog: "body[type=dialog]"
-    },
-    chain: {
-      dialog: function() {
-        var target = this.getDialogTarget();
-        if (target) return {action: 'dialog', target: target, priority: 50};
-      }
-    },
-    events: {
-      dialogs: {}
-    }
-  },
-  
-  getDialog: function(name) {
-    if (!this.dialogs) this.dialogs = {};
-    if (!this.dialogs[name]) {
-      this.dialogs[name] = this.options.layout[name] ? this.buildDialog.apply(this, arguments) : LSD.Element.create('body-dialog-' + name);
-    }
-    return this.dialogs[name];
-  },
-  
-  buildDialog: function(name) {
-    var layout = {}
-    layout[this.options.layout.dialog] = this.options.layout[name];
-    var dialog = this.buildLayout(layout)[0];
-    var events = this.options.events.dialogs;
-    if (events[name]) dialog.addEvents(events[name]);
-    return dialog;
-  },
-  
-  getDialogTarget: function() {
-    return this.attributes.dialog && this.getTarget(this.attributes.dialog);
-  }
-})
-/*
----
- 
 script: Dimensions.js
  
 description: Get and set dimensions of widget
@@ -8826,7 +9097,7 @@ LSD.Module.Actions = new Class({
       var cargs = command.arguments.call ? command.arguments.call(this) : command.arguments;
       args = [].concat(cargs || [], args || []);
     }
-    var action = command.action = this.getAction(command.action);
+    var action = this.getAction(command.action);
     var targets = command.target;
     if (targets && targets.call && (!(targets = targets.call(this)) || (targets.length === 0))) return true;
     var state = command.state;
@@ -8930,7 +9201,7 @@ LSD.Module.Chain = new Class({
     var actions = [];
     for (var i = 0, chain; chain = this.chains[i++];) {
       var action = (chain.indexOf ? this[chain] : chain).apply(this, arguments);
-      if (action) actions.push(action);
+      if (action) actions.push[action.push ? 'apply' : 'call'](actions, action);
     }
     return actions.sort(function(a, b) {
       return (b.priority || 0) - (a.priority || 0);
@@ -8982,6 +9253,63 @@ LSD.Options.chain = {
   remove: 'removeChain',
   iterate: true
 }
+/*
+---
+ 
+script: Dialog.js
+ 
+description: Work with dialog
+ 
+license: Public domain (http://unlicense.org).
+ 
+requires:
+  - LSD.Mixin
+ 
+provides: 
+  - LSD.Mixin.Dialog
+ 
+...
+*/
+
+LSD.Mixin.Dialog = new Class({
+  behaviour: '[dialog]',
+  
+  options: {
+    layout: {
+      dialog: "body[type=dialog]"
+    },
+    chain: {
+      dialog: function() {
+        var target = this.getDialogTarget();
+        if (target) return {action: 'dialog', target: target, priority: 50};
+      }
+    },
+    events: {
+      dialogs: {}
+    }
+  },
+  
+  getDialog: function(name) {
+    if (!this.dialogs) this.dialogs = {};
+    if (!this.dialogs[name]) {
+      this.dialogs[name] = this.options.layout[name] ? this.buildDialog.apply(this, arguments) : LSD.Element.create('body-dialog-' + name);
+    }
+    return this.dialogs[name];
+  },
+  
+  buildDialog: function(name) {
+    var layout = {}
+    layout[this.options.layout.dialog] = this.options.layout[name];
+    var dialog = this.buildLayout(layout)[0];
+    var events = this.options.events.dialogs;
+    if (events[name]) dialog.addEvents(events[name]);
+    return dialog;
+  },
+  
+  getDialogTarget: function() {
+    return this.attributes.dialog && this.getTarget(this.attributes.dialog);
+  }
+})
 /*
 ---
  
@@ -9166,22 +9494,33 @@ provides:
     options: {
       chain: {
         target: function() {
-          var action = this.getTargetAction();
-          if (action) return {action: action, target: this.getTarget, arguments: this.getTargetArguments}
+          if (!this.attributes.target) return;
+          var action;
+          return this.parseTargetSelector(this.attributes.target).map(function(chain) {
+            if (!chain.action) chain.action = this.getTargetAction();
+            if (chain.selector) chain.target = function() {
+              return this.getTarget(chain.selector, chain.anchor);
+            }
+            return chain;
+          }.bind(this));
         }
       }
     },
     
-    getTarget: function(target, anchor) {
+    getTarget: function(target, base) {
       if (!target && !(target = this.attributes.target)) return false;
-      var parsed = this.parseTargetSelector(target);
       var results = [];
-      if (!parsed.each) return parsed;
-      parsed.each(function(expression) {
-        if (!anchor) anchor = expression.anchor ? expression.anchor.call(this) : (this.document || document.body);
+      if (!base) base = this.document || document.body;
+      var add = function(expression) {
+        var anchor = (expression.anchor || base);
+        if (anchor.indexOf) anchor = Pseudo[anchor];
+        if (anchor && anchor.call) anchor = anchor.call(this);
         if (expression.selector) results.push.apply(results, Slick.search(anchor, expression.selector));
-        else if (anchor) results.push(anchor)
-      }, this);
+        else if (expression.anchor) results.push(anchor)
+      };
+      if (target.Slick) add.call(this, {selector: target})
+      else if (target.indexOf) this.parseTargetSelector(target).each(add, this);
+      else add.call(target, base);
       return results.length > 0 && results.map(function(result) {
         if (result.localName) {
           var widget = Element.retrieve(result, 'widget');
@@ -9190,34 +9529,76 @@ provides:
         return result;
       });
     },
-    
-    parseTargetSelector: function(target) {
-      if (cache[target]) return cache[target];
-      var parsed = target.Slick ? target : Slick.parse(target);
-      cache[target] = parsed.expressions.map(this.parseTarget.bind(this));
-      return cache[target];
-    },
   
-    parseTarget: function(expression) {
-      var pseudos = expression[0].pseudos;
-      var pseudo = pseudos && pseudos[0];
-      var result = {}
-      if (pseudo && pseudo.type == 'element') { 
-        if (Pseudo[pseudo.key]) {
-          result.anchor = function() {
-            return Pseudo[pseudo.key].call(this, pseudo.value);
-          }
-          expression = expression.slice(1);
-        }
-      }  
-      if (expression.length > 0) result.selector = {Slick: true, expressions: [expression], length: 1};
-      return result;
+    parseTargetSelector: function(selector) {
+      if (cache[selector]) return cache[selector]
+      return cache[selector] = Parser.exec.apply(Parser, arguments)
     },
 
     getTargetAction: function() {
       return this.attributes.interaction;
     }
   });
+  
+  
+  var Parser = LSD.Module.Target.Parser = {
+    build: function(expression, start, end) {      
+      var built = {};
+      var first = expression[start];
+      if (!first.classes && !first.attributes && first.tag == '*' && !first.id && first.pseudos.length == 1) {
+        var pseudo = first.pseudos[0];
+        if (pseudo.type == 'element') {
+          built.anchor = pseudo.key;
+          start++;
+        }
+      }
+      if (end > start  + (!built.anchor)) {
+        var last = expression[end - start - (!built.anchor)];
+        if (!last.classes && !last.attributes && last.tag == '*' && !last.id && last.pseudos[0].type == 'class') {
+          var actions = last.pseudos
+          end--;
+        };
+      }
+      if (start != end) built.selector = Parser.slice(expression, start, end);
+      return !actions ? built : actions.map(function(pseudo, i) {
+        var object = (i == 0) ? built : Object.clone(built)
+        object.action = pseudo.key;
+        if (pseudo.value) object.arguments = pseudo.value;
+        return object;
+      });
+    },
+    
+    slice: function(expressions, start, end) {
+      return {
+        Slick: true,
+        expressions: [expressions.slice(start, end)]
+      };
+    },
+    
+    exec: function(selector) {
+      var parsed = selector.Slick ? selector : Slick.parse(selector), expressions = [];
+      for (var i = 0, expression; expression = parsed.expressions[i]; i++) {
+        var started = 0;
+        for (var j = 0, k = expression.length - 1, selector; selector = expression[j]; j++) {
+          var joiner = Joiners[selector.combinator];
+          if (joiner || j == k) {
+            var exp = Parser.build(expression, started, (joiner ? j : j + 1));
+            expressions.push[exp.push ? 'apply' : 'call'](expressions, exp);
+          }
+        }
+      }
+      return expressions;
+    }
+  };
+  
+  var Joiners = Parser.Joiners = {
+    '&': function(a, b) {
+      return a() && b()
+    },
+    '|': function(a, b) {
+      return a() || b()
+    }
+  }
   
   var Pseudo = LSD.Module.Target.Pseudo = {
     document: function() {
@@ -9244,6 +9625,33 @@ provides:
   }
 
 }();
+/*
+---
+
+name: Target.js
+
+description: Monkey patch for Module Target.
+
+license: MIT-style license.
+
+extends: LSD/LSD.Module.Target
+
+...
+*/
+
+!function(parseTargetSelector, getTargetAction) {
+  LSD.Module.Target.implement({
+    parseTargetSelector: function(selector) {
+      if (selector == 'lightbox') return selector;
+      return parseTargetSelector.apply(this, arguments);
+    },
+
+    getTargetAction: function() {
+      if (this.attributes.target == 'lightbox') return 'dialog';
+      return getTargetAction.apply(this, arguments);
+    }
+  });
+}(LSD.Module.Target.prototype.parseTargetSelector, LSD.Module.Target.prototype.getTargetAction);
 /*
 ---
 
@@ -12927,11 +13335,16 @@ Request.HTML = new Class({
 		var temp = new Element('div').set('html', response.html);
 
 		response.tree = temp.childNodes;
-		response.elements = temp.getElements('*');
+		response.elements = temp.getElements(options.filter || '*');
 
-		if (options.filter) response.tree = response.elements.filter(options.filter);
-		if (options.update) document.id(options.update).empty().set('html', response.html);
-		else if (options.append) document.id(options.append).adopt(temp.getChildren());
+		if (options.filter) response.tree = response.elements;
+		if (options.update){
+			var update = document.id(options.update).empty();
+			if (options.filter) update.adopt(response.elements);
+			else update.set('html', response.html);
+		} else if (options.append){
+			response.elements.inject(document.id(options.append));
+		}
 		if (options.evalScripts) Browser.exec(response.javascript);
 
 		this.onSuccess(response.tree, response.elements, response.html, response.javascript);
@@ -15180,6 +15593,337 @@ LSD.Options.layers = {
 
 }();
 
+/*
+---
+
+name: Fx.CSS
+
+description: Contains the CSS animation logic. Used by Fx.Tween, Fx.Morph, Fx.Elements.
+
+license: MIT-style license.
+
+requires: [Fx, Element.Style]
+
+provides: Fx.CSS
+
+...
+*/
+
+Fx.CSS = new Class({
+
+	Extends: Fx,
+
+	//prepares the base from/to object
+
+	prepare: function(element, property, values){
+		values = Array.from(values);
+		if (values[1] == null){
+			values[1] = values[0];
+			values[0] = element.getStyle(property);
+		}
+		var parsed = values.map(this.parse);
+		return {from: parsed[0], to: parsed[1]};
+	},
+
+	//parses a value into an array
+
+	parse: function(value){
+		value = Function.from(value)();
+		value = (typeof value == 'string') ? value.split(' ') : Array.from(value);
+		return value.map(function(val){
+			val = String(val);
+			var found = false;
+			Object.each(Fx.CSS.Parsers, function(parser, key){
+				if (found) return;
+				var parsed = parser.parse(val);
+				if (parsed || parsed === 0) found = {value: parsed, parser: parser};
+			});
+			found = found || {value: val, parser: Fx.CSS.Parsers.String};
+			return found;
+		});
+	},
+
+	//computes by a from and to prepared objects, using their parsers.
+
+	compute: function(from, to, delta){
+		var computed = [];
+		(Math.min(from.length, to.length)).times(function(i){
+			computed.push({value: from[i].parser.compute(from[i].value, to[i].value, delta), parser: from[i].parser});
+		});
+		computed.$family = Function.from('fx:css:value');
+		return computed;
+	},
+
+	//serves the value as settable
+
+	serve: function(value, unit){
+		if (typeOf(value) != 'fx:css:value') value = this.parse(value);
+		var returned = [];
+		value.each(function(bit){
+			returned = returned.concat(bit.parser.serve(bit.value, unit));
+		});
+		return returned;
+	},
+
+	//renders the change to an element
+
+	render: function(element, property, value, unit){
+		element.setStyle(property, this.serve(value, unit));
+	},
+
+	//searches inside the page css to find the values for a selector
+
+	search: function(selector){
+		if (Fx.CSS.Cache[selector]) return Fx.CSS.Cache[selector];
+		var to = {}, selectorTest = new RegExp('^' + selector.escapeRegExp() + '$');
+		Array.each(document.styleSheets, function(sheet, j){
+			var href = sheet.href;
+			if (href && href.contains('://') && !href.contains(document.domain)) return;
+			var rules = sheet.rules || sheet.cssRules;
+			Array.each(rules, function(rule, i){
+				if (!rule.style) return;
+				var selectorText = (rule.selectorText) ? rule.selectorText.replace(/^\w+/, function(m){
+					return m.toLowerCase();
+				}) : null;
+				if (!selectorText || !selectorTest.test(selectorText)) return;
+				Object.each(Element.Styles, function(value, style){
+					if (!rule.style[style] || Element.ShortStyles[style]) return;
+					value = String(rule.style[style]);
+					to[style] = ((/^rgb/).test(value)) ? value.rgbToHex() : value;
+				});
+			});
+		});
+		return Fx.CSS.Cache[selector] = to;
+	}
+
+});
+
+Fx.CSS.Cache = {};
+
+Fx.CSS.Parsers = {
+
+	Color: {
+		parse: function(value){
+			if (value.match(/^#[0-9a-f]{3,6}$/i)) return value.hexToRgb(true);
+			return ((value = value.match(/(\d+),\s*(\d+),\s*(\d+)/))) ? [value[1], value[2], value[3]] : false;
+		},
+		compute: function(from, to, delta){
+			return from.map(function(value, i){
+				return Math.round(Fx.compute(from[i], to[i], delta));
+			});
+		},
+		serve: function(value){
+			return value.map(Number);
+		}
+	},
+
+	Number: {
+		parse: parseFloat,
+		compute: Fx.compute,
+		serve: function(value, unit){
+			return (unit) ? value + unit : value;
+		}
+	},
+
+	String: {
+		parse: Function.from(false),
+		compute: function(zero, one){
+			return one;
+		},
+		serve: function(zero){
+			return zero;
+		}
+	}
+
+};
+
+//<1.2compat>
+
+Fx.CSS.Parsers = new Hash(Fx.CSS.Parsers);
+
+//</1.2compat>
+
+/*
+---
+
+name: Fx.Tween
+
+description: Formerly Fx.Style, effect to transition any CSS property for an element.
+
+license: MIT-style license.
+
+requires: Fx.CSS
+
+provides: [Fx.Tween, Element.fade, Element.highlight]
+
+...
+*/
+
+Fx.Tween = new Class({
+
+	Extends: Fx.CSS,
+
+	initialize: function(element, options){
+		this.element = this.subject = document.id(element);
+		this.parent(options);
+	},
+
+	set: function(property, now){
+		if (arguments.length == 1){
+			now = property;
+			property = this.property || this.options.property;
+		}
+		this.render(this.element, property, now, this.options.unit);
+		return this;
+	},
+
+	start: function(property, from, to){
+		if (!this.check(property, from, to)) return this;
+		var args = Array.flatten(arguments);
+		this.property = this.options.property || args.shift();
+		var parsed = this.prepare(this.element, this.property, args);
+		return this.parent(parsed.from, parsed.to);
+	}
+
+});
+
+Element.Properties.tween = {
+
+	set: function(options){
+		this.get('tween').cancel().setOptions(options);
+		return this;
+	},
+
+	get: function(){
+		var tween = this.retrieve('tween');
+		if (!tween){
+			tween = new Fx.Tween(this, {link: 'cancel'});
+			this.store('tween', tween);
+		}
+		return tween;
+	}
+
+};
+
+Element.implement({
+
+	tween: function(property, from, to){
+		this.get('tween').start(arguments);
+		return this;
+	},
+
+	fade: function(how){
+		var fade = this.get('tween'), o = 'opacity', toggle;
+		how = [how, 'toggle'].pick();
+		switch (how){
+			case 'in': fade.start(o, 1); break;
+			case 'out': fade.start(o, 0); break;
+			case 'show': fade.set(o, 1); break;
+			case 'hide': fade.set(o, 0); break;
+			case 'toggle':
+				var flag = this.retrieve('fade:flag', this.get('opacity') == 1);
+				fade.start(o, (flag) ? 0 : 1);
+				this.store('fade:flag', !flag);
+				toggle = true;
+			break;
+			default: fade.start(o, arguments);
+		}
+		if (!toggle) this.eliminate('fade:flag');
+		return this;
+	},
+
+	highlight: function(start, end){
+		if (!end){
+			end = this.retrieve('highlight:original', this.getStyle('background-color'));
+			end = (end == 'transparent') ? '#fff' : end;
+		}
+		var tween = this.get('tween');
+		tween.start('background-color', start || '#ffff88', end).chain(function(){
+			this.setStyle('background-color', this.retrieve('highlight:original'));
+			tween.callChain();
+		}.bind(this));
+		return this;
+	}
+
+});
+
+/*
+---
+ 
+script: Animation.js
+ 
+description: Animated ways to show/hide widget
+ 
+license: Public domain (http://unlicense.org).
+ 
+requires:
+  - LSD.Mixin
+  - Core/Fx.Tween
+ 
+provides: 
+  - LSD.Mixin.Animation
+ 
+...
+*/
+
+
+LSD.Mixin.Animation = new Class({
+  behaviour: '[animation]',
+  
+  options: {
+    animation: {}
+  },
+  
+  getAnimation: function() {
+    if (!this.animation) {
+      this.animation = this.getAnimatedElement().set('tween', this.options.animation).get('tween');
+      if (this.options.animation.value) this.animation.set(this.options.animation.value);
+    }
+    return this.animation;
+  },
+  
+  fade: function(how){
+    return this.getAnimation().start('opacity', how == 'in' ? 1 : 0);
+  },
+  
+  slide: function(how){
+    this.getAnimatedElement().store('style:overflow', this.getAnimatedElement().getStyle('overflow'));
+    this.getAnimatedElement().setStyle('overflow', 'hidden');
+    return this.getAnimation().start('height', how == 'in' ? this.getAnimatedElement().scrollHeight - this.getAnimatedElement().offsetHeight : 0);
+  },
+  
+  show: function() {
+    var parent = this.parent;
+    this.getAnimatedElement().setStyle('display', this.getAnimatedElement().retrieve('style:display') || 'inherit');
+    this[this.attributes.animation]('in').chain(function(){
+      this.getAnimatedElement().setStyle('overflow', this.getAnimatedElement().retrieve('style:overflow') || 'inherit');
+      LSD.Widget.prototype.show.apply(this, arguments);
+    }.bind(this));
+  },
+  
+  hide: function(how) {
+    var parent = this;
+    this[this.attributes.animation]('out').chain(function(){
+      this.getAnimatedElement().setStyle('overflow', this.getAnimatedElement().retrieve('style:overflow') || 'inherit');
+      this.getAnimatedElement().store('style:display', this.getAnimatedElement().getStyle('display'));
+      this.getAnimatedElement().setStyle('display', 'none');
+      LSD.Widget.prototype.hide.apply(this, arguments);
+    }.bind(this));
+  },
+  
+  remove: function() {
+    return this[this.attributes.animation]('out').chain(this.dispose.bind(this));
+  },
+  
+  dispose: function() {
+    return this.getAnimatedElement().dispose()
+  },
+  
+  getAnimatedElement: function() {
+    return this.element;
+  }
+  
+});
 /*
 ---
  
@@ -18189,15 +18933,25 @@ LSD.Native.Label = new Class({
     events: {
       _label: {
         element: {
-          'click': 'focusControl'
+          'click': 'click'
         }
       }
     }
   },
   
-  focusControl: function(event) {
-    if (this.control && this.control.focus) this.control.focus()
-    if (event) event.preventDefault()
+  click: function(event){
+    if (event && event.preventDefault) event.preventDefault();
+    if (!this.disabled) {
+      this.focusControl();
+      if(this.control.click) this.control.click();
+      return this.parent.apply(this, arguments);
+    }
+  },
+  
+  focusControl: function() {
+    if (this.control && this.control.focus) {
+      this.control.focus();
+    }
   }
 });
 /*
@@ -18844,6 +19598,86 @@ provides:
 */
 
 Wrongler.Widget.Body = LSD.Native.Body;
+/*
+---
+ 
+script: Dialog.js
+ 
+description: An in-page independent document (like iphone app page)
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - Wrongler.Widget.Body
+  - Native/LSD.Native.Body
+  - LSD/LSD.Trait.Fieldset
+
+provides:
+  - Wrongler.Widget.Body.Dialog
+
+...
+*/
+
+Wrongler.Widget.Body.Dialog = new Class({
+  Includes: [
+    LSD.Native.Body,
+    LSD.Trait.Fieldset
+  ],
+  
+  options: {
+    tag: 'dialog',
+    pseudos: Array.fast('submittable'),
+    nodeType: 1,
+    element: {
+      tag: 'section'
+    },
+    transformation: {
+      name: 'pop'
+    },
+    events: {
+      _dialog: {
+        element: {
+          'click:relay(.cancel)': 'cancel'
+        },
+        self: {
+          build: function() {
+            this.element.inject(document.body);
+          }
+        }
+      }
+    },
+    has: {
+      one: {
+        'form': {
+          selector: 'form',
+          chain: {
+            'submission': function() {
+              return {name: 'send', target: this.document}
+            }
+          }
+        }
+      }
+    }
+  },
+  
+  cancel: function() {
+    this.hide();
+    this.fireEvent('cancel', arguments);
+  },
+  
+  submit: function() {
+    this.hide();
+    this.fireEvent('submit', arguments);
+  },
+  
+  getData: function() {
+    return (this.form ? this.form.getData : this.parent).apply(this.form || this, arguments);
+  },
+  
+  hidden: true
+});
 /*
 ---
 
@@ -20525,6 +21359,54 @@ LSD.Mixin.Focus.Propagation = {
 /*
 ---
  
+script: Dialog.Lightbox.js
+ 
+description: An in-page independent document (like iphone app page)
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - Wrongler.Widget.Body.Dialog
+  - LSD/LSD.Mixin.Focus
+
+provides:
+  - Wrongler.Widget.Body.Dialog.Lightbox
+
+...
+*/
+
+Wrongler.Widget.Body.Dialog.Lightbox = new Class({
+  Extends: Wrongler.Widget.Body.Dialog,
+
+  options: {
+    tag: 'lightbox',
+    container: {
+      enabled: true
+    },
+    events : {
+      _lightbox: {
+        self: {
+          build: function(){
+            this.overlay = new Element('div', {
+              'class': 'overlay',
+              events: {
+                click: function(){
+                  this.cancel();
+                }.bind(this)
+              }
+            }).inject(this.element);
+            this.addEvent('destroy', this.overlay.destroy.bind(this.overlay));
+          }
+        }
+      }
+    }
+  }
+});
+/*
+---
+ 
 script: Input.js
  
 description: Make it easy to use regular native input for the widget
@@ -20724,6 +21606,7 @@ LSD.Widget.Input.Range = new Class({
 
   onSet: function() {
     this.focus();
+    this.setValue(arguments[0]);
   }
 });
 
@@ -20754,7 +21637,17 @@ provides: [Wrongler.Widget.Input.Range]
 ...
 */
 
-Wrongler.Widget.Input.Range = LSD.Widget.Input.Range;
+Wrongler.Widget.Input.Range = new Class({
+  Extends: LSD.Widget.Input.Range,
+  
+  options: {
+    element: {
+      tag: 'div'
+    }
+  }
+});
+
+Wrongler.Widget.Input.Range.Thumb = LSD.Widget.Input.Range.Thumb;
 /*
 ---
  
@@ -20796,6 +21689,11 @@ LSD.Widget.Input.Radio = new Class({
       }
     },
     writable: true
+  },
+
+  click: function(event){
+    if (event && event.preventDefault) event.preventDefault();
+    if (!this.checked && !this.disabled) return this.parent.apply(this, arguments);
   }
 });
 /*
@@ -20818,7 +21716,22 @@ provides: [Wrongler.Widget.Input.Radio]
 ...
 */
 
-Wrongler.Widget.Input.Radio = LSD.Widget.Input.Radio;
+Wrongler.Widget.Input.Radio = new Class({
+  Extends: LSD.Widget.Input.Radio,
+  
+  options: {
+    element: {
+      tag: 'div'
+    },
+    events: {
+      _radio: {
+        self: {
+          uncheck: 'callChain'
+        }
+      }
+    }
+  }
+});
 /*
 ---
  
@@ -20858,6 +21771,11 @@ LSD.Widget.Input.Checkbox = new Class({
       }
     },
     writable: true
+  },
+  
+  click: function(event){
+    if (event && event.preventDefault) event.preventDefault();
+    if (!this.checked && !this.disabled) return this.parent.apply(this, arguments);
   }
 });
 /*
@@ -20880,7 +21798,50 @@ provides: [Wrongler.Widget.Input.Checkbox]
 ...
 */
 
-Wrongler.Widget.Input.Checkbox = LSD.Widget.Input.Checkbox;
+Wrongler.Widget.Input.Checkbox = new Class({
+  Extends: LSD.Widget.Input.Checkbox,
+  
+  options: {
+    element: {
+      tag: 'div'
+    }
+  }
+});
+/*
+---
+ 
+script: Animated.js
+ 
+description: Basic widget animated
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Andrey Koppel
+ 
+requires:
+  - Wrongler.Widget
+  - LSD/LSD.Native
+  - LSD/LSD.Mixin.Animation
+  - LSD/LSD.Mixin.Focus
+  - Core/Fx.Transitions
+
+provides:
+  - Wrongler.Widget.Animated
+ 
+...
+*/
+
+Wrongler.Widget.Animated = new Class({
+  Extends: LSD.Native,
+  
+  options: {
+    tag: 'widget',
+    animation: {
+      duration: 350,
+      transition: 'circ:out'
+    }
+  }
+});
 /*
 ---
  
@@ -21029,7 +21990,8 @@ Wrongler.Application = new LSD.Application(document);
 // Transformations
 Wrongler.Transformations = {
   'a.button': 'button',
-  'a.button[type="submit"]': 'input[type="submit"]'
+  'a.button[type="submit"]': 'input[type="submit"]',
+  'div[animation]': 'animated'
 };
 Wrongler.Widget.Body.prototype.options.mutations = Wrongler.Transformations;
 Wrongler.Widget.Body.prototype.options.layout.options.context = 'element';

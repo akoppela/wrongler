@@ -1,11 +1,11 @@
-#start-tip{:hidden => 'hidden'}<
+#start-tip{:hidden => 'hidden', :animation => 'fade'}<
   %section>
     %h2 Cпорим?
     %p.black= raw('«Вронглер»<i> — это сервис споров на деньги для друзей и незнакомцев.</i>')
     %p Любые поводы, любые суммы.
     %p Нет такого человека, которому бы не нравилось выигрывать споры. Быть правым лучше, чем быть левым.
   %aside<>
-    %a.button{:href => '#', :target => '::page #start-tip', :interaction => 'display'}= raw('<span>Скрыть и не показывать</span>')
+    %a.button{:href => '#', :target => '::page #start-tip :display()'}= raw('<span>Скрыть и не показывать</span>')
     %section>
       %h2 И как это делать?
       %p Мы стараемся сделать так, чтобы не было никаких вопросов «как?». 

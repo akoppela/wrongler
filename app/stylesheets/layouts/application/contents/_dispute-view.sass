@@ -1,6 +1,8 @@
 /* dispute view
 $dispute_view_checkbox = $baseline * 1.5
 
+$dispiute_view_checkbox_popup = 44px
+
 
 #container #dispute-view
   :padding
@@ -13,10 +15,10 @@ $dispute_view_checkbox = $baseline * 1.5
     > section, > aside
       :width 50%
       > .checkbox
+        :position relative
         :margin
           :top= $baseline
         :height= $dispute_view_checkbox
-        :overflow hidden
         :background #e4e4e1
         :border
           :bottom 2px solid #cdcdca
@@ -42,6 +44,7 @@ $dispute_view_checkbox = $baseline * 1.5
           :background url(/images/separators/dispute_view_checkbox.png) repeat-y
           :text
             :align left
+          :overflow hidden
           > label
             :display block
             :padding
@@ -58,6 +61,74 @@ $dispute_view_checkbox = $baseline * 1.5
               :height 22px
               :border
                 :bottom= 1px dotted $light_black
+        > .pop-up
+          :position absolute
+          :overflow hidden
+          :z-index 10
+          :left 0
+          :width 100%
+          :top 100%
+          :height= $dispiute_view_checkbox_popup - 2
+          :margin
+            :top 1px
+          :border
+            :bottom 2px solid #cdcdca
+          :background #e4e4e1
+          +box-shadow($black_twenty_five_shadow)
+          +children-inline
+          > label
+            +line-height($dispiute_view_checkbox_popup - 2, 28px)
+            :line-height 14px
+            :font
+              :size 11px
+              :style italic
+            :margin
+              :left= $ninesixty_gutter_width
+            +colors($light_black, $white_fifty_shadow)
+            > span
+              :display block
+              :color= $light_grey
+          > .input
+            :position relative
+            :height 22px
+            :background= $white
+            :border 1px solid #a3a498
+            :margin
+              :top= ($dispiute_view_checkbox_popup - 26) / 2
+              :left= $ninesixty_gutter_width
+            :padding
+              :left= $ninesixty_gutter_width - 1
+              :right= $ninesixty_gutter_width * 2 - 1
+            > input
+              :width 45px
+              :height 22px
+              :line-height 22px
+              :background none
+              :border 0
+              :color= $light_grey
+              :font
+                :size 14px
+                :style italic
+            &:before
+              :content ''
+              :position absolute
+              :width 10px
+              :height 10px
+              :top 6px
+              :left 100%
+              :margin
+                :left= -$ninesixty_gutter_width - 6px
+              :background url(/images/icons/ruble_medium_grey.png) no-repeat
+          > menu
+            +line-height($dispiute_view_checkbox_popup - 2, $button)
+            :margin
+              :left= $ninesixty_gutter_width
+            > .button
+              +inline-block
+              +button
+          &[hidden]
+            :display none
+            :height 0
     > section
       > .checkbox
         :margin
@@ -189,12 +260,19 @@ $dispute_view_checkbox = $baseline * 1.5
           &:before
             :content ''
             +absoluted
-            :background #b6b7ae
+            :background #b6b7ae no-repeat center
             +opacity(0.5, true)
           &.video:after
             :content ''
             +absoluted
             :background url(/images/arrows/play.png) no-repeat center
+          &.is-working
+            &:before
+              +opacity(0.6, true)
+              :background
+                :image url(/images/icons/loader.gif)
+            &:after
+              :display none
       > p
         +inline-block
         :width= $pictures_width * 2 + $ninesixty_gutter_width

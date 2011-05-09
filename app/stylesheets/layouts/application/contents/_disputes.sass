@@ -26,6 +26,12 @@
             :padding
               :right 12px
             :background url(/images/icons/ruble_grey.png) no-repeat right center
+          &.many
+            +colors($white, $black_twenty_five_shadow)
+            :background= $red
+            > span
+              :background
+                :image url(/images/icons/ruble_white.png)
         > a
           :position relative
           :top -1px

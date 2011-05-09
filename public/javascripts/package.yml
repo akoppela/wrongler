@@ -6,8 +6,12 @@ author: lastdrop
 category: Interface
 sources:
   - Source/Wrongler.js
+  - Source/Module/Target.js
   - Source/Widget.js
   - Source/Widget/Body.js
+  - Source/Widget/Body/Dialog.js
+  - Source/Widget/Body/Dialog.Lightbox.js
+  - Source/Widget/Animated.js
   - Source/Widget/Input.js
   - Source/Widget/Input/Checkbox.js
   - Source/Widget/Input/Radio.js

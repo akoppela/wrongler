@@ -31,7 +31,8 @@ Wrongler.Application = new LSD.Application(document);
 // Transformations
 Wrongler.Transformations = {
   'a.button': 'button',
-  'a.button[type="submit"]': 'input[type="submit"]'
+  'a.button[type="submit"]': 'input[type="submit"]',
+  'div[animation]': 'animated'
 };
 Wrongler.Widget.Body.prototype.options.mutations = Wrongler.Transformations;
 Wrongler.Widget.Body.prototype.options.layout.options.context = 'element';
