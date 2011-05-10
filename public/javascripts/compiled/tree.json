@@ -1,93 +1,65 @@
 {
   "Wrongler": {
-    "provides": [
-      "Wrongler"
-    ],
+    "desc": "Basic script",
     "requires": [
 
     ],
-    "desc": "Basic script"
+    "provides": [
+      "Wrongler"
+    ]
   },
   "Widget": {
+    "desc": "Basic widget",
+    "requires": [
+      "Wrongler",
+      "LSD/LSD.Type"
+    ],
     "provides": [
       "Wrongler.Widget"
     ],
     "Input": {
-      "provides": [
-        "Wrongler.Widget.Input"
-      ],
-      "Checkbox": {
-        "provides": [
-          "Wrongler.Widget.Input.Checkbox"
-        ],
-        "requires": [
-          "Wrongler.Widget.Input",
-          "Widgets/LSD.Widget.Input.Checkbox"
-        ],
-        "desc": "Boolean checkbox type of input"
-      },
+      "desc": "A base class for all kinds of form controls",
       "requires": [
         "Wrongler.Widget",
         "Native/LSD.Native.Input.*",
         "LSD/LSD.Mixin.Placeholder"
       ],
-      "Radio": {
-        "provides": [
-          "Wrongler.Widget.Input.Radio"
-        ],
-        "requires": [
-          "Wrongler.Widget.Input",
-          "Widgets/LSD.Widget.Input.Radio"
-        ],
-        "desc": "A radio button, set of connected widgets that steal checkedness from each other"
-      },
-      "desc": "A base class for all kinds of form controls",
+      "provides": [
+        "Wrongler.Widget.Input"
+      ],
       "Range": {
-        "provides": [
-          "Wrongler.Widget.Input.Range"
-        ],
+        "desc": "Range slider input",
         "requires": [
           "Wrongler.Widget.Input",
           "Widgets/LSD.Widget.Input.Range"
         ],
-        "desc": "Range slider input"
-      }
-    },
-    "Body": {
-      "provides": [
-        "Wrongler.Widget.Body"
-      ],
-      "requires": [
-        "Wrongler.Widget",
-        "Native/LSD.Native.Body"
-      ],
-      "Dialog.Lightbox": {
         "provides": [
-          "Wrongler.Widget.Body.Dialog.Lightbox"
-        ],
-        "requires": [
-          "Wrongler.Widget.Body.Dialog",
-          "LSD/LSD.Mixin.Focus"
-        ],
-        "desc": "An in-page independent document (like iphone app page)"
+          "Wrongler.Widget.Input.Range"
+        ]
       },
-      "desc": "Body widget",
-      "Dialog": {
-        "provides": [
-          "Wrongler.Widget.Body.Dialog"
-        ],
+      "Radio": {
+        "desc": "A radio button, set of connected widgets that steal checkedness from each other",
         "requires": [
-          "Wrongler.Widget.Body",
-          "Native/LSD.Native.Body",
-          "LSD/LSD.Trait.Fieldset"
+          "Wrongler.Widget.Input",
+          "Widgets/LSD.Widget.Input.Radio"
         ],
-        "desc": "An in-page independent document (like iphone app page)"
+        "provides": [
+          "Wrongler.Widget.Input.Radio"
+        ]
+      },
+      "Checkbox": {
+        "desc": "Boolean checkbox type of input",
+        "requires": [
+          "Wrongler.Widget.Input",
+          "Widgets/LSD.Widget.Input.Checkbox"
+        ],
+        "provides": [
+          "Wrongler.Widget.Input.Checkbox"
+        ]
       }
     },
     "Animated": {
-      "provides": [
-        "Wrongler.Widget.Animated"
-      ],
+      "desc": "Basic widget animated",
       "requires": [
         "Wrongler.Widget",
         "LSD/LSD.Native",
@@ -95,18 +67,44 @@
         "LSD/LSD.Mixin.Focus",
         "Core/Fx.Transitions"
       ],
-      "desc": "Basic widget animated"
+      "provides": [
+        "Wrongler.Widget.Animated"
+      ]
     },
-    "requires": [
-      "Wrongler",
-      "LSD/LSD.Type"
-    ],
-    "desc": "Basic widget"
+    "Body": {
+      "desc": "Body widget",
+      "requires": [
+        "Wrongler.Widget",
+        "Native/LSD.Native.Body"
+      ],
+      "provides": [
+        "Wrongler.Widget.Body"
+      ],
+      "Dialog": {
+        "desc": "An in-page independent document (like iphone app page)",
+        "requires": [
+          "Wrongler.Widget.Body",
+          "Native/LSD.Native.Body",
+          "LSD/LSD.Trait.Fieldset"
+        ],
+        "provides": [
+          "Wrongler.Widget.Body.Dialog"
+        ]
+      },
+      "Dialog.Lightbox": {
+        "desc": "An in-page independent document (like iphone app page)",
+        "requires": [
+          "Wrongler.Widget.Body.Dialog",
+          "LSD/LSD.Mixin.Focus"
+        ],
+        "provides": [
+          "Wrongler.Widget.Body.Dialog.Lightbox"
+        ]
+      }
+    }
   },
   "Application": {
-    "provides": [
-      "Wrongler.Application"
-    ],
+    "desc": "Main script of application",
     "requires": [
       "Wrongler",
       "Wrongler.Widget.*",
@@ -118,6 +116,8 @@
       "LSD/LSD.Action.*",
       "LSD/LSD.Application"
     ],
-    "desc": "Main script of application"
+    "provides": [
+      "Wrongler.Application"
+    ]
   }
 }

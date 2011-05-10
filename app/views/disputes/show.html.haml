@@ -13,7 +13,7 @@
     %section>
       .checkbox<
         %section>
-          %input{:type => 'radio', :name => 'dispute_radio', :id => 'first_radio', :target => '::page #first-radio-popup :display()'}
+          %input{:type => 'radio', :name => 'dispute_radio', :id => 'first_radio', :target => '$$ #first-radio-popup :display()'}
         %aside>
           %label{:for => 'first_radio'}= raw('<span>Конечно же, Ливерпуль.</span>')
         .pop-up#first-radio-popup{:hidden => 'hidden', :animation => 'slide'}<
@@ -25,7 +25,7 @@
     %aside>
       .checkbox<
         %section>
-          %input{:type => 'radio', :name => 'dispute_radio', :id => 'second_radio', :target => '::page #second-radio-popup :display()'}
+          %input{:type => 'radio', :name => 'dispute_radio', :id => 'second_radio', :target => '$$ #second-radio-popup :display()'}
         %aside>
           %label{:for => 'second_radio'}= raw('<span>Ну какие вопросы. Это Манчестер!</span>')
         .pop-up#second-radio-popup{:hidden => 'hidden', :animation => 'slide'}<
