@@ -210,8 +210,6 @@ body {
         height: 38px;
         padding-left: 10px;
         padding-right: 125px; }
-        #container > form > div > input[type="text"].is-placeheld, #container > form > div > input[type="text"].is-placeheld > input[type="text"], #container > form > div > .input[type="text"].is-placeheld, #container > form > div > .input[type="text"].is-placeheld > input[type="text"] {
-          color: #aaaaa7; }
       #container > form > div input[type="text"] {
         width: 245px;
         height: 38px;
@@ -219,6 +217,8 @@ body {
         color: #333333;
         font-size: 18px;
         background: none; }
+        #container > form > div input[type="text"].is-placeheld {
+          color: #aaaaa7; }
       #container > form > div > .button {
         position: absolute;
         zoom: 1;

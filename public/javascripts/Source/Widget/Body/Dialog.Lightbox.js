@@ -32,13 +32,11 @@ Wrongler.Widget.Body.Dialog.Lightbox = new Class({
         self: {
           build: function(){
             this.overlay = new Element('div', {
-              'class': 'overlay',
-              events: {
-                click: function(){
-                  this.cancel();
-                }.bind(this)
-              }
+              'class': 'overlay'
             }).inject(this.element);
+            this.overlay.addEvent('click', function(){
+              this.cancel();
+            }.bind(this));
             this.addEvent('destroy', this.overlay.destroy.bind(this.overlay));
           }
         }

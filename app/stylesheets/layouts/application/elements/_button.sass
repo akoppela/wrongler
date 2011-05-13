@@ -1,6 +1,8 @@
 /* button
 $button = 16px
 
+$big_button = 28px
+
 $button_gutter = 12px
 
 $button_radius = $button / 2 - 1
@@ -14,7 +16,7 @@ $button_radius = $button / 2 - 1
 = button($height = $button)
   :position relative
   :height= $height
-  :line-height= $height - 2
+  :line-height= $height - 1
   :padding
     :left= $button_gutter / 2
     :right= $button_gutter / 2
@@ -45,3 +47,29 @@ $button_radius = $button / 2 - 1
   +button
   :background= $light_black
   +colors($white, $black_twenty_five_shadow)
+
+= big-button
+  +button($big_button - 1)
+  :line-height= $big_button - 4
+  :padding
+    :left= $ninesixty_gutter_width - 1
+    :right= $ninesixty_gutter_width - 1
+  :font
+    :size 12px
+    :weight bold
+    :family Cambria, Georgia, Arial
+  +border-radius(3px)
+  &:before
+    +border-radius(3px)
+    +box-shadow('inset 0 -3px 0 rgba(0, 0, 0, 0.2)')
+  &.is-active
+    :height= $big_button - 3
+    :margin
+      :top 2px
+    &:before
+      +box-shadow('inset 0 -1px 0 rgba(0, 0, 0, 0.2)')
+
+= big-brown-button
+  +big-button
+  +colors($light_black, $white_fifty_shadow)
+  :background #a4a693 url(/images/gradients/vertical/brown_big_button.png) repeat-x

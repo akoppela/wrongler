@@ -27,17 +27,22 @@ $comments_textarea = $comments_textarea_baseline * 3 + $baseline / 2
         :right 80px
       :padding
         :top= $baseline / 4 - 1
-        :left= $ninesixty_gutter_width / 2 - 1
-        :right= $ninesixty_gutter_width / 2 - 1
+        :left= $ninesixty_gutter_width - 1
+        :right= $ninesixty_gutter_width - 1
         :bottom= $baseline / 4 - 1
       :border 1px solid #e4e4e1
       :text
         :align left
+      :background #fdfdfd
       > textarea
         :display block
         :width 100%
         :line-height 18px
         :height= 3 * 18px
+        :font
+          :style italic
+        :color= $light_black
+        :background none
       & + aside
         :margin
           :top= -$comments_textarea

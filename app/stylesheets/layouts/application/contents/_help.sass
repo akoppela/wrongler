@@ -34,30 +34,36 @@
         :left= $ninesixty_gutter_width
         :right= $ninesixty_gutter_width
       > h3
+        +list-fix
         :font
           :family Cambria, Georgia, Arial
           :size 17px
-        :color= $light_grey
-        :cursor pointer
-        > span
-          +inline-block
-          :height 19px
-        &:hover > span
-          :height 18px
-          :border
-            :bottom= 1px dotted $black
+        > a
+          :display block
+          :color= $light_grey
+          +list-fix
+          > span
+            +inline-block
+            :height 19px
+          &:hover > span
+            :height 18px
+            :border
+              :bottom= 1px dotted $black
       > section
+        +list-fix
         :display none
         :margin
           :left= $ninesixty_gutter_width * 2
+        :padding
+          :bottom= $baseline / 2
         > p
           :margin
             :top= $baseline / 2
       & ~ article
         :margin
           :top= $baseline / 2
-      &.is-selected
-        > h3 > span
+      &.selected
+        > h3 > a > span
           :color= $black
         > section
           :display block

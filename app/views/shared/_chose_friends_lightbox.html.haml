@@ -1,0 +1,16 @@
+%aside<
+  %a.button{:href => '#'}>= raw('<span>Закрыть</span>')
+%section#chose-friends
+  %h2 Выбрать друзей для спора
+  %form{:action => '#', :method => 'post'}<
+    .input{:type => 'text'}
+      %input{:type => 'text', :placeholder => 'Поиск по друзьям'}
+  %section<
+    - 10.times do
+      %a.friend{:href => '#', :target => '$ * :state(chosen)'}>
+        %img{:src => '/images/icons/avatar_big.png', :alt => 'Петрович'}
+        %div
+          %h3= raw('<span>Джентельмен</span><span>Удачи</span>')
+          %span 2566
+  %footer<
+    %a.button{:href => '#'}> ПРИГЛАСИТЬ В СПОР

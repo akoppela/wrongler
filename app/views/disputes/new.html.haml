@@ -1,0 +1,73 @@
+%form#new-dispute{:action => '#', :method => 'post'}
+  %header
+    %section<
+      %h2> Начинаем спор
+      .checkbox<
+        %input{:type => 'checkbox', :name => 'friends_checkbox', :id => 'friends_checkbox', :target => '$$ #choose-friends-button :display()'}>
+        %label{:for => 'friends_checkbox'}> Только для друзей
+        %a.button#choose-friends-button{:href => '#', :hidden => 'hidden'}> Выбрать друзей
+    %aside<
+      %p= link_to 'Я пошутил, не хочу создавать', '#'
+  %section
+    %article<
+      %label{:for => 'dispute-name'}>= raw('Название<span>Как корабль назовете…</span>')
+      .input{:type => 'text'}>
+        %input{:type => 'text', :id => 'dispute-name'}
+    %article<
+      %label{:for => 'dispute-category'}>= raw('Категория<span>Возможны подкатегории</span>')
+      %select{:id => 'dispute-category'}>
+        %option{:value => '1'} Первая
+        %option.selected{:value => '2'} Вторая
+        %option{:value => '3'} Третья
+    %article<
+      %label{:for => 'dispute-time'}>= raw('Дата завершения<span>Время случайное</span>')
+      %input{:type => 'date', :id => 'dispute-time'}
+  .information<
+    %section>
+      %h3 Варианты
+      %ol
+        %li
+          .input
+            %input{:type => 'text', :name => 'variant[0]'}
+          %aside<
+            %a.button{:href => '#', :target => '$ ! li:nth-child(n+3) :delete()'} Убрать
+        %li
+          .input
+            %input{:type => 'text', :name => 'variant[1]'}
+          %aside<
+            %a.button{:href => '#', :target => '$ ! li:nth-child(n+3) :delete()'} Убрать
+        %li
+          .input
+            %input{:type => 'text', :name => 'variant[2]'}
+          %aside<
+            %a.button{:href => '#', :target => '$ ! li:nth-child(n+3) :delete()'} Убрать
+        %li
+          .input
+            %input{:type => 'text', :name => 'variant[3]', :placeholder => '123'}
+          %aside<
+            %a.button{:href => '#', :target => '$ ! li:nth-child(n+3) :delete()'} Убрать
+      %menu<
+        %a.button{:href => '#', :target => '$ !> * !+ ol > li:last-child :clone()'} Добавить еще один
+    %aside>
+      %h3 Описание
+      .textarea
+        %textarea
+      %h3 Фото и видео
+      %menu<
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '/disputes/1/pictures', :class => 'video'
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#', :class => 'video'
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#', :class => 'video'
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#'
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#'
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#'
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#'
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#', :class => 'video'
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#'
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#'
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#', :class => 'video'
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#', :class => 'video'
+      %p<
+        %a.button{:href => '#'} Добавить еще
+  %footer
+    .wrapper
+      %a.button{:type => 'submit'} CОЗДАТЬ СПОР

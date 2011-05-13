@@ -1,0 +1,58 @@
+/* lightbox
+$lightbox_container = 660px
+
+$lightbox_header = $baseline * 2
+
+#container #content > .lightbox
+  +absoluted
+  :z-index 100
+  :top -4px
+  > .overlay
+    +absoluted
+    :background #50514c
+    +opacity(0.25, true)
+  > .container
+    :position relative
+    :top 100px
+    +grid-container($lightbox_container)
+    :background= $white
+    :padding
+      :bottom= $baseline / 2
+    :border
+      :bottom 2px solid #e5e5e5
+    +box-shadow('0 1px 2px rgba(0, 0, 0, 0.25)')
+    > aside
+      +line-height($lightbox_header, $button)
+      :padding
+        :left= $ninesixty_gutter_width
+        :right= $ninesixty_gutter_width
+      > .button
+        +inline-block
+        :height= $button
+        :line-height= $button
+        +border-radius($button - 1)
+        :background #cccccc
+        :padding
+          :left 7px
+          :right 7px
+        :color= $white
+        :font
+          :size 11px
+        > span
+          +inline-block
+          +hover-dotted($white, 14px)
+      & + section
+        :margin
+          :top= -$lightbox_header
+    > section
+      > h2
+        :height= $lightbox_header
+        :line-height= $lightbox_header
+        :padding
+          :left= $ninesixty_gutter_width
+          :right= $ninesixty_gutter_width
+        :font
+          :family Cambria, Georgia, Arial
+          :size 20px
+        > span
+          :color= $light_grey

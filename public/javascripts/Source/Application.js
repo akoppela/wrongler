@@ -16,7 +16,6 @@ requires:
   - Native/LSD.Native.Textarea
   - Native/LSD.Native.Button
   - Native/LSD.Native.Label
-  - Widgets/LSD.Widget.Select
   - LSD/LSD.Action.*
   - LSD/LSD.Application
   

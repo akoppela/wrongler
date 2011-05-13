@@ -1898,7 +1898,7 @@ provides:
 ...
 */
 
-Class.mixin = function(instance, klass) {
+Class.mixin = function(instance, klass, light) {
   var proto = klass.prototype;
   Object.each(proto, function(value, name) {
     if (typeof value !== 'function') return;
@@ -1913,7 +1913,8 @@ Class.mixin = function(instance, klass) {
       parent = origin.$owner;
       wrap = origin;
       origin = origin.$origin;
-    }  
+    };
+    if (instance[name] && light) return;
     var wrapper = instance[name] = function() {
       var stack = wrapper.$stack;
       if (!stack) stack = wrapper.$stack = wrapper.$mixes.clone()
@@ -1927,7 +1928,10 @@ Class.mixin = function(instance, klass) {
       this.$caller = current; this.caller = caller;
       delete wrapper.$stack;
       return result;
-    }.extend({$mixes: [value], $origin: origin, $name: name});
+    }
+    wrapper.$mixes = [value];
+    wrapper.$origin = origin;
+    wrapper.$name = name;
   });
   if (proto.initialize) {
     var parent = instance.parent; instance.parent = function(){};
@@ -1936,14 +1940,18 @@ Class.mixin = function(instance, klass) {
   }
 };
 
-Class.unmix = function(instance, klass) {
+Class.unmix = function(instance, klass, light) {
   var proto = klass.prototype;
   Object.each(proto, function(value, key) {
     if (typeof value !== 'function') return;
     var remixed = instance[key]
     if (remixed && remixed.$mixes) {
-      if (remixed.$origin) instance[key] = remixed.$origin;
-      else delete instance[key];
+      if (light) return;
+      remixed.$mixes.erase(value.$origin);
+      if (!remixed.$mixes.length) {
+        if (remixed.$origin) instance[key] = remixed.$origin;
+        else delete instance[key];
+      }
     }
   })
   if (proto.uninitialize) {
@@ -2182,24 +2190,26 @@ provides:
   
   Shortcuts = new Class({
     
-    addShortcuts: function(shortcuts, internal) {
-      for (var shortcut in shortcuts) this.addShortcut(shortcut, shortcuts[shortcut], internal);
-    },
-
-    removeShortcuts: function(shortcuts, internal) {
-      for (var shortcut in shortcuts) this.removeShortcut(shortcut, shortcuts[shortcut], internal);
-    },
-    
-    addShortcut: function(shortcut, fn, internal) {
-      parse(shortcut).each(function(cut) {
-        this.addEvent(cut, fn, internal)
-      }, this)
+    addShortcut: function(shortcut, fn) {
+      var shortcuts = this.shortcuts;
+      if (!shortcuts) this.shortcuts = shortcuts = {}
+      var group = shortcuts[shortcut];
+      if (!group) shortcuts[shortcut] = group = []
+      group.push(fn);
+      if (this.shortcutting) 
+        for (var i = 0, parsed = parse(shortcut), event; event = parsed[i++];)
+          this.addEvent(event, fn)
     },
     
-    removeShortcut: function(shortcut, fn, internal) {
-      parse(shortcut).each(function(cut) {
-        this.removeEvent(cut, fn, internal)
-      }, this)
+    removeShortcut: function(shortcut, fn) {
+      var shortcuts = this.shortcuts;
+      if (!shortcuts) return;
+      var group = shortcuts[shortcut];
+      if (!group) return;
+      group.push(fn);
+      if (this.shortcutting) 
+        for (var i = 0, parsed = parse(shortcut), event; event = parsed[i++];)
+          this.removeEvent(event, fn)
     },
     
     getKeyListener: function() {
@@ -2219,12 +2229,18 @@ provides:
       if (this.shortcutting) return;
       this.shortcutting = true;
       this.getKeyListener().addEvent('keypress', this.shortcutter);
+      for (var name in this.shortcuts)
+        for (var i = 0, parsed = parse(name), group = this.shortcuts[name], event; event = parsed[i++];)
+          for (var j = 0, fn; fn = group[j++];) this.addEvent(event, fn);
     },
 
     disableShortcuts: function() {
       if (!this.shortcutting) return;
       this.shortcutting = false;
       this.getKeyListener().removeEvent('keypress', this.shortcutter);
+      for (var name in this.shortcuts)
+        for (var i = 0, parsed = parse(name), group = this.shortcuts[name], event; event = parsed[i++];)
+          for (var j = 0, fn; fn = group[j++];) this.removeEvent(event, fn);
     }
   });
   
@@ -2342,21 +2358,16 @@ var States = new Class({
     if (!this.$states) this.$states = {};
     if (this.$states[name]) return;
     this.$states[name] = state;
-    this[state.enabler] = (function(callback) { 
-      return function() {
-        return this.setStateTo(name, true, state, arguments, callback)
-      }
-    })(this[state.enabler]);
-    this[state.disabler] = (function(callback) { 
-      return function() {
-        return this.setStateTo(name, false, state, arguments, callback)
-      }
-    })(this[state.disabler])
-    if (state.toggler) this[state.toggler] = (function(callback) { 
-      return function() {
-        return this.setStateTo(name, !this[state.property || name], state, arguments, callback)
-      }
-    })(this[state.toggler])
+    var enabler = this[state.enabler], disabler = this[state.disabler], toggler = this[state.toggler];
+    this[state.enabler] = function() {
+      return this.setStateTo(name, true, state, arguments, enabler)
+    }
+    this[state.disabler] = function() {
+      return this.setStateTo(name, false, state, arguments, disabler)
+    }
+    this[state.toggler] = function() { 
+      return this.setStateTo(name, !this[state.property || name], state, arguments, toggler)
+    }
     if (state.initial || this[state.property || name]) this[state.enabler]();
   },
 
@@ -2369,8 +2380,11 @@ var States = new Class({
     var first = this.$states[from] || States.get(from);
     var second = object.$states[to] || States.get(to);
     var events = (first.events || first), method = (state === false ? 'removeEvent' : 'addEvent');
-    this[method](events.enabler, second.enabler.indexOf ? object.bindEvent(second.enabler) : second.enabler);
-    this[method](events.disabler, second.disabler.indexOf ? object.bindEvent(second.disabler) : second.disabler);
+    var enabler = second.enabler, disabler = second.disabler;
+    if (enabler.indexOf) enabler = (object.bindEvent ? object.bindEvent(enabler) : object[enabler].bind(object));
+    if (disabler.indexOf) disabler = (object.bindEvent ? object.bindEvent(disabler) : object[disabler].bind(object));
+    this[method](events.enabler, enabler);
+    this[method](events.disabler, disabler);
     if (this[first.property || from]) object[second.enabler]();
   },
   
@@ -5188,7 +5202,7 @@ var LSD = Object.append(new Events, {
     Known: {
       built:    {enabler: 'build',      disabler: 'destroy',   reflect: false},
       attached: {enabler: 'attach',     disabler: 'detach',    reflect: false},
-      hidden:   {enabler: 'hide',       disabler: 'show'},     
+      hidden:   {enabler: 'hide',       disabler: 'show'},
       disabled: {enabler: 'disable',    disabler: 'enable'},   
       focused:  {enabler: 'focus',      disabler: 'blur'},     
       selected: {enabler: 'select',     disabler: 'unselect'}, 
@@ -6448,7 +6462,7 @@ provides:
     },
 
     getTargetAction: function() {
-      return this.attributes.interaction;
+      return this.attributes.interaction || this.captureEvent('getTargetAction', arguments);
     }
   });
   
@@ -6610,10 +6624,10 @@ LSD.Module.Actions = new Class({
     return (ret ? ret[0] : ret) !== false;
   },
   
-  mixin: function(mixin) {
+  mixin: function(mixin, light) {
     if (typeof mixin == 'string') mixin = LSD.Mixin[LSD.capitalize(mixin)];
     var options = mixin.prototype.options;
-    Class.mixin(this, mixin);
+    Class.mixin(this, mixin, light);
     if (options) {
       Object.merge(this.options, options); //merge!
       this.setOptions(options);
@@ -6622,10 +6636,10 @@ LSD.Module.Actions = new Class({
     if (initializers) for (var name in initializers) initializers[name].call(this);
   },
 
-  unmix: function(mixin) {
+  unmix: function(mixin, light) {
     if (typeof mixin == 'string') mixin = LSD.Mixin[LSD.capitalize(mixin)];
     this.unsetOptions(mixin.prototype.options);
-    Class.unmix(this, mixin);
+    Class.unmix(this, mixin, light);
   }
 });
 
@@ -6638,10 +6652,10 @@ LSD.Module.Actions.attach = function(doc) {
       if (state) {
         if (attached[widget.lsd]) return;
         else attached[widget.lsd] = true;
-        widget.mixin(mixin);
+        widget.mixin(mixin, true);
       } else if (attached[widget.lsd]) {
         delete attached[widget.lsd];
-        widget.unmix(mixin);
+        widget.unmix(mixin, true);
       }
     };
     selector.split(/\s*,\s*/).each(function(bit) {
@@ -6880,7 +6894,6 @@ LSD.Module.Relations = new Class({
       var target = relation.target || this;
       if (target.call) target = target.call(this);
       else if (target.indexOf) target = LSD.Module.Events.Targets[target];
-      else 
       if (target) {
         if (!target.addEvent && !(target.call && (target = target.call(this)))) {
           if (target.events && !events) Object.each(target.events, function(value, event) {
@@ -6951,10 +6964,7 @@ LSD.Module.Element = new Class({
             if (element) this.attach(element);
           },
           'build': 'attach',
-          'destroy': 'detach',
-          'dispose': function() {
-            if (this.element) this.element.dispose();
-          }
+          'destroy': 'detach'
         }
       }
     }
@@ -7338,34 +7348,95 @@ LSD.Mixin.Value = new Class({
     events: {
       _value: {
         dominject: function() {
-          if (!('value' in this)) this.value = this.processValue(this.options.value || this.getRawValue());
         },
         change: 'callChain'
+      }
+    },
+    multiple: false,
+    actions: {
+      value: {
+        enable: function() {
+          if (this.attributes.multiple) this.values = []
+          if (this.getValue() != null) return;
+          var raw = this.getRawValue();
+          if (raw != null) this.setValue(raw);
+        },
+        disable: function() {
+          
+        }
       }
     }
   },
   
-  setValue: function(item) {
+  setValue: function(item, unset) {
     if (item == null || (item.event && item.type)) item = this.getRawValue();
-    this.oldValue = this.value;
-    this.value = this.processValue(item);
-    if (this.oldValue !== this.value) {
-      var result = this.applyValue(this.value);
-      this.onChange(this.value, this.oldValue);
-      return result;
+    var value = this.processValue(item), result = false;
+    if (this.isValueDifferent(value) ^ (!!unset)) {
+      result = this.writeValue(value, unset);
+      this.onChange(value, this.getPreviousValue());
+    }
+    return result
+  },
+  
+  isValueDifferent: function(value) {
+    if (this.attributes.multiple) {
+      return this.values.indexOf == -1
+    } else {
+      return this.value != value;
     }
   },
   
-  //applyValue: Macro.defaults(function(item) {
-  //  if (this.attributes.itemprop) this.element.set('itemvalue', item);
-  //}),
+  getValueInput: function() {
+    if (!this.attributes.multiple && this.attributes.type != 'file' 
+      && LSD.toLowerCase(this.element.tagName) == 'input') return this.element;
+
+    var name = this.attributes.name;
+    if (this.attributes.miltiple) name += '[]';
+    return new Element('input[type=hidden]', {name: name}).inject(this.element);
+  },
   
-  //getRawValue: Macro.defaults(function() {
-  //  return this.attributes.value || LSD.Module.DOM.getID(this) || this.innerText;
-  //}),
+  writeValue: function(value, unset) {
+    if (this.attributes.multiple) {
+      if (unset) {
+        var index = this.values.indexOf(value);
+        if (index > -1) {
+          this.values.splice(index, 1);
+          this.valueInputs.splice(index, 1)[0].dispose();
+        }
+      } else {  
+        this.previousValue = this.values.clone();
+        this.values.push(value);
+        (this.valueInputs || (this.valueInputs = [])).push(this.getValueInput());
+        this.applyValue(this.values);
+      }
+    } else {
+      var input = this.valueInput || (this.valueInput = this.getValueInput());
+      this.previousValue = this.value;
+      if (unset) delete this.value;
+      else this.value = value;
+      input.set('value', unset ? '' : value);
+      this.applyValue(this.value);
+    }
+  },
+  
+  getPreviousValue: function() {
+    return this.previousValue
+  },
+  
+  applyValue: function(value) {
+    return this;
+  },
+  
+  getRawValue: function() {
+    return this.attributes.value || LSD.Module.DOM.getID(this) || this.innerText;
+  },
 
   getValue: function() {
-    return this.formatValue(('value' in this) ? this.value : this.getRawValue());
+    if (this.attributes.multiple) {
+      return this.values.map(this.formatValue, this)
+    } else {
+      return this.formatValue(this.value);
+    }
   },
 
   formatValue: function(value) {
@@ -9200,12 +9271,12 @@ LSD.Layout.prototype = Object.append(new Options, {
       if (parent.options) {
         var source = parent.options.source;
         if (!source) {
-          var bits = [parent.tagName, parent.getAttribute('type')]
-          if (options.inherit == 'full') bits.push(parent.getAttribute('kind'))
+          var bits = [parent.tagName, parent.getAttribute('type')];
+          if (options.inherit == 'full') bits.push(parent.getAttribute('kind'));
           source = bits.filter(function(bit) { return bit }).join('-');
         }
       } else if (parent.indexOf) var source = parent;
-      if (source) tag = source + '-' + tag
+      if (source) tag = source + '-' + tag;
     }
     var args = Array.prototype.slice.call(arguments, 0);
     args.splice(1, 1); //remove parent
@@ -9336,7 +9407,7 @@ LSD.Layout.prototype = Object.append(new Options, {
   },
   
   walk: function(element, parent, method, opts) {
-    for (var nodes = Array.prototype.slice.call(element.childNodes, 0), i = 0, node; node = nodes[i++];) {
+    for (var nodes = LSD.slice.call(element.childNodes, 0), i = 0, node; node = nodes[i++];) {
       if (node.nodeType && node.nodeType != 8) this.render(node, parent, method, opts);
     }
   },
@@ -11245,21 +11316,23 @@ provides:
 
 LSD.Module.Selectors = new Class({
   getElements: function(selector, origin) {
-    if (!selector.Slick) selector = Slick.parse(selector);
-    var first = selector.expressions[0][0];
-    // we have to figure the document before we do a .search
-    if (!origin) switch (first.combinator) {
-      case "$": case "$$":
-        origin = this.element;
-        break;
-      case "&": case "&&": default:
-        origin = this;
-    }
-    return Slick.search(origin, selector)
+    return Slick.search(origin || this.getSelectorOrigin(selector), selector)
   },
   
-  getElement: function(selector) {
-    return Slick.find(this, selector)
+  getElement: function(selector, origin) {
+    return Slick.find(origin || this.getSelectorOrigin(selector), selector)
+  },
+  
+  // we have to figure the document before we do a .search  
+  getSelectorOrigin: function(selector) {
+    if (!selector.Slick) selector = Slick.parse(selector);
+    var first = selector.expressions[0][0];
+    switch (first.combinator) {
+      case "$": case "$$":
+        return this.element;
+      case "&": case "&&": default:
+        return this;
+    }
   }
 });
 
@@ -12593,6 +12666,1158 @@ extends: Core/Element
 /*
 ---
 
+name: Element.Event
+
+description: Contains Element methods for dealing with events. This file also includes mouseenter and mouseleave custom Element Events.
+
+license: MIT-style license.
+
+requires: [Element, Event]
+
+provides: Element.Event
+
+...
+*/
+
+(function(){
+
+Element.Properties.events = {set: function(events){
+	this.addEvents(events);
+}};
+
+[Element, Window, Document].invoke('implement', {
+
+	addEvent: function(type, fn){
+		var events = this.retrieve('events', {});
+		if (!events[type]) events[type] = {keys: [], values: []};
+		if (events[type].keys.contains(fn)) return this;
+		events[type].keys.push(fn);
+		var realType = type,
+			custom = Element.Events[type],
+			condition = fn,
+			self = this;
+		if (custom){
+			if (custom.onAdd) custom.onAdd.call(this, fn);
+			if (custom.condition){
+				condition = function(event){
+					if (custom.condition.call(this, event)) return fn.call(this, event);
+					return true;
+				};
+			}
+			realType = custom.base || realType;
+		}
+		var defn = function(){
+			return fn.call(self);
+		};
+		var nativeEvent = Element.NativeEvents[realType];
+		if (nativeEvent){
+			if (nativeEvent == 2){
+				defn = function(event){
+					event = new Event(event, self.getWindow());
+					if (condition.call(self, event) === false) event.stop();
+				};
+			}
+			this.addListener(realType, defn, arguments[2]);
+		}
+		events[type].values.push(defn);
+		return this;
+	},
+
+	removeEvent: function(type, fn){
+		var events = this.retrieve('events');
+		if (!events || !events[type]) return this;
+		var list = events[type];
+		var index = list.keys.indexOf(fn);
+		if (index == -1) return this;
+		var value = list.values[index];
+		delete list.keys[index];
+		delete list.values[index];
+		var custom = Element.Events[type];
+		if (custom){
+			if (custom.onRemove) custom.onRemove.call(this, fn);
+			type = custom.base || type;
+		}
+		return (Element.NativeEvents[type]) ? this.removeListener(type, value, arguments[2]) : this;
+	},
+
+	addEvents: function(events){
+		for (var event in events) this.addEvent(event, events[event]);
+		return this;
+	},
+
+	removeEvents: function(events){
+		var type;
+		if (typeOf(events) == 'object'){
+			for (type in events) this.removeEvent(type, events[type]);
+			return this;
+		}
+		var attached = this.retrieve('events');
+		if (!attached) return this;
+		if (!events){
+			for (type in attached) this.removeEvents(type);
+			this.eliminate('events');
+		} else if (attached[events]){
+			attached[events].keys.each(function(fn){
+				this.removeEvent(events, fn);
+			}, this);
+			delete attached[events];
+		}
+		return this;
+	},
+
+	fireEvent: function(type, args, delay){
+		var events = this.retrieve('events');
+		if (!events || !events[type]) return this;
+		args = Array.from(args);
+
+		events[type].keys.each(function(fn){
+			if (delay) fn.delay(delay, this, args);
+			else fn.apply(this, args);
+		}, this);
+		return this;
+	},
+
+	cloneEvents: function(from, type){
+		from = document.id(from);
+		var events = from.retrieve('events');
+		if (!events) return this;
+		if (!type){
+			for (var eventType in events) this.cloneEvents(from, eventType);
+		} else if (events[type]){
+			events[type].keys.each(function(fn){
+				this.addEvent(type, fn);
+			}, this);
+		}
+		return this;
+	}
+
+});
+
+Element.NativeEvents = {
+	click: 2, dblclick: 2, mouseup: 2, mousedown: 2, contextmenu: 2, //mouse buttons
+	mousewheel: 2, DOMMouseScroll: 2, //mouse wheel
+	mouseover: 2, mouseout: 2, mousemove: 2, selectstart: 2, selectend: 2, //mouse movement
+	keydown: 2, keypress: 2, keyup: 2, //keyboard
+	orientationchange: 2, // mobile
+	touchstart: 2, touchmove: 2, touchend: 2, touchcancel: 2, // touch
+	gesturestart: 2, gesturechange: 2, gestureend: 2, // gesture
+	focus: 2, blur: 2, change: 2, reset: 2, select: 2, submit: 2, //form elements
+	load: 2, unload: 1, beforeunload: 2, resize: 1, move: 1, DOMContentLoaded: 1, readystatechange: 1, //window
+	error: 1, abort: 1, scroll: 1 //misc
+};
+
+var check = function(event){
+	var related = event.relatedTarget;
+	if (related == null) return true;
+	if (!related) return false;
+	return (related != this && related.prefix != 'xul' && typeOf(this) != 'document' && !this.contains(related));
+};
+
+Element.Events = {
+
+	mouseenter: {
+		base: 'mouseover',
+		condition: check
+	},
+
+	mouseleave: {
+		base: 'mouseout',
+		condition: check
+	},
+
+	mousewheel: {
+		base: (Browser.firefox) ? 'DOMMouseScroll' : 'mousewheel'
+	}
+
+};
+
+//<1.2compat>
+
+Element.Events = new Hash(Element.Events);
+
+//</1.2compat>
+
+})();
+
+/*
+---
+ 
+script: DOM.js
+ 
+description: Provides DOM-compliant interface to play around with other widgets
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+
+requires:
+  - LSD.Module
+  - Core/Element.Event
+
+provides:
+  - LSD.Module.DOM
+  - LSD.Module.DOM.findDocument
+
+...
+*/
+
+!function() {
+
+LSD.Module.DOM = new Class({
+  options: {
+    nodeType: 1,
+  },
+  
+  initializers: {
+    dom: function(options) {
+      this.childNodes = [];
+      this.nodeType = options.nodeType;
+      this.nodeName = this.tagName = options.tag;
+      return {
+        events: {
+          element: {
+            /*
+            When dispose event comes from the element, 
+            it is is already removed from dom
+            */
+            //'dispose': ['dispose', true]
+          },
+          self: {
+            'dispose': function(parent, light) {
+              if (light !== true && this.element) this.element.dispose();
+            },
+            'destroy': function() {
+              if (this.parentNode) this.dispose();
+            }
+          }
+        }
+      }
+    }
+  },
+  
+  contains: function(element) {
+    while (element = element.parentNode) if (element == this) return true;
+    return false;
+  },
+  
+  getChildren: function() {
+    return this.childNodes;
+  },
+
+  getRoot: function() {
+    var widget = this;
+    while (widget.parentNode) widget = widget.parentNode;
+    return widget;
+  },
+  
+  setParent: function(widget){
+    widget = LSD.Module.DOM.find(widget);
+    this.parentNode = widget;
+    this.fireEvent('setParent', [widget, widget.document])
+    var siblings = widget.childNodes;
+    var length = siblings.length;
+    if (length == 1) widget.firstChild = this;
+    widget.lastChild = this;
+    var previous = siblings[length - 2];
+    if (previous) {
+      previous.nextSibling = this;
+      this.previousSibling = previous;
+    }
+  },
+  
+  unsetParent: function(widget) {
+    var parent = this.parentNode;
+    if (parent.firstChild == this) delete parent.firstChild;
+    if (parent.lastChild == this) delete parent.lastChild;
+    delete this.parentNode;
+  },
+  
+  appendChild: function(widget, adoption) {
+    this.childNodes.push(widget);
+    widget.setParent(this);
+    if (!widget.quiet && (adoption !== false) && this.toElement()) (adoption || function() {
+      this.element.appendChild(widget.toElement());
+    }).apply(this, arguments);
+    delete widget.quiet;
+    this.fireEvent('adopt', [widget]);
+    LSD.Module.DOM.walk(widget, function(node) {
+      this.dispatchEvent('nodeInserted', node);
+    }, this);
+    return true;
+  },
+  
+  removeChild: function(widget) {
+    LSD.Module.DOM.walk(widget, function(node) {
+      this.dispatchEvent('nodeRemoved', node);
+    }, this);
+    widget.unsetParent(this);
+    this.childNodes.erase(widget);
+  },
+  
+  insertBefore: function(insertion, element) {
+    return this.appendChild(insertion, function() {
+      element.parentNode.insertBefore(document.id(insertion), document.id(element))
+    });
+  },
+  
+  extractDocument: function(widget) {
+    var element = widget.lsd ? widget.element : widget;;
+    var isDocument = widget.documentElement || (instanceOf(widget, LSD.Document));
+    var parent = this.parentNode;
+    if (isDocument  // if document
+    || (parent && parent.dominjected) //already injected widget
+    || (widget.ownerDocument && (widget.ownerDocument.body == widget)) //body element
+    || element.offsetParent) { //element in dom (costy check)
+      return (parent && parent.document) || (isDocument ? widget : LSD.Module.DOM.findDocument(widget));
+    }
+  },
+  
+  setDocument: function(document) {
+    LSD.Module.DOM.walk(this, function(child) {
+      child.ownerDocument = child.document = document;
+      child.fireEvent('setDocument', document);
+      child.fireEvent('dominject', [child.element.parentNode, document]);
+      child.dominjected = true;
+    });
+    return this;
+  },
+  
+  inject: function(widget, where, quiet) {
+    if (!widget.lsd) {
+      var instance = LSD.Module.DOM.find(widget, true)
+      if (instance) widget = instance;
+    }
+    this.quiet = quiet || (widget.documentElement && this.element && this.element.parentNode);
+    if (where === false) widget.appendChild(this, false)
+    else if (!inserters[where || 'bottom'](widget.lsd ? this : this.toElement(), widget) && !quiet) return false;
+    if (quiet !== true || widget.document) {
+      var document = widget.document || (this.documentElement ? this : this.extractDocument(widget));
+      if (document) this.setDocument(document);
+    }
+    this.fireEvent('inject', this.parentNode);
+    return this;
+  },
+
+  grab: function(el, where){
+    inserters[where || 'bottom'](document.id(el, true), this);
+    return this;
+  },
+  
+  /*
+    Wrapper is where content nodes get appended. 
+    Defaults to this.element, but can be redefined
+    in other Modules or Traits (as seen in Container
+    module)
+  */
+  
+  getWrapper: function() {
+    return this.toElement();
+  },
+  
+  write: function(content) {
+    if (!content || !(content = content.toString())) return;
+    var wrapper = this.getWrapper();
+    if (this.written) for (var node; node = this.written.shift();) Element.dispose(node);
+    var fragment = document.createFragment(content);
+    this.written = Array.prototype.slice.call(fragment.childNodes, 0);
+    wrapper.appendChild(fragment);
+    this.fireEvent('write', [this.written])
+    this.innerText = wrapper.get('text').trim();
+    return this.written;
+  },
+
+  replaces: function(el){
+    this.inject(el, 'after');
+    el.dispose();
+    return this;
+  },
+  
+  onDOMInject: function(callback) {
+    if (this.document) callback.call(this, this.document.element) 
+    else this.addEvent('dominject', callback.bind(this))
+  },
+  
+  dispose: function(mode) {
+    var parent = this.parentNode;
+    if (!parent) return;
+    this.fireEvent('beforeDispose', parent);
+    parent.removeChild(this);
+    this.fireEvent('dispose', [parent, mode]);
+    return this;
+  }
+});
+
+var inserters = {
+
+  before: function(context, element){
+    var parent = element.parentNode;
+    if (parent) return parent.insertBefore(context, element);
+  },
+
+  after: function(context, element){
+    var parent = element.parentNode;
+    if (parent) return parent.insertBefore(context, element.nextSibling);
+  },
+
+  bottom: function(context, element){
+    return element.appendChild(context);
+  },
+
+  top: function(context, element){
+    return element.insertBefore(context, element.firstChild);
+  }
+
+};
+
+Object.append(LSD.Module.DOM, {
+  walk: function(element, callback, bind, memo) {
+    var widget = element.lsd ? element : LSD.Module.DOM.find(element, true);
+    if (widget) {
+      var result = callback.call(bind || this, widget, memo);
+      if (result) (memo || (memo = [])).push(widget);
+    }
+    for (var nodes = element.childNodes, node, i = 0; node = nodes[i]; i++) 
+      if (node.nodeType == 1) LSD.Module.DOM.walk(node, callback, bind, memo); 
+    return memo;
+  },
+  
+  find: function(target, lazy) {
+    return target.lsd ? target : ((!lazy || target.uid) && Element[lazy ? 'retrieve' : 'get'](target, 'widget'));
+  },
+  
+  findDocument: function(target) {
+    if (target.documentElement) return target;
+    if (target.document) return target.document;
+    if (target.lsd) return;
+    var body = target.ownerDocument.body;
+    var document = (target != body) && Element.retrieve(body, 'widget');
+    while (!document && (target = target.parentNode)) {
+      var widget = Element.retrieve(target, 'widget')
+      if (widget) document = (widget instanceof LSD.Document) ? widget : widget.document;
+    }
+    return document;
+  },
+  
+  getID: function(target) {
+    if (target.lsd) {
+      return target.attributes.itemid;
+    } else {
+      return target.getAttribute('itemid');
+    }
+  }
+});
+
+}();
+/*
+---
+ 
+script: Render.js
+ 
+description: A module that provides rendering workflow
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Module.DOM
+
+provides: 
+  - LSD.Module.Render
+
+...
+*/
+
+
+
+LSD.Module.Render = new Class({
+  options: {
+    render: null
+  },
+  
+  initializers: {
+    render: function() {
+      this.redraws = 0;
+      this.dirty = true;
+      return {
+        events: {
+          stateChange: function() {
+            if (this.redraws > 0) this.refresh(true);
+          }
+        }
+      }
+    }
+  },
+  
+  render: function() {
+    if (!this.built) this.build();
+    delete this.halted;
+    this.redraws++;
+    this.fireEvent('render', arguments)
+    this.childNodes.each(function(child){
+      if (child.render) child.render();
+    });
+  },
+  
+  /*
+    Update marks widget as willing to render. That
+    can be followed by a call to *render* to trigger
+    redrawing mechanism. Otherwise, the widget stay 
+    marked and can be rendered together with ascendant 
+    widget.
+  */
+  
+  update: function(recursive) {
+    if (recursive) LSD.Module.DOM.walk(this, function(widget) {
+      widget.update();
+    });
+  },
+  
+  /*
+    Refresh updates and renders widget (or a widget tree 
+    if optional argument is true). It is a reliable way
+    to have all elements redrawn, but a costly too.
+    
+    Should be avoided when possible to let internals 
+    handle the rendering and avoid some unnecessary 
+    calculations.
+  */
+
+  refresh: function(recursive) {
+    this.update(recursive);
+    return this.render();
+  },
+  
+
+  /*
+    Halt marks widget as failed to render.
+    
+    Possible use cases:
+    
+    - Dimensions depend on child widgets that are not
+      rendered yet
+    - Dont let the widget render when it is not in DOM
+  */ 
+  halt: function() {
+    if (this.halted) return false;
+    this.halted = true;
+    return true;
+  }
+});
+/*
+---
+ 
+script: Container.js
+ 
+description: Makes widget use container - wrapper around content setting
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Module.DOM
+
+provides:
+  - LSD.Module.Container
+ 
+...
+*/
+
+LSD.Module.Container = new Class({
+  options: {
+    container: {
+      enabled: true,
+      position: null,
+      inline: true,
+      attributes: {
+        'class': 'container'
+      }
+    },
+    
+    proxies: {
+      container: {
+        container: function() {
+          return $(this.getContainer()) //creates container, once condition is true
+        },
+        condition: function() {         //turned off by default
+          return false 
+        },      
+        priority: -1,                   //lowest priority
+        rewrite: false                  //does not rewrite parent
+      }
+    }
+  },
+  
+  getContainer: Macro.getter('container', function() {
+    var options = this.options.container;
+    if (!options.enabled) return;
+    var tag = options.tag || (options.inline ? 'span' : 'div');
+    return new Element(tag, options.attributes).inject(this.element, options.position);
+  }),
+  
+  getWrapper: function() {
+    return this.getContainer() || this.toElement();
+  }
+});
+/*
+---
+
+script: Proxies.js
+
+description: Dont adopt children, pass them to some other widget
+
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Module.DOM
+
+provides: 
+  - LSD.Module.Proxies
+
+...
+*/
+  
+LSD.Module.Proxies = new Class({
+  initializers: {
+    proxies: function() {
+      this.proxies = [];
+    }
+  },
+  
+  addProxy: function(name, proxy) {
+    for (var i = 0, other; (other = this.proxies[i]) && ((proxy.priority || 0) < (other.priority || 0)); i++);
+    this.proxies.splice(i, 0, proxy);
+  },
+  
+  removeProxy: function(name, proxy) {
+    this.proxies.erase(proxy);
+  },
+  
+  proxyChild: function(child) {
+    for (var i = 0, proxy; proxy = this.proxies[i++];) {
+      if (!proxy.condition.call(this, child)) continue;
+      var self = this;
+      var reinject = function(target) {
+        if (proxy.rewrite === false) {
+          self.appendChild(child, function() {
+            target.adopt(child);
+          });
+        } else {
+          child.inject(target);
+        }
+      };
+      var container = proxy.container;
+      if (container.call) {
+        if ((container = container.call(this, reinject))) reinject(container);
+      } else {
+        this.use(container, reinject)
+      }
+      return true;
+    }
+  },
+  
+  appendChild: function(widget, adoption) {
+    if (!adoption && this.canAppendChild && !this.canAppendChild(widget)) {
+      if (widget.parentNode) widget.dispose();
+      else if (widget.element.parentNode) widget.element.dispose();
+      return false;
+    }
+    return LSD.Module.DOM.prototype.appendChild.apply(this, arguments);
+  },
+  
+  canAppendChild: function(child) {
+    return !this.proxyChild(child);
+  }
+  
+});
+
+LSD.Options.proxies = {
+  add: 'addProxy',
+  remove: 'removeProxy',
+  iterate: true
+};
+/*
+---
+
+name: Element.defineCustomEvent
+
+description: Allows to create custom events based on other custom events.
+
+authors: Christoph Pojer (@cpojer)
+
+license: MIT-style license.
+
+requires: [Core/Element.Event]
+
+provides: Element.defineCustomEvent
+
+...
+*/
+
+(function(){
+
+[Element, Window, Document].invoke('implement', {hasEvent: function(event){
+	var events = this.retrieve('events'),
+		list = (events && events[event]) ? events[event].values : null;
+	if (list){
+		for (var i = list.length; i--;) if (i in list){
+			return true;
+		}
+	}
+	return false;
+}});
+
+var wrap = function(custom, method, extended, name){
+	method = custom[method];
+	extended = custom[extended];
+
+	return function(fn, customName){
+		if (!customName) customName = name;
+
+		if (extended && !this.hasEvent(customName)) extended.call(this, fn, customName);
+		if (method) method.call(this, fn, customName);
+	};
+};
+
+var inherit = function(custom, base, method, name){
+	return function(fn, customName){
+		base[method].call(this, fn, customName || name);
+		custom[method].call(this, fn, customName || name);
+	};
+};
+
+var events = Element.Events;
+
+Element.defineCustomEvent = function(name, custom){
+
+	var base = events[custom.base];
+
+	custom.onAdd = wrap(custom, 'onAdd', 'onSetup', name);
+	custom.onRemove = wrap(custom, 'onRemove', 'onTeardown', name);
+
+	events[name] = base ? Object.append({}, custom, {
+
+		base: base.base,
+
+		condition: function(event){
+			return (!base.condition || base.condition.call(this, event)) &&
+				(!custom.condition || custom.condition.call(this, event));
+		},
+
+		onAdd: inherit(custom, base, 'onAdd', name),
+		onRemove: inherit(custom, base, 'onRemove', name)
+
+	}) : custom;
+
+	return this;
+
+};
+
+var loop = function(name){
+	var method = 'on' + name.capitalize();
+	Element[name + 'CustomEvents'] = function(){
+		Object.each(events, function(event, name){
+			if (event[method]) event[method].call(event, name);
+		});
+	};
+	return loop;
+};
+
+loop('enable')('disable');
+
+})();
+
+/*
+---
+
+name: Touch
+
+description: Provides a custom touch event on mobile devices
+
+authors: Christoph Pojer (@cpojer)
+
+license: MIT-style license.
+
+requires: [Core/Element.Event, Custom-Event/Element.defineCustomEvent, Browser.Features.Touch]
+
+provides: Touch
+
+...
+*/
+
+(function(){
+
+var preventDefault = function(event){
+	event.preventDefault();
+};
+
+var disabled;
+
+Element.defineCustomEvent('touch', {
+
+	base: 'touchend',
+
+	condition: function(event){
+		if (disabled || event.targetTouches.length != 0) return false;
+
+		var touch = event.changedTouches[0],
+			target = document.elementFromPoint(touch.clientX, touch.clientY);
+
+		do {
+			if (target == this) return true;
+		} while ((target = target.parentNode) && target);
+
+		return false;
+	},
+
+	onSetup: function(){
+		this.addEvent('touchstart', preventDefault);
+	},
+
+	onTeardown: function(){
+		this.removeEvent('touchstart', preventDefault);
+	},
+
+	onEnable: function(){
+		disabled = false;
+	},
+
+	onDisable: function(){
+		disabled = true;
+	}
+
+});
+
+})();
+
+/*
+---
+
+name: Click
+
+description: Provides a replacement for click events on mobile devices
+
+authors: Christoph Pojer (@cpojer)
+
+license: MIT-style license.
+
+requires: [Touch]
+
+provides: Click
+
+...
+*/
+
+if (Browser.Features.iOSTouch) (function(){
+
+var name = 'click';
+delete Element.NativeEvents[name];
+
+Element.defineCustomEvent(name, {
+
+	base: 'touch'
+
+});
+
+})();
+
+/*
+---
+
+name: Mouse
+
+description: Maps mouse events to their touch counterparts
+
+authors: Christoph Pojer (@cpojer)
+
+license: MIT-style license.
+
+requires: [Custom-Event/Element.defineCustomEvent, Browser.Features.Touch]
+
+provides: Mouse
+
+...
+*/
+
+if (!Browser.Features.Touch) (function(){
+
+var condition = function(event){
+  event.targetTouches = [];
+  event.changedTouches = event.touches = [{
+    pageX: event.page.x, pageY: event.page.y,
+    clientX: event.client.x, clientY: event.client.y
+  }];
+
+  return true;
+};
+
+var mouseup = function(e) {
+  var target = e.target;
+  while (target != this && (target = target.parentNode));
+  this.fireEvent(target ? 'touchend' : 'touchcancel', arguments);
+  document.removeEvent('mouseup', this.retrieve('touch:mouseup'));
+};
+
+Element.defineCustomEvent('touchstart', {
+
+  base: 'mousedown',
+
+  condition: function() {
+    var bound = this.retrieve('touch:mouseup');
+    if (!bound) {
+      bound = mouseup.bind(this);
+      this.store('touch:mouseup', bound);
+    }
+    document.addEvent('mouseup', bound);
+    return condition.apply(this, arguments);
+  }
+
+}).defineCustomEvent('touchmove', {
+
+  base: 'mousemove',
+
+  condition: condition
+
+});
+
+})();
+
+/*
+---
+ 
+script: Touchable.js
+ 
+description: A mousedown event that lasts even when you move your mouse over. 
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Mixin
+  - Mobile/Mouse
+  - Mobile/Click
+  - Mobile/Touch
+
+ 
+provides:   
+  - LSD.Mixin.Touchable
+ 
+...
+*/
+
+
+LSD.Mixin.Touchable = new Class({
+  behaviour: ':touchable',
+  
+  options: {
+    events: {
+      enabled: {
+        element: {
+          'touchstart': 'activate',
+          'touchend': 'deactivate',
+          'touchcancel': 'deactivate'
+        }
+      }
+    },
+    states: {
+      active: {
+        enabler: 'activate',
+        disabler: 'deactivate'
+      }
+    }
+  }
+});
+/*
+---
+
+name: DOMReady
+
+description: Contains the custom event domready.
+
+license: MIT-style license.
+
+requires: [Browser, Element, Element.Event]
+
+provides: [DOMReady, DomReady]
+
+...
+*/
+
+(function(window, document){
+
+var ready,
+	loaded,
+	checks = [],
+	shouldPoll,
+	timer,
+	testElement = document.createElement('div');
+
+var domready = function(){
+	clearTimeout(timer);
+	if (ready) return;
+	Browser.loaded = ready = true;
+	document.removeListener('DOMContentLoaded', domready).removeListener('readystatechange', check);
+	
+	document.fireEvent('domready');
+	window.fireEvent('domready');
+};
+
+var check = function(){
+	for (var i = checks.length; i--;) if (checks[i]()){
+		domready();
+		return true;
+	}
+	return false;
+};
+
+var poll = function(){
+	clearTimeout(timer);
+	if (!check()) timer = setTimeout(poll, 10);
+};
+
+document.addListener('DOMContentLoaded', domready);
+
+/*<ltIE8>*/
+// doScroll technique by Diego Perini http://javascript.nwbox.com/IEContentLoaded/
+// testElement.doScroll() throws when the DOM is not ready, only in the top window
+var doScrollWorks = function(){
+	try {
+		testElement.doScroll();
+		return true;
+	} catch (e){}
+	return false;
+}
+// If doScroll works already, it can't be used to determine domready
+//   e.g. in an iframe
+if (testElement.doScroll && !doScrollWorks()){
+	checks.push(doScrollWorks);
+	shouldPoll = true;
+}
+/*</ltIE8>*/
+
+if (document.readyState) checks.push(function(){
+	var state = document.readyState;
+	return (state == 'loaded' || state == 'complete');
+});
+
+if ('onreadystatechange' in document) document.addListener('readystatechange', check);
+else shouldPoll = true;
+
+if (shouldPoll) poll();
+
+Element.Events.domready = {
+	onAdd: function(fn){
+		if (ready) fn.call(this);
+	}
+};
+
+// Make sure that domready fires before load
+Element.Events.load = {
+	base: 'load',
+	onAdd: function(fn){
+		if (loaded && this == window) fn.call(this);
+	},
+	condition: function(){
+		if (this == window){
+			domready();
+			delete Element.Events.load;
+		}
+		return true;
+	}
+};
+
+// This is based on the custom load event
+window.addEvent('load', function(){
+	loaded = true;
+});
+
+})(window, document);
+
+/*
+---
+ 
+script: Application.js
+ 
+description: A class to handle execution and bootstraping of LSD
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - Core/DomReady
+  - Core/Options
+  - Core/Events
+  - More/String.QueryString
+  
+provides:
+  - LSD.Application
+ 
+...
+*/
+LSD.Application = new Class({
+  Implements: [Options, Events],
+  
+  options: {
+    method: 'augment'
+  },
+  
+  initialize: function(document, options) {
+    if (!LSD.application) LSD.application = this;
+    this.param = (location.search.length > 1) ? location.search.substr(1, location.search.length - 1).parseQueryString() : {}
+    if (document) this.element = document.id(document);
+    if (options) this.setOptions(options);
+    document.addEvent('domready', function() {
+      if (this.param.benchmark != null) console.profile();
+      this.setDocument(document);
+      if (this.param.benchmark != null) console.profileEnd();
+    }.bind(this));
+  },
+  
+  setHead: function(head) {
+    for (var i = 0, el, els = head.getElementsByTagName('meta'); el = els[i++];) {
+      var type = el.getAttribute('rel');
+      if (type) {
+        if (!this[type]) this[type] = {};
+        var content = el.getAttribute('content')
+        this[type][el.getAttribute('name')] = (content.charAt(0) =="{") ? JSON.decode(content) : content;
+      }
+    }
+  },
+  
+  setDocument: function(document) {
+    this.setHead(document.head);
+    var element = this.element = document.body;
+    this.setBody(document.body);
+  },
+  
+  setBody: function(element) {
+    this.fireEvent('beforeBody', element);
+    var body = this.body = new (this.getBodyClass(element))(element);
+    this.fireEvent('body', [body, element]);
+    return body;
+  },
+  
+  getBodyClass: function() {
+    return LSD.Element.find('body');
+  },
+  
+  getBody: function() {
+    return this.body;
+  },
+  
+  redirect: function(url) {
+    window.location.href = url;
+  }
+  
+});
+/*
+---
+
 name: Element.Style
 
 description: Contains methods for interacting with the styles of Elements in a fashionable way.
@@ -13170,7 +14395,6 @@ LSD.Layer.prepare = function(name, layers, callback) {
         if (simple) var style = prefix
         else return;
       } else var style = prefix + property.capitalize()
-      if (style == 'stroke') console.error(123, '!!!!!!!!!!!!!!!!!!!!', [].concat(properties), layer, property, value, prefix)
       definition.styles[style] = styles[style] = Property.compile(value, properties);
       definition.keys.push(style);
     });
@@ -13376,6 +14600,36 @@ LSD.Options.layers = {
 
 }();
 
+/*
+---
+
+script: Proxies.js
+
+description: All visual rendering aspects under one umbrella
+
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Module.Layers
+  - LSD.Module.Render
+  - LSD.Module.Shape
+
+provides: 
+  - LSD.Module.Graphics
+
+...
+*/
+
+
+LSD.Module.Graphics = new Class({
+  Implements: [
+    LSD.Module.Layers, 
+    LSD.Module.Render, 
+    LSD.Module.Shape
+  ]
+});
 /*
 ---
 
@@ -13663,6 +14917,284 @@ Element.alias({position: 'setPosition'}); //compatability
 /*
 ---
 
+script: Drag.js
+
+name: Drag
+
+description: The base Drag Class. Can be used to drag and resize Elements using mouse events.
+
+license: MIT-style license
+
+authors:
+  - Valerio Proietti
+  - Tom Occhinno
+  - Jan Kassens
+
+requires:
+  - Core/Events
+  - Core/Options
+  - Core/Element.Event
+  - Core/Element.Style
+  - Core/Element.Dimensions
+  - /MooTools.More
+
+provides: [Drag]
+...
+
+*/
+
+var Drag = new Class({
+
+	Implements: [Events, Options],
+
+	options: {/*
+		onBeforeStart: function(thisElement){},
+		onStart: function(thisElement, event){},
+		onSnap: function(thisElement){},
+		onDrag: function(thisElement, event){},
+		onCancel: function(thisElement){},
+		onComplete: function(thisElement, event){},*/
+		snap: 6,
+		unit: 'px',
+		grid: false,
+		style: true,
+		limit: false,
+		handle: false,
+		invert: false,
+		preventDefault: false,
+		stopPropagation: false,
+		modifiers: {x: 'left', y: 'top'}
+	},
+
+	initialize: function(){
+		var params = Array.link(arguments, {
+			'options': Type.isObject,
+			'element': function(obj){
+				return obj != null;
+			}
+		});
+
+		this.element = document.id(params.element);
+		this.document = this.element.getDocument();
+		this.setOptions(params.options || {});
+		var htype = typeOf(this.options.handle);
+		this.handles = ((htype == 'array' || htype == 'collection') ? $$(this.options.handle) : document.id(this.options.handle)) || this.element;
+		this.mouse = {'now': {}, 'pos': {}};
+		this.value = {'start': {}, 'now': {}};
+
+		this.selection = (Browser.ie) ? 'selectstart' : 'mousedown';
+
+
+		if (Browser.ie && !Drag.ondragstartFixed){
+			document.ondragstart = Function.from(false);
+			Drag.ondragstartFixed = true;
+		}
+
+		this.bound = {
+			start: this.start.bind(this),
+			check: this.check.bind(this),
+			drag: this.drag.bind(this),
+			stop: this.stop.bind(this),
+			cancel: this.cancel.bind(this),
+			eventStop: Function.from(false)
+		};
+		this.attach();
+	},
+
+	attach: function(){
+		this.handles.addEvent('mousedown', this.bound.start);
+		return this;
+	},
+
+	detach: function(){
+		this.handles.removeEvent('mousedown', this.bound.start);
+		return this;
+	},
+
+	start: function(event){
+		var options = this.options;
+
+		if (event.rightClick) return;
+
+		if (options.preventDefault) event.preventDefault();
+		if (options.stopPropagation) event.stopPropagation();
+		this.mouse.start = event.page;
+
+		this.fireEvent('beforeStart', this.element);
+
+		var limit = options.limit;
+		this.limit = {x: [], y: []};
+
+		var z, coordinates;
+		for (z in options.modifiers){
+			if (!options.modifiers[z]) continue;
+
+			var style = this.element.getStyle(options.modifiers[z]);
+
+			// Some browsers (IE and Opera) don't always return pixels.
+			if (style && !style.match(/px$/)){
+				if (!coordinates) coordinates = this.element.getCoordinates(this.element.getOffsetParent());
+				style = coordinates[options.modifiers[z]];
+			}
+
+			if (options.style) this.value.now[z] = (style || 0).toInt();
+			else this.value.now[z] = this.element[options.modifiers[z]];
+
+			if (options.invert) this.value.now[z] *= -1;
+
+			this.mouse.pos[z] = event.page[z] - this.value.now[z];
+
+			if (limit && limit[z]){
+				var i = 2;
+				while (i--){
+					var limitZI = limit[z][i];
+					if (limitZI || limitZI === 0) this.limit[z][i] = (typeof limitZI == 'function') ? limitZI() : limitZI;
+				}
+			}
+		}
+
+		if (typeOf(this.options.grid) == 'number') this.options.grid = {
+			x: this.options.grid,
+			y: this.options.grid
+		};
+
+		var events = {
+			mousemove: this.bound.check,
+			mouseup: this.bound.cancel
+		};
+		events[this.selection] = this.bound.eventStop;
+		this.document.addEvents(events);
+	},
+
+	check: function(event){
+		if (this.options.preventDefault) event.preventDefault();
+		var distance = Math.round(Math.sqrt(Math.pow(event.page.x - this.mouse.start.x, 2) + Math.pow(event.page.y - this.mouse.start.y, 2)));
+		if (distance > this.options.snap){
+			this.cancel();
+			this.document.addEvents({
+				mousemove: this.bound.drag,
+				mouseup: this.bound.stop
+			});
+			this.fireEvent('start', [this.element, event]).fireEvent('snap', this.element);
+		}
+	},
+
+	drag: function(event){
+		var options = this.options;
+
+		if (options.preventDefault) event.preventDefault();
+		this.mouse.now = event.page;
+
+		for (var z in options.modifiers){
+			if (!options.modifiers[z]) continue;
+			this.value.now[z] = this.mouse.now[z] - this.mouse.pos[z];
+
+			if (options.invert) this.value.now[z] *= -1;
+
+			if (options.limit && this.limit[z]){
+				if ((this.limit[z][1] || this.limit[z][1] === 0) && (this.value.now[z] > this.limit[z][1])){
+					this.value.now[z] = this.limit[z][1];
+				} else if ((this.limit[z][0] || this.limit[z][0] === 0) && (this.value.now[z] < this.limit[z][0])){
+					this.value.now[z] = this.limit[z][0];
+				}
+			}
+
+			if (options.grid[z]) this.value.now[z] -= ((this.value.now[z] - (this.limit[z][0]||0)) % options.grid[z]);
+
+			if (options.style) this.element.setStyle(options.modifiers[z], this.value.now[z] + options.unit);
+			else this.element[options.modifiers[z]] = this.value.now[z];
+		}
+
+		this.fireEvent('drag', [this.element, event]);
+	},
+
+	cancel: function(event){
+		this.document.removeEvents({
+			mousemove: this.bound.check,
+			mouseup: this.bound.cancel
+		});
+		if (event){
+			this.document.removeEvent(this.selection, this.bound.eventStop);
+			this.fireEvent('cancel', this.element);
+		}
+	},
+
+	stop: function(event){
+		var events = {
+			mousemove: this.bound.drag,
+			mouseup: this.bound.stop
+		};
+		events[this.selection] = this.bound.eventStop;
+		this.document.removeEvents(events);
+		if (event) this.fireEvent('complete', [this.element, event]);
+	}
+
+});
+
+Element.implement({
+
+	makeResizable: function(options){
+		var drag = new Drag(this, Object.merge({
+			modifiers: {
+				x: 'width',
+				y: 'height'
+			}
+		}, options));
+
+		this.store('resizer', drag);
+		return drag.addEvent('drag', function(){
+			this.fireEvent('resize', drag);
+		}.bind(this));
+	}
+
+});
+
+/*
+---
+ 
+script: Drag.Limits.js
+ 
+description: A set of function to easily cap Drag's limit
+ 
+license: MIT-style license.
+ 
+requires:
+- More/Drag
+
+provides: [Drag.Limits]
+ 
+...
+*/
+
+Drag.implement({
+  setMaxX: function(x) {
+    var limit = this.options.limit;
+    limit.x[1] = x//Math.max(x, limit.x[1]);
+    limit.x[0] = Math.min(limit.x[0], limit.x[1]);
+  },
+  
+  setMaxY: function(y) {
+    var limit = this.options.limit;
+    limit.y[1] = y//Math.max(y, limit.y[1]);
+    limit.y[0] = Math.min(limit.y[0], limit.y[1]);
+  },
+  
+  setMinX: function(x) {
+    var limit = this.options.limit;
+    limit.x[0] = x//Math.min(x, limit.x[0]);
+    limit.x[1] = Math.max(limit.x[1], limit.x[0]);
+  },
+  
+  setMinY: function(y) {
+    var limit = this.options.limit;
+    limit.y[0] = y//Math.min(y, limit.y[0]);
+    limit.y[1] = Math.max(limit.y[1], limit.y[0]);
+  }
+});
+
+/*
+---
+
 script: Element.Measure.js
 
 name: Element.Measure
@@ -13831,6 +15363,358 @@ Element.implement({
 
 })();
 
+/*
+---
+
+script: Slider.js
+
+name: Slider
+
+description: Class for creating horizontal and vertical slider controls.
+
+license: MIT-style license
+
+authors:
+  - Valerio Proietti
+
+requires:
+  - Core/Element.Dimensions
+  - /Class.Binds
+  - /Drag
+  - /Element.Measure
+
+provides: [Slider]
+
+...
+*/
+
+var Slider = new Class({
+
+	Implements: [Events, Options],
+
+	Binds: ['clickedElement', 'draggedKnob', 'scrolledElement'],
+
+	options: {/*
+		onTick: function(intPosition){},
+		onChange: function(intStep){},
+		onComplete: function(strStep){},*/
+		onTick: function(position){
+			this.setKnobPosition(position);
+		},
+		initialStep: 0,
+		snap: false,
+		offset: 0,
+		range: false,
+		wheel: false,
+		steps: 100,
+		mode: 'horizontal'
+	},
+
+	initialize: function(element, knob, options){
+		this.setOptions(options);
+		options = this.options;
+		this.element = document.id(element);
+		knob = this.knob = document.id(knob);
+		this.previousChange = this.previousEnd = this.step = -1;
+
+		var limit = {},
+			modifiers = {x: false, y: false};
+
+		switch (options.mode){
+			case 'vertical':
+				this.axis = 'y';
+				this.property = 'top';
+				this.offset = 'offsetHeight';
+				break;
+			case 'horizontal':
+				this.axis = 'x';
+				this.property = 'left';
+				this.offset = 'offsetWidth';
+		}
+
+		this.setSliderDimensions();
+		this.setRange(options.range);
+
+		if (knob.getStyle('position') == 'static') knob.setStyle('position', 'relative');
+		knob.setStyle(this.property, -options.offset);
+		modifiers[this.axis] = this.property;
+		limit[this.axis] = [-options.offset, this.full - options.offset];
+
+		var dragOptions = {
+			snap: 0,
+			limit: limit,
+			modifiers: modifiers,
+			onDrag: this.draggedKnob,
+			onStart: this.draggedKnob,
+			onBeforeStart: (function(){
+				this.isDragging = true;
+			}).bind(this),
+			onCancel: function(){
+				this.isDragging = false;
+			}.bind(this),
+			onComplete: function(){
+				this.isDragging = false;
+				this.draggedKnob();
+				this.end();
+			}.bind(this)
+		};
+		if (options.snap) this.setSnap(dragOptions);
+
+		this.drag = new Drag(knob, dragOptions);
+		this.attach();
+		if (options.initialStep != null) this.set(options.initialStep);
+	},
+
+	attach: function(){
+		this.element.addEvent('mousedown', this.clickedElement);
+		if (this.options.wheel) this.element.addEvent('mousewheel', this.scrolledElement);
+		this.drag.attach();
+		return this;
+	},
+
+	detach: function(){
+		this.element.removeEvent('mousedown', this.clickedElement)
+			.removeEvent('mousewheel', this.scrolledElement);
+		this.drag.detach();
+		return this;
+	},
+
+	autosize: function(){
+		this.setSliderDimensions()
+			.setKnobPosition(this.toPosition(this.step));
+		this.drag.options.limit[this.axis] = [-this.options.offset, this.full - this.options.offset];
+		if (this.options.snap) this.setSnap();
+		return this;
+	},
+
+	setSnap: function(options){
+		if (!options) options = this.drag.options;
+		options.grid = Math.ceil(this.stepWidth);
+		options.limit[this.axis][1] = this.full;
+		return this;
+	},
+
+	setKnobPosition: function(position){
+		if (this.options.snap) position = this.toPosition(this.step);
+		this.knob.setStyle(this.property, position);
+		return this;
+	},
+
+	setSliderDimensions: function(){
+		this.full = this.element.measure(function(){
+			this.half = this.knob[this.offset] / 2;
+			return this.element[this.offset] - this.knob[this.offset] + (this.options.offset * 2);
+		}.bind(this));
+		return this;
+	},
+
+	set: function(step){
+		if (!((this.range > 0) ^ (step < this.min))) step = this.min;
+		if (!((this.range > 0) ^ (step > this.max))) step = this.max;
+
+		this.step = Math.round(step);
+		return this.checkStep()
+			.fireEvent('tick', this.toPosition(this.step))
+			.end();
+	},
+
+	setRange: function(range, pos){
+		this.min = Array.pick([range[0], 0]);
+		this.max = Array.pick([range[1], this.options.steps]);
+		this.range = this.max - this.min;
+		this.steps = this.options.steps || this.full;
+		this.stepSize = Math.abs(this.range) / this.steps;
+		this.stepWidth = this.stepSize * this.full / Math.abs(this.range);
+		if (range) this.set(Array.pick([pos, this.step]).floor(this.min).max(this.max));
+		return this;
+	},
+
+	clickedElement: function(event){
+		if (this.isDragging || event.target == this.knob) return;
+
+		var dir = this.range < 0 ? -1 : 1,
+			position = event.page[this.axis] - this.element.getPosition()[this.axis] - this.half;
+
+		position = position.limit(-this.options.offset, this.full - this.options.offset);
+
+		this.step = Math.round(this.min + dir * this.toStep(position));
+
+		this.checkStep()
+			.fireEvent('tick', position)
+			.end();
+	},
+
+	scrolledElement: function(event){
+		var mode = (this.options.mode == 'horizontal') ? (event.wheel < 0) : (event.wheel > 0);
+		this.set(this.step + (mode ? -1 : 1) * this.stepSize);
+		event.stop();
+	},
+
+	draggedKnob: function(){
+		var dir = this.range < 0 ? -1 : 1,
+			position = this.drag.value.now[this.axis];
+
+		position = position.limit(-this.options.offset, this.full -this.options.offset);
+
+		this.step = Math.round(this.min + dir * this.toStep(position));
+		this.checkStep();
+	},
+
+	checkStep: function(){
+		var step = this.step;
+		if (this.previousChange != step){
+			this.previousChange = step;
+			this.fireEvent('change', step);
+		}
+		return this;
+	},
+
+	end: function(){
+		var step = this.step;
+		if (this.previousEnd !== step){
+			this.previousEnd = step;
+			this.fireEvent('complete', step + '');
+		}
+		return this;
+	},
+
+	toStep: function(position){
+		var step = (position + this.options.offset) * this.stepSize / this.full * this.steps;
+		return this.options.steps ? Math.round(step -= step % this.stepSize) : step;
+	},
+
+	toPosition: function(step){
+		return (this.full * Math.abs(this.min - step)) / (this.steps * this.stepSize) - this.options.offset;
+	}
+
+});
+
+/*
+---
+ 
+script: Slider.js
+ 
+description: Methods to update slider without reinitializing the thing
+ 
+license: MIT-style license.
+ 
+requires:
+- Drag.Limits
+- More/Slider
+
+provides: [Slider.prototype.update]
+ 
+...
+*/
+
+
+Slider.implement({
+  update: function() {
+		var offset = (this.options.mode == 'vertical') ?  'offsetHeight' : 'offsetWidth'
+		this.half = this.knob[offset] / 2; 
+		this.full =  this.element[offset] - this.knob[offset] + (this.options.offset * 2); 
+		
+		//this.setRange(this.options.range);
+
+		this.knob.setStyle(this.property, this.toPosition(this.step));
+		var X = this.axis.capitalize();
+		this.drag['setMin' + X](- this.options.offset)
+		this.drag['setMax' + X](this.full - this.options.offset)
+  }
+});
+/*
+---
+ 
+script: Slider.js
+ 
+description: Because sometimes slider is the answer
+ 
+license: Public domain (http://unlicense.org).
+ 
+requires:
+  - LSD.Trait
+  - More/Slider
+  - Ext/Slider.prototype.update
+  - Ext/Class.hasParent
+
+provides: 
+  - LSD.Trait.Slider
+ 
+...
+*/
+
+LSD.Trait.Slider = new Class({
+  
+  options: {
+    actions: {
+      slider: {
+        enable: function() {
+          if (!this.slider) this.getSlider();
+          else this.slider.attach();
+        },
+
+        disable: function() {
+          if (this.slider) this.slider.detach()
+        }
+      }
+    },
+    events: {
+      parent: {
+        resize: 'onParentResize'
+      },
+      slider: {}
+    },
+    slider: {},
+    value: 0,
+    mode: 'horizontal',
+  },
+  
+  onParentResize: function(current, old) {
+    if (this.slider) this.slider.update();
+  },
+  
+  getSlider: Macro.getter('slider', function (update) {
+    var slider = new Slider(document.id(this.getTrack()), document.id(this.getTrackThumb()), Object.merge(this.options.slider, {
+      mode: this.options.mode
+    })).set(parseFloat(this.options.value));
+    slider.addEvent('change', this.onSet.bind(this));
+    this.fireEvent('register', ['slider', slider]);
+    return slider;
+  }),
+  
+  onSet: Macro.defaults(function() {
+    return true;
+  }),
+  
+  getTrack: Macro.defaults(function() {
+    return this
+  }),
+  
+  getTrackThumb: Macro.defaults(function() {
+    return this.thumb;
+  }),
+  
+  increment: function() {
+    this.slider.set((this.slider.step || 0) + 10)
+  },
+  
+  decrement: function() {
+    this.slider.set((this.slider.step || 0) - 10)
+  }
+  
+});
+
+Slider = new Class({
+  Extends: Slider,
+  
+  initialize: function() {
+    (this.Binds.push ? this.Binds : [this.Binds]).each(function(name){
+      var original = this[name];
+      if (original) this[name] = original.bind(this);
+    }, this);
+    return this.parent.apply(this, arguments);
+  }
+})
 /*
 ---
 
@@ -14197,1807 +16081,519 @@ Element.Properties.widget = {
 
 /*
 ---
-
-name: Element.Event
-
-description: Contains Element methods for dealing with events. This file also includes mouseenter and mouseleave custom Element Events.
-
+ 
+script: Item.js
+ 
+description: Methods to get and set microdata closely to html5 spsec
+ 
 license: MIT-style license.
-
-requires: [Element, Event]
-
-provides: Element.Event
-
+ 
+requires:
+- Core/Element
+ 
+provides: [Element.prototype.getItems, Element.Properties.item, Element.Microdata]
+ 
 ...
 */
+if (!Element.Item) Element.Item = {};
+Element.Item = {
+  walk: function(element, callback, memo, prefix) {
+    var prop = element.getAttribute('itemprop');
+    var scope = !!element.getAttribute('itemscope');
+    if (prefix && prop) {
+      if (!memo) memo = [];
+      memo.push(prop);
+    }
+    for (var i = 0, children = element.childNodes, child; child = children[i++];) {
+      if (child.nodeType != 1) continue;
+      memo = Element.Item.walk.call(this, child, callback, memo, prefix);
+    }
+    var reference = element.getAttribute('itemref');
+    if (scope && reference) {
+      for (var i = 0, bits = reference.split(/\s*/), j = bits.length; i < j; i++) {
+        var node = document.getElementById(bits[i]);
+        if (node) Element.Item.walk.call(this, child, callback, memo, prefix);
+      }
+    }
+    if (prefix && prop) memo.pop();
+    return (prop) ? callback.call(this, element, prop, scope, memo) : memo;
+  },
+  
+  serialize: function(element) {
+    return Element.Item.walk(element, function(element, prop, scope, object) {
+      if (!object) object = {};
+      if (scope) {
+        var obj = {};
+        obj[prop] = object;
+        return obj;
+      } else {
+        object[prop] = Element.get(element, 'itemvalue');
+        return object;
+      }
+    })
+  }
+};
 
-(function(){
-
-Element.Properties.events = {set: function(events){
-	this.addEvents(events);
-}};
-
-[Element, Window, Document].invoke('implement', {
-
-	addEvent: function(type, fn){
-		var events = this.retrieve('events', {});
-		if (!events[type]) events[type] = {keys: [], values: []};
-		if (events[type].keys.contains(fn)) return this;
-		events[type].keys.push(fn);
-		var realType = type,
-			custom = Element.Events[type],
-			condition = fn,
-			self = this;
-		if (custom){
-			if (custom.onAdd) custom.onAdd.call(this, fn);
-			if (custom.condition){
-				condition = function(event){
-					if (custom.condition.call(this, event)) return fn.call(this, event);
-					return true;
-				};
-			}
-			realType = custom.base || realType;
-		}
-		var defn = function(){
-			return fn.call(self);
-		};
-		var nativeEvent = Element.NativeEvents[realType];
-		if (nativeEvent){
-			if (nativeEvent == 2){
-				defn = function(event){
-					event = new Event(event, self.getWindow());
-					if (condition.call(self, event) === false) event.stop();
-				};
-			}
-			this.addListener(realType, defn, arguments[2]);
-		}
-		events[type].values.push(defn);
-		return this;
-	},
-
-	removeEvent: function(type, fn){
-		var events = this.retrieve('events');
-		if (!events || !events[type]) return this;
-		var list = events[type];
-		var index = list.keys.indexOf(fn);
-		if (index == -1) return this;
-		var value = list.values[index];
-		delete list.keys[index];
-		delete list.values[index];
-		var custom = Element.Events[type];
-		if (custom){
-			if (custom.onRemove) custom.onRemove.call(this, fn);
-			type = custom.base || type;
-		}
-		return (Element.NativeEvents[type]) ? this.removeListener(type, value, arguments[2]) : this;
-	},
-
-	addEvents: function(events){
-		for (var event in events) this.addEvent(event, events[event]);
-		return this;
-	},
-
-	removeEvents: function(events){
-		var type;
-		if (typeOf(events) == 'object'){
-			for (type in events) this.removeEvent(type, events[type]);
-			return this;
-		}
-		var attached = this.retrieve('events');
-		if (!attached) return this;
-		if (!events){
-			for (type in attached) this.removeEvents(type);
-			this.eliminate('events');
-		} else if (attached[events]){
-			attached[events].keys.each(function(fn){
-				this.removeEvent(events, fn);
-			}, this);
-			delete attached[events];
-		}
-		return this;
-	},
-
-	fireEvent: function(type, args, delay){
-		var events = this.retrieve('events');
-		if (!events || !events[type]) return this;
-		args = Array.from(args);
-
-		events[type].keys.each(function(fn){
-			if (delay) fn.delay(delay, this, args);
-			else fn.apply(this, args);
-		}, this);
-		return this;
-	},
-
-	cloneEvents: function(from, type){
-		from = document.id(from);
-		var events = from.retrieve('events');
-		if (!events) return this;
-		if (!type){
-			for (var eventType in events) this.cloneEvents(from, eventType);
-		} else if (events[type]){
-			events[type].keys.each(function(fn){
-				this.addEvent(type, fn);
-			}, this);
-		}
-		return this;
-	}
-
+[Document, Element].invoke('implement', {
+  getItems: function(tokens, strict) {
+    var selector = '[itemscope]:not([itemprop])';
+    if (tokens) selector += tokens.split(' ').map(function(type) {
+      return '[itemtype' + (strict ? '~' : '*') + '=' + type + ']'
+    }).join('');
+    return this.getElements(selector).each(function(element) {
+      return element.get('item');
+    }).get('item')
+  }
 });
 
-Element.NativeEvents = {
-	click: 2, dblclick: 2, mouseup: 2, mousedown: 2, contextmenu: 2, //mouse buttons
-	mousewheel: 2, DOMMouseScroll: 2, //mouse wheel
-	mouseover: 2, mouseout: 2, mousemove: 2, selectstart: 2, selectend: 2, //mouse movement
-	keydown: 2, keypress: 2, keyup: 2, //keyboard
-	orientationchange: 2, // mobile
-	touchstart: 2, touchmove: 2, touchend: 2, touchcancel: 2, // touch
-	gesturestart: 2, gesturechange: 2, gestureend: 2, // gesture
-	focus: 2, blur: 2, change: 2, reset: 2, select: 2, submit: 2, //form elements
-	load: 2, unload: 1, beforeunload: 2, resize: 1, move: 1, DOMContentLoaded: 1, readystatechange: 1, //window
-	error: 1, abort: 1, scroll: 1 //misc
+(function() {
+  var push = function(properties, property, value) {
+    var old = properties[property];
+    if (old) { //multiple values, convert to array
+      if (!old.push) properties[property] = [old];
+      properties[property].push(value)
+    } else {
+      properties[property] = value;
+    }
+  }
+
+Element.Properties.properties = {
+  get: function() {
+    var properties = {};
+    var property = Element.getProperty(this, 'itemprop'), scope;
+    if (property) {
+      var scope = Element.getProperty(this, 'itemscope');
+      if (!scope) {
+        var value = Element.get(this, 'itemvalue');
+        if (value) push(properties, property, value);
+      }
+    }
+    for (var i = 0, child; child = this.childNodes[i++];) {
+      if (child.nodeType != 1) continue;
+      var values = Element.get(child, 'properties');
+      for (var prop in values) push(properties, prop, values[prop]);
+    }
+    
+    var reference = Element.getProperty(this, 'itemref');
+    if (reference) {
+      var selector = reference.split(' ').map(function(id) { return '#' + id}).join(', ');
+      var elements = Slick.search(document.body, selector);
+      for (var i = 0, reference; reference = elements[i++];) {
+        var values = Element.get(reference, 'properties');
+        for (var prop in values) push(properties, prop, values[prop]);
+      }
+    }
+    
+    if (scope) {
+      var props = {};
+      props[property] = properties;
+      return props;
+    }
+    return properties;
+  },
+  
+  set: function(value) {
+    for (var i = 0, child; child = this.childNodes[i++];) {
+      if (child.nodeType != 1) continue;
+      var property = Element.getProperty(child, 'itemprop');
+      if (property) Element.set(child, 'itemvalue', value[property]);
+      else Element.set(child, 'properties', value)
+    };
+  }
 };
-
-var check = function(event){
-	var related = event.relatedTarget;
-	if (related == null) return true;
-	if (!related) return false;
-	return (related != this && related.prefix != 'xul' && typeOf(this) != 'document' && !this.contains(related));
-};
-
-Element.Events = {
-
-	mouseenter: {
-		base: 'mouseover',
-		condition: check
-	},
-
-	mouseleave: {
-		base: 'mouseout',
-		condition: check
-	},
-
-	mousewheel: {
-		base: (Browser.firefox) ? 'DOMMouseScroll' : 'mousewheel'
-	}
-
-};
-
-//<1.2compat>
-
-Element.Events = new Hash(Element.Events);
-
-//</1.2compat>
 
 })();
 
-/*
----
- 
-script: DOM.js
- 
-description: Provides DOM-compliant interface to play around with other widgets
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
-
-requires:
-  - LSD.Module
-  - Core/Element.Event
-
-provides:
-  - LSD.Module.DOM
-  - LSD.Module.DOM.findDocument
-
-...
-*/
-
-!function() {
-
-LSD.Module.DOM = new Class({
-  options: {
-    nodeType: 1,
+Element.Properties.item = {
+  get: function() {
+    if (!Element.getProperty(this, 'itemscope')) return;
+    return Element.get(this, 'properties');
   },
   
-  initializers: {
-    dom: function(options) {
-      this.childNodes = [];
-      this.nodeType = options.nodeType;
-      this.nodeName = this.tagName = options.tag;
-      return {
-        events: {
-          element: {
-            'dispose': 'dispose'
-          },
-          self: {
-            'destroy': function() {
-              if (this.parentNode) this.dispose();
-            }
-          }
-        }
-      }
-    }
-  },
-  
-  contains: function(element) {
-    while (element = element.parentNode) if (element == this) return true;
-    return false;
-  },
-  
-  getChildren: function() {
-    return this.childNodes;
-  },
-
-  getRoot: function() {
-    var widget = this;
-    while (widget.parentNode) widget = widget.parentNode;
-    return widget;
-  },
-  
-  setParent: function(widget){
-    widget = LSD.Module.DOM.find(widget);
-    this.parentNode = widget;
-    this.fireEvent('setParent', [widget, widget.document])
-    var siblings = widget.childNodes;
-    var length = siblings.length;
-    if (length == 1) widget.firstChild = this;
-    widget.lastChild = this;
-    var previous = siblings[length - 2];
-    if (previous) {
-      previous.nextSibling = this;
-      this.previousSibling = previous;
-    }
-  },
-  
-  unsetParent: function(widget) {
-    var parent = this.parentNode;
-    if (parent.firstChild == this) delete parent.firstChild;
-    if (parent.lastChild == this) delete parent.lastChild;
-    delete this.parentNode;
-  },
-  
-  appendChild: function(widget, adoption) {
-    this.childNodes.push(widget);
-    widget.setParent(this);
-    if (!widget.quiet && (adoption !== false) && this.toElement()) (adoption || function() {
-      this.element.appendChild(widget.toElement());
-    }).apply(this, arguments);
-    delete widget.quiet;
-    this.fireEvent('adopt', [widget]);
-    LSD.Module.DOM.walk(widget, function(node) {
-      this.dispatchEvent('nodeInserted', node);
-    }, this);
-    return true;
-  },
-  
-  removeChild: function(widget) {
-    LSD.Module.DOM.walk(widget, function(node) {
-      this.dispatchEvent('nodeRemoved', node);
-    }, this);
-    widget.unsetParent(this);
-    this.childNodes.erase(widget);
-  },
-  
-  insertBefore: function(insertion, element) {
-    return this.appendChild(insertion, function() {
-      element.parentNode.insertBefore(document.id(insertion), document.id(element))
-    });
-  },
-  
-  extractDocument: function(widget) {
-    var element = widget.lsd ? widget.element : widget;;
-    var isDocument = widget.documentElement || (instanceOf(widget, LSD.Document));
-    var parent = this.parentNode;
-    if (isDocument  // if document
-    || (parent && parent.dominjected) //already injected widget
-    || (widget.ownerDocument && (widget.ownerDocument.body == widget)) //body element
-    || element.offsetParent) { //element in dom (costy check)
-      return (parent && parent.document) || (isDocument ? widget : LSD.Module.DOM.findDocument(widget));
-    }
-  },
-  
-  setDocument: function(document) {
-    LSD.Module.DOM.walk(this, function(child) {
-      child.ownerDocument = child.document = document;
-      child.fireEvent('setDocument', document);
-      child.fireEvent('dominject', [child.element.parentNode, document]);
-      child.dominjected = true;
-    });
-    return this;
-  },
-  
-  inject: function(widget, where, quiet) {
-    if (!widget.lsd) {
-      var instance = LSD.Module.DOM.find(widget, true)
-      if (instance) widget = instance;
-    }
-    this.quiet = quiet || (widget.documentElement && this.element && this.element.parentNode);
-    if (where === false) widget.appendChild(this, false)
-    else if (!inserters[where || 'bottom'](widget.lsd ? this : this.toElement(), widget) && !quiet) return false;
-    if (quiet !== true || widget.document) {
-      var document = widget.document || (this.documentElement ? this : this.extractDocument(widget));
-      if (document) this.setDocument(document);
-    }
-    this.fireEvent('inject', this.parentNode);
-    return this;
-  },
-
-  grab: function(el, where){
-    inserters[where || 'bottom'](document.id(el, true), this);
-    return this;
-  },
-  
-  /*
-    Wrapper is where content nodes get appended. 
-    Defaults to this.element, but can be redefined
-    in other Modules or Traits (as seen in Container
-    module)
-  */
-  
-  getWrapper: function() {
-    return this.toElement();
-  },
-  
-  write: function(content) {
-    var wrapper = this.getWrapper();
-    if (this.written) for (var node; node = this.written.shift();) Element.dispose(node);
-    var fragment = document.createFragment(content);
-    this.written = Array.prototype.slice.call(fragment.childNodes, 0);
-    wrapper.appendChild(fragment);
-    this.fireEvent('write', [this.written])
-    this.innerText = wrapper.get('text').trim();
-    return this.written;
-  },
-
-  replaces: function(el){
-    this.inject(el, 'after');
-    el.dispose();
-    return this;
-  },
-  
-  onDOMInject: function(callback) {
-    if (this.document) callback.call(this, this.document.element) 
-    else this.addEvent('dominject', callback.bind(this))
-  },
-
-  dispose: function(element) {
-    var parent = this.parentNode;
-    if (!parent) return;
-    this.fireEvent('beforeDispose', parent);
-    parent.removeChild(this);
-    this.fireEvent('dispose', parent);
-    return this;
+  set: function(value) {
+    if (!Element.getProperty(this, 'itemscope')) return;
+    return Element.set(this, 'properties', value);
   }
-});
-
-var inserters = {
-
-  before: function(context, element){
-    var parent = element.parentNode;
-    if (parent) return parent.insertBefore(context, element);
-  },
-
-  after: function(context, element){
-    var parent = element.parentNode;
-    if (parent) return parent.insertBefore(context, element.nextSibling);
-  },
-
-  bottom: function(context, element){
-    return element.appendChild(context);
-  },
-
-  top: function(context, element){
-    return element.insertBefore(context, element.firstChild);
-  }
-
 };
 
-Object.append(LSD.Module.DOM, {
-  walk: function(element, callback, bind, memo) {
-    var widget = element.lsd ? element : LSD.Module.DOM.find(element, true);
-    if (widget) {
-      var result = callback.call(bind || this, widget, memo);
-      if (result) (memo || (memo = [])).push(widget);
-    }
-    for (var nodes = element.childNodes, node, i = 0; node = nodes[i]; i++) 
-      if (node.nodeType == 1) LSD.Module.DOM.walk(node, callback, bind, memo); 
-    return memo;
-  },
-  
-  find: function(target, lazy) {
-    return target.lsd ? target : ((!lazy || target.uid) && Element[lazy ? 'retrieve' : 'get'](target, 'widget'));
-  },
-  
-  findDocument: function(target) {
-    if (target.documentElement) return target;
-    if (target.document) return target.document;
-    if (target.lsd) return;
-    var body = target.ownerDocument.body;
-    var document = (target != body) && Element.retrieve(body, 'widget');
-    while (!document && (target = target.parentNode)) {
-      var widget = Element.retrieve(target, 'widget')
-      if (widget) document = (widget instanceof LSD.Document) ? widget : widget.document;
-    }
-    return document;
-  },
-  
-  getID: function(target) {
-    if (target.lsd) {
-      return target.attributes.itemid;
-    } else {
-      return target.getAttribute('itemid');
-    }
-  }
-});
+(function() {
 
-}();
-/*
----
- 
-script: Render.js
- 
-description: A module that provides rendering workflow
- 
-license: Public domain (http://unlicense.org).
+var resolve = function(url) {
+  if (!url) return '';
+  var img = document.createElement('img');
+  img.setAttribute('src', url);
+  return img.src;
+}
 
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Module.DOM
-
-provides: 
-  - LSD.Module.Render
-
-...
-*/
-
-
-
-LSD.Module.Render = new Class({
-  options: {
-    render: null
-  },
-  
-  initializers: {
-    render: function() {
-      this.redraws = 0;
-      this.dirty = true;
-      return {
-        events: {
-          stateChange: function() {
-            if (this.redraws > 0) this.refresh(true);
-          }
-        }
-      }
+Element.Properties.itemvalue = {
+  get: function() {
+    var property = this.getProperty('itemprop');
+    if (!property) return;
+    switch (this.get('tag')) {
+      case 'meta':
+        return this.get('content') || '';
+      case 'input':
+      case 'select':
+      case 'textarea':
+        return this.get('value');
+      case 'audio':
+      case 'embed':
+      case 'iframe':
+      case 'img':
+      case 'source':
+      case 'video':
+        return resolve(this.get('src'));
+      case 'a':
+      case 'area':
+      case 'link':
+        return resolve(this.get('href'));
+      case 'object':
+        return resolve(this.get('data'));
+      case 'time':
+        var datetime = this.get('datetime');
+        if (!(datetime === undefined)) return Date.parse(datetime);
+      default:
+        return this.getProperty('itemvalue') || this.get('text').trim();
     }
   },
-  
-  render: function() {
-    if (!this.built) this.build();
-    delete this.halted;
-    this.redraws++;
-    this.fireEvent('render', arguments)
-    this.childNodes.each(function(child){
-      if (child.render) child.render();
-    });
-  },
-  
-  /*
-    Update marks widget as willing to render. That
-    can be followed by a call to *render* to trigger
-    redrawing mechanism. Otherwise, the widget stay 
-    marked and can be rendered together with ascendant 
-    widget.
-  */
-  
-  update: function(recursive) {
-    if (recursive) LSD.Module.DOM.walk(this, function(widget) {
-      widget.update();
-    });
-  },
-  
-  /*
-    Refresh updates and renders widget (or a widget tree 
-    if optional argument is true). It is a reliable way
-    to have all elements redrawn, but a costly too.
+
+  set: function(value) {
+    var property = this.getProperty('itemprop');
+    var scope = this.getProperty('itemscope');
+    if (property === undefined) return;
+    else if (scope && Object.type(value[scope])) return this.set('item', value[scope]);
     
-    Should be avoided when possible to let internals 
-    handle the rendering and avoid some unnecessary 
-    calculations.
-  */
-
-  refresh: function(recursive) {
-    this.update(recursive);
-    return this.render();
-  },
-  
-
-  /*
-    Halt marks widget as failed to render.
-    
-    Possible use cases:
-    
-    - Dimensions depend on child widgets that are not
-      rendered yet
-    - Dont let the widget render when it is not in DOM
-  */ 
-  halt: function() {
-    if (this.halted) return false;
-    this.halted = true;
-    return true;
-  }
-});
-/*
----
-
-script: Proxies.js
-
-description: All visual rendering aspects under one umbrella
-
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Module.Layers
-  - LSD.Module.Render
-  - LSD.Module.Shape
-
-provides: 
-  - LSD.Module.Graphics
-
-...
-*/
-
-
-LSD.Module.Graphics = new Class({
-  Implements: [
-    LSD.Module.Layers, 
-    LSD.Module.Render, 
-    LSD.Module.Shape
-  ]
-});
-/*
----
- 
-script: Container.js
- 
-description: Makes widget use container - wrapper around content setting
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Module.DOM
-
-provides:
-  - LSD.Module.Container
- 
-...
-*/
-
-LSD.Module.Container = new Class({
-  options: {
-    container: {
-      enabled: true,
-      position: null,
-      inline: true,
-      attributes: {
-        'class': 'container'
-      }
-    },
-    
-    proxies: {
-      container: {
-        container: function() {
-          return $(this.getContainer()) //creates container, once condition is true
-        },
-        condition: function() {         //turned off by default
-          return false 
-        },      
-        priority: -1,                   //lowest priority
-        rewrite: false                  //does not rewrite parent
-      }
+    switch (this.get('tag')) {
+      case 'meta':
+        return this.set('content', value);
+      case 'audio':
+      case 'embed':
+      case 'iframe':
+      case 'img':
+      case 'source':
+      case 'video':
+        return this.set('src', value);
+      case 'a':
+      case 'area':
+      case 'link':
+        return this.set('href', value);
+      case 'object':
+        return this.set('data', value);
+      case 'time':
+        var datetime = this.get('datetime');
+        if (!(datetime === undefined)) this.set('datetime', value)
+      default:
+        return this.set('html', value);
     }
-  },
-  
-  getContainer: Macro.getter('container', function() {
-    var options = this.options.container;
-    if (!options.enabled) return;
-    var tag = options.tag || (options.inline ? 'span' : 'div');
-    return new Element(tag, options.attributes).inject(this.element, options.position);
-  }),
-  
-  getWrapper: function() {
-    return this.getContainer() || this.toElement();
   }
-});
-/*
----
+}
 
-script: Proxies.js
-
-description: Dont adopt children, pass them to some other widget
-
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Module.DOM
-
-provides: 
-  - LSD.Module.Proxies
-
-...
-*/
-  
-LSD.Module.Proxies = new Class({
-  initializers: {
-    proxies: function() {
-      this.proxies = [];
-    }
-  },
-  
-  addProxy: function(name, proxy) {
-    for (var i = 0, other; (other = this.proxies[i]) && ((proxy.priority || 0) < (other.priority || 0)); i++);
-    this.proxies.splice(i, 0, proxy);
-  },
-  
-  removeProxy: function(name, proxy) {
-    this.proxies.erase(proxy);
-  },
-  
-  proxyChild: function(child) {
-    for (var i = 0, proxy; proxy = this.proxies[i++];) {
-      if (!proxy.condition.call(this, child)) continue;
-      var self = this;
-      var reinject = function(target) {
-        if (proxy.rewrite === false) {
-          self.appendChild(child, function() {
-            target.adopt(child);
-          });
-        } else {
-          child.inject(target);
-        }
-      };
-      var container = proxy.container;
-      if (container.call) {
-        if ((container = container.call(this, reinject))) reinject(container);
-      } else {
-        this.use(container, reinject)
-      }
-      return true;
-    }
-  },
-  
-  appendChild: function(widget, adoption) {
-    if (!adoption && this.canAppendChild && !this.canAppendChild(widget)) {
-      if (widget.parentNode) widget.dispose();
-      else if (widget.element.parentNode) widget.element.dispose();
-      return false;
-    }
-    return LSD.Module.DOM.prototype.appendChild.apply(this, arguments);
-  },
-  
-  canAppendChild: function(child) {
-    return !this.proxyChild(child);
-  }
-  
-});
-
-LSD.Options.proxies = {
-  add: 'addProxy',
-  remove: 'removeProxy',
-  iterate: true
-};
-/*
----
-
-script: Drag.js
-
-name: Drag
-
-description: The base Drag Class. Can be used to drag and resize Elements using mouse events.
-
-license: MIT-style license
-
-authors:
-  - Valerio Proietti
-  - Tom Occhinno
-  - Jan Kassens
-
-requires:
-  - Core/Events
-  - Core/Options
-  - Core/Element.Event
-  - Core/Element.Style
-  - Core/Element.Dimensions
-  - /MooTools.More
-
-provides: [Drag]
-...
-
-*/
-
-var Drag = new Class({
-
-	Implements: [Events, Options],
-
-	options: {/*
-		onBeforeStart: function(thisElement){},
-		onStart: function(thisElement, event){},
-		onSnap: function(thisElement){},
-		onDrag: function(thisElement, event){},
-		onCancel: function(thisElement){},
-		onComplete: function(thisElement, event){},*/
-		snap: 6,
-		unit: 'px',
-		grid: false,
-		style: true,
-		limit: false,
-		handle: false,
-		invert: false,
-		preventDefault: false,
-		stopPropagation: false,
-		modifiers: {x: 'left', y: 'top'}
-	},
-
-	initialize: function(){
-		var params = Array.link(arguments, {
-			'options': Type.isObject,
-			'element': function(obj){
-				return obj != null;
-			}
-		});
-
-		this.element = document.id(params.element);
-		this.document = this.element.getDocument();
-		this.setOptions(params.options || {});
-		var htype = typeOf(this.options.handle);
-		this.handles = ((htype == 'array' || htype == 'collection') ? $$(this.options.handle) : document.id(this.options.handle)) || this.element;
-		this.mouse = {'now': {}, 'pos': {}};
-		this.value = {'start': {}, 'now': {}};
-
-		this.selection = (Browser.ie) ? 'selectstart' : 'mousedown';
-
-
-		if (Browser.ie && !Drag.ondragstartFixed){
-			document.ondragstart = Function.from(false);
-			Drag.ondragstartFixed = true;
-		}
-
-		this.bound = {
-			start: this.start.bind(this),
-			check: this.check.bind(this),
-			drag: this.drag.bind(this),
-			stop: this.stop.bind(this),
-			cancel: this.cancel.bind(this),
-			eventStop: Function.from(false)
-		};
-		this.attach();
-	},
-
-	attach: function(){
-		this.handles.addEvent('mousedown', this.bound.start);
-		return this;
-	},
-
-	detach: function(){
-		this.handles.removeEvent('mousedown', this.bound.start);
-		return this;
-	},
-
-	start: function(event){
-		var options = this.options;
-
-		if (event.rightClick) return;
-
-		if (options.preventDefault) event.preventDefault();
-		if (options.stopPropagation) event.stopPropagation();
-		this.mouse.start = event.page;
-
-		this.fireEvent('beforeStart', this.element);
-
-		var limit = options.limit;
-		this.limit = {x: [], y: []};
-
-		var z, coordinates;
-		for (z in options.modifiers){
-			if (!options.modifiers[z]) continue;
-
-			var style = this.element.getStyle(options.modifiers[z]);
-
-			// Some browsers (IE and Opera) don't always return pixels.
-			if (style && !style.match(/px$/)){
-				if (!coordinates) coordinates = this.element.getCoordinates(this.element.getOffsetParent());
-				style = coordinates[options.modifiers[z]];
-			}
-
-			if (options.style) this.value.now[z] = (style || 0).toInt();
-			else this.value.now[z] = this.element[options.modifiers[z]];
-
-			if (options.invert) this.value.now[z] *= -1;
-
-			this.mouse.pos[z] = event.page[z] - this.value.now[z];
-
-			if (limit && limit[z]){
-				var i = 2;
-				while (i--){
-					var limitZI = limit[z][i];
-					if (limitZI || limitZI === 0) this.limit[z][i] = (typeof limitZI == 'function') ? limitZI() : limitZI;
-				}
-			}
-		}
-
-		if (typeOf(this.options.grid) == 'number') this.options.grid = {
-			x: this.options.grid,
-			y: this.options.grid
-		};
-
-		var events = {
-			mousemove: this.bound.check,
-			mouseup: this.bound.cancel
-		};
-		events[this.selection] = this.bound.eventStop;
-		this.document.addEvents(events);
-	},
-
-	check: function(event){
-		if (this.options.preventDefault) event.preventDefault();
-		var distance = Math.round(Math.sqrt(Math.pow(event.page.x - this.mouse.start.x, 2) + Math.pow(event.page.y - this.mouse.start.y, 2)));
-		if (distance > this.options.snap){
-			this.cancel();
-			this.document.addEvents({
-				mousemove: this.bound.drag,
-				mouseup: this.bound.stop
-			});
-			this.fireEvent('start', [this.element, event]).fireEvent('snap', this.element);
-		}
-	},
-
-	drag: function(event){
-		var options = this.options;
-
-		if (options.preventDefault) event.preventDefault();
-		this.mouse.now = event.page;
-
-		for (var z in options.modifiers){
-			if (!options.modifiers[z]) continue;
-			this.value.now[z] = this.mouse.now[z] - this.mouse.pos[z];
-
-			if (options.invert) this.value.now[z] *= -1;
-
-			if (options.limit && this.limit[z]){
-				if ((this.limit[z][1] || this.limit[z][1] === 0) && (this.value.now[z] > this.limit[z][1])){
-					this.value.now[z] = this.limit[z][1];
-				} else if ((this.limit[z][0] || this.limit[z][0] === 0) && (this.value.now[z] < this.limit[z][0])){
-					this.value.now[z] = this.limit[z][0];
-				}
-			}
-
-			if (options.grid[z]) this.value.now[z] -= ((this.value.now[z] - (this.limit[z][0]||0)) % options.grid[z]);
-
-			if (options.style) this.element.setStyle(options.modifiers[z], this.value.now[z] + options.unit);
-			else this.element[options.modifiers[z]] = this.value.now[z];
-		}
-
-		this.fireEvent('drag', [this.element, event]);
-	},
-
-	cancel: function(event){
-		this.document.removeEvents({
-			mousemove: this.bound.check,
-			mouseup: this.bound.cancel
-		});
-		if (event){
-			this.document.removeEvent(this.selection, this.bound.eventStop);
-			this.fireEvent('cancel', this.element);
-		}
-	},
-
-	stop: function(event){
-		var events = {
-			mousemove: this.bound.drag,
-			mouseup: this.bound.stop
-		};
-		events[this.selection] = this.bound.eventStop;
-		this.document.removeEvents(events);
-		if (event) this.fireEvent('complete', [this.element, event]);
-	}
-
-});
-
-Element.implement({
-
-	makeResizable: function(options){
-		var drag = new Drag(this, Object.merge({
-			modifiers: {
-				x: 'width',
-				y: 'height'
-			}
-		}, options));
-
-		this.store('resizer', drag);
-		return drag.addEvent('drag', function(){
-			this.fireEvent('resize', drag);
-		}.bind(this));
-	}
-
-});
-
-/*
----
-
-script: Slider.js
-
-name: Slider
-
-description: Class for creating horizontal and vertical slider controls.
-
-license: MIT-style license
-
-authors:
-  - Valerio Proietti
-
-requires:
-  - Core/Element.Dimensions
-  - /Class.Binds
-  - /Drag
-  - /Element.Measure
-
-provides: [Slider]
-
-...
-*/
-
-var Slider = new Class({
-
-	Implements: [Events, Options],
-
-	Binds: ['clickedElement', 'draggedKnob', 'scrolledElement'],
-
-	options: {/*
-		onTick: function(intPosition){},
-		onChange: function(intStep){},
-		onComplete: function(strStep){},*/
-		onTick: function(position){
-			this.setKnobPosition(position);
-		},
-		initialStep: 0,
-		snap: false,
-		offset: 0,
-		range: false,
-		wheel: false,
-		steps: 100,
-		mode: 'horizontal'
-	},
-
-	initialize: function(element, knob, options){
-		this.setOptions(options);
-		options = this.options;
-		this.element = document.id(element);
-		knob = this.knob = document.id(knob);
-		this.previousChange = this.previousEnd = this.step = -1;
-
-		var limit = {},
-			modifiers = {x: false, y: false};
-
-		switch (options.mode){
-			case 'vertical':
-				this.axis = 'y';
-				this.property = 'top';
-				this.offset = 'offsetHeight';
-				break;
-			case 'horizontal':
-				this.axis = 'x';
-				this.property = 'left';
-				this.offset = 'offsetWidth';
-		}
-
-		this.setSliderDimensions();
-		this.setRange(options.range);
-
-		if (knob.getStyle('position') == 'static') knob.setStyle('position', 'relative');
-		knob.setStyle(this.property, -options.offset);
-		modifiers[this.axis] = this.property;
-		limit[this.axis] = [-options.offset, this.full - options.offset];
-
-		var dragOptions = {
-			snap: 0,
-			limit: limit,
-			modifiers: modifiers,
-			onDrag: this.draggedKnob,
-			onStart: this.draggedKnob,
-			onBeforeStart: (function(){
-				this.isDragging = true;
-			}).bind(this),
-			onCancel: function(){
-				this.isDragging = false;
-			}.bind(this),
-			onComplete: function(){
-				this.isDragging = false;
-				this.draggedKnob();
-				this.end();
-			}.bind(this)
-		};
-		if (options.snap) this.setSnap(dragOptions);
-
-		this.drag = new Drag(knob, dragOptions);
-		this.attach();
-		if (options.initialStep != null) this.set(options.initialStep);
-	},
-
-	attach: function(){
-		this.element.addEvent('mousedown', this.clickedElement);
-		if (this.options.wheel) this.element.addEvent('mousewheel', this.scrolledElement);
-		this.drag.attach();
-		return this;
-	},
-
-	detach: function(){
-		this.element.removeEvent('mousedown', this.clickedElement)
-			.removeEvent('mousewheel', this.scrolledElement);
-		this.drag.detach();
-		return this;
-	},
-
-	autosize: function(){
-		this.setSliderDimensions()
-			.setKnobPosition(this.toPosition(this.step));
-		this.drag.options.limit[this.axis] = [-this.options.offset, this.full - this.options.offset];
-		if (this.options.snap) this.setSnap();
-		return this;
-	},
-
-	setSnap: function(options){
-		if (!options) options = this.drag.options;
-		options.grid = Math.ceil(this.stepWidth);
-		options.limit[this.axis][1] = this.full;
-		return this;
-	},
-
-	setKnobPosition: function(position){
-		if (this.options.snap) position = this.toPosition(this.step);
-		this.knob.setStyle(this.property, position);
-		return this;
-	},
-
-	setSliderDimensions: function(){
-		this.full = this.element.measure(function(){
-			this.half = this.knob[this.offset] / 2;
-			return this.element[this.offset] - this.knob[this.offset] + (this.options.offset * 2);
-		}.bind(this));
-		return this;
-	},
-
-	set: function(step){
-		if (!((this.range > 0) ^ (step < this.min))) step = this.min;
-		if (!((this.range > 0) ^ (step > this.max))) step = this.max;
-
-		this.step = Math.round(step);
-		return this.checkStep()
-			.fireEvent('tick', this.toPosition(this.step))
-			.end();
-	},
-
-	setRange: function(range, pos){
-		this.min = Array.pick([range[0], 0]);
-		this.max = Array.pick([range[1], this.options.steps]);
-		this.range = this.max - this.min;
-		this.steps = this.options.steps || this.full;
-		this.stepSize = Math.abs(this.range) / this.steps;
-		this.stepWidth = this.stepSize * this.full / Math.abs(this.range);
-		if (range) this.set(Array.pick([pos, this.step]).floor(this.min).max(this.max));
-		return this;
-	},
-
-	clickedElement: function(event){
-		if (this.isDragging || event.target == this.knob) return;
-
-		var dir = this.range < 0 ? -1 : 1,
-			position = event.page[this.axis] - this.element.getPosition()[this.axis] - this.half;
-
-		position = position.limit(-this.options.offset, this.full - this.options.offset);
-
-		this.step = Math.round(this.min + dir * this.toStep(position));
-
-		this.checkStep()
-			.fireEvent('tick', position)
-			.end();
-	},
-
-	scrolledElement: function(event){
-		var mode = (this.options.mode == 'horizontal') ? (event.wheel < 0) : (event.wheel > 0);
-		this.set(this.step + (mode ? -1 : 1) * this.stepSize);
-		event.stop();
-	},
-
-	draggedKnob: function(){
-		var dir = this.range < 0 ? -1 : 1,
-			position = this.drag.value.now[this.axis];
-
-		position = position.limit(-this.options.offset, this.full -this.options.offset);
-
-		this.step = Math.round(this.min + dir * this.toStep(position));
-		this.checkStep();
-	},
-
-	checkStep: function(){
-		var step = this.step;
-		if (this.previousChange != step){
-			this.previousChange = step;
-			this.fireEvent('change', step);
-		}
-		return this;
-	},
-
-	end: function(){
-		var step = this.step;
-		if (this.previousEnd !== step){
-			this.previousEnd = step;
-			this.fireEvent('complete', step + '');
-		}
-		return this;
-	},
-
-	toStep: function(position){
-		var step = (position + this.options.offset) * this.stepSize / this.full * this.steps;
-		return this.options.steps ? Math.round(step -= step % this.stepSize) : step;
-	},
-
-	toPosition: function(step){
-		return (this.full * Math.abs(this.min - step)) / (this.steps * this.stepSize) - this.options.offset;
-	}
-
-});
-
+})();
 /*
 ---
  
-script: Drag.Limits.js
+script: List.js
  
-description: A set of function to easily cap Drag's limit
- 
-license: MIT-style license.
- 
-requires:
-- More/Drag
-
-provides: [Drag.Limits]
- 
-...
-*/
-
-Drag.implement({
-  setMaxX: function(x) {
-    var limit = this.options.limit;
-    limit.x[1] = x//Math.max(x, limit.x[1]);
-    limit.x[0] = Math.min(limit.x[0], limit.x[1]);
-  },
-  
-  setMaxY: function(y) {
-    var limit = this.options.limit;
-    limit.y[1] = y//Math.max(y, limit.y[1]);
-    limit.y[0] = Math.min(limit.y[0], limit.y[1]);
-  },
-  
-  setMinX: function(x) {
-    var limit = this.options.limit;
-    limit.x[0] = x//Math.min(x, limit.x[0]);
-    limit.x[1] = Math.max(limit.x[1], limit.x[0]);
-  },
-  
-  setMinY: function(y) {
-    var limit = this.options.limit;
-    limit.y[0] = y//Math.min(y, limit.y[0]);
-    limit.y[1] = Math.max(limit.y[1], limit.y[0]);
-  }
-});
-
-/*
----
- 
-script: Slider.js
- 
-description: Methods to update slider without reinitializing the thing
- 
-license: MIT-style license.
- 
-requires:
-- Drag.Limits
-- More/Slider
-
-provides: [Slider.prototype.update]
- 
-...
-*/
-
-
-Slider.implement({
-  update: function() {
-		var offset = (this.options.mode == 'vertical') ?  'offsetHeight' : 'offsetWidth'
-		this.half = this.knob[offset] / 2; 
-		this.full =  this.element[offset] - this.knob[offset] + (this.options.offset * 2); 
-		
-		//this.setRange(this.options.range);
-
-		this.knob.setStyle(this.property, this.toPosition(this.step));
-		var X = this.axis.capitalize();
-		this.drag['setMin' + X](- this.options.offset)
-		this.drag['setMax' + X](this.full - this.options.offset)
-  }
-});
-/*
----
- 
-script: Slider.js
- 
-description: Because sometimes slider is the answer
+description: Trait that makes it simple to work with a list of item (and select one of them)
  
 license: Public domain (http://unlicense.org).
  
 requires:
   - LSD.Trait
-  - More/Slider
-  - Ext/Slider.prototype.update
-  - Ext/Class.hasParent
-
+  - Core/Element
+  - Ext/Element.Properties.item
+ 
 provides: 
-  - LSD.Trait.Slider
+  - LSD.Trait.List
  
 ...
 */
 
-LSD.Trait.Slider = new Class({
-  
-  options: {
-    actions: {
-      slider: {
-        enable: function() {
-          if (!this.slider) this.getSlider();
-          else this.slider.attach();
-        },
 
-        disable: function() {
-          if (this.slider) this.slider.detach()
+LSD.Trait.List = new Class({  
+  options: {
+    list: {
+      endless: true,
+      force: false,
+      multiple: false,
+      unselect: null
+    },
+    proxies: {
+      container: {
+        condition: function(widget) {
+          return !!widget.setList
         }
       }
     },
-    events: {
-      parent: {
-        resize: 'onParentResize'
-      },
-      slider: {}
+    shortcuts: {
+      previous: 'previous',
+      next: 'next'
     },
-    slider: {},
-    value: 0,
-    mode: 'horizontal',
+    events: {
+      attach: function() {
+        var items = this.list && this.list.length ? this.list : this.options.list.items;
+        if (items) this.setItems(items);
+      }
+    },
+    has: {
+      many: {
+        items: {
+          selector: ':item',
+          events: {
+            select: function() {
+              this.listWidget.selectItem(this)
+            },
+            unselect: function() {
+              this.listWidget.unselectItem(this);
+            },
+            dispose: function() {
+              this.listWidget.unselectItem(this);
+            }
+          },
+          alias: 'listWidget',
+          states: {
+            add: Array.fast('selected')
+          },
+          pseudos: Array.fast('valued'),
+          callbacks: {
+            'fill': 'fill',
+            'empty': 'empty'
+          }
+        }
+      }
+    },
+    pseudos: Array.fast('list'),
+    states: {
+      empty: true
+    }
   },
-  
-  onParentResize: function(current, old) {
-    if (this.slider) this.slider.update();
-  },
-  
-  getSlider: Macro.getter('slider', function (update) {
-    var slider = new Slider(document.id(this.getTrack()), document.id(this.getTrackThumb()), Object.merge(this.options.slider, {
-      mode: this.options.mode
-    })).set(parseFloat(this.options.value));
-    slider.addEvent('change', this.onSet.bind(this));
-    this.fireEvent('register', ['slider', slider]);
-    return slider;
-  }),
-  
-  onSet: Macro.defaults(function() {
-    return true;
-  }),
-  
-  getTrack: Macro.defaults(function() {
-    return this
-  }),
-  
-  getTrackThumb: Macro.defaults(function() {
-    return this.thumb;
-  }),
-  
-  increment: function() {
-    this.slider.set((this.slider.step || 0) + 10)
-  },
-  
-  decrement: function() {
-    this.slider.set((this.slider.step || 0) - 10)
-  }
-  
-});
-
-Slider = new Class({
-  Extends: Slider,
   
   initialize: function() {
-    (this.Binds.push ? this.Binds : [this.Binds]).each(function(name){
-      var original = this[name];
-      if (original) this[name] = original.bind(this);
-    }, this);
-    return this.parent.apply(this, arguments);
-  }
-})
-/*
----
-
-name: Element.defineCustomEvent
-
-description: Allows to create custom events based on other custom events.
-
-authors: Christoph Pojer (@cpojer)
-
-license: MIT-style license.
-
-requires: [Core/Element.Event]
-
-provides: Element.defineCustomEvent
-
-...
-*/
-
-(function(){
-
-[Element, Window, Document].invoke('implement', {hasEvent: function(event){
-	var events = this.retrieve('events'),
-		list = (events && events[event]) ? events[event].values : null;
-	if (list){
-		for (var i = list.length; i--;) if (i in list){
-			return true;
-		}
-	}
-	return false;
-}});
-
-var wrap = function(custom, method, extended, name){
-	method = custom[method];
-	extended = custom[extended];
-
-	return function(fn, customName){
-		if (!customName) customName = name;
-
-		if (extended && !this.hasEvent(customName)) extended.call(this, fn, customName);
-		if (method) method.call(this, fn, customName);
-	};
-};
-
-var inherit = function(custom, base, method, name){
-	return function(fn, customName){
-		base[method].call(this, fn, customName || name);
-		custom[method].call(this, fn, customName || name);
-	};
-};
-
-var events = Element.Events;
-
-Element.defineCustomEvent = function(name, custom){
-
-	var base = events[custom.base];
-
-	custom.onAdd = wrap(custom, 'onAdd', 'onSetup', name);
-	custom.onRemove = wrap(custom, 'onRemove', 'onTeardown', name);
-
-	events[name] = base ? Object.append({}, custom, {
-
-		base: base.base,
-
-		condition: function(event){
-			return (!base.condition || base.condition.call(this, event)) &&
-				(!custom.condition || custom.condition.call(this, event));
-		},
-
-		onAdd: inherit(custom, base, 'onAdd', name),
-		onRemove: inherit(custom, base, 'onRemove', name)
-
-	}) : custom;
-
-	return this;
-
-};
-
-var loop = function(name){
-	var method = 'on' + name.capitalize();
-	Element[name + 'CustomEvents'] = function(){
-		Object.each(events, function(event, name){
-			if (event[method]) event[method].call(event, name);
-		});
-	};
-	return loop;
-};
-
-loop('enable')('disable');
-
-})();
-
-/*
----
-
-name: Touch
-
-description: Provides a custom touch event on mobile devices
-
-authors: Christoph Pojer (@cpojer)
-
-license: MIT-style license.
-
-requires: [Core/Element.Event, Custom-Event/Element.defineCustomEvent, Browser.Features.Touch]
-
-provides: Touch
-
-...
-*/
-
-(function(){
-
-var preventDefault = function(event){
-	event.preventDefault();
-};
-
-var disabled;
-
-Element.defineCustomEvent('touch', {
-
-	base: 'touchend',
-
-	condition: function(event){
-		if (disabled || event.targetTouches.length != 0) return false;
-
-		var touch = event.changedTouches[0],
-			target = document.elementFromPoint(touch.clientX, touch.clientY);
-
-		do {
-			if (target == this) return true;
-		} while ((target = target.parentNode) && target);
-
-		return false;
-	},
-
-	onSetup: function(){
-		this.addEvent('touchstart', preventDefault);
-	},
-
-	onTeardown: function(){
-		this.removeEvent('touchstart', preventDefault);
-	},
-
-	onEnable: function(){
-		disabled = false;
-	},
-
-	onDisable: function(){
-		disabled = true;
-	}
-
-});
-
-})();
-
-/*
----
-
-name: Click
-
-description: Provides a replacement for click events on mobile devices
-
-authors: Christoph Pojer (@cpojer)
-
-license: MIT-style license.
-
-requires: [Touch]
-
-provides: Click
-
-...
-*/
-
-if (Browser.Features.iOSTouch) (function(){
-
-var name = 'click';
-delete Element.NativeEvents[name];
-
-Element.defineCustomEvent(name, {
-
-	base: 'touch'
-
-});
-
-})();
-
-/*
----
-
-name: Mouse
-
-description: Maps mouse events to their touch counterparts
-
-authors: Christoph Pojer (@cpojer)
-
-license: MIT-style license.
-
-requires: [Custom-Event/Element.defineCustomEvent, Browser.Features.Touch]
-
-provides: Mouse
-
-...
-*/
-
-if (!Browser.Features.Touch) (function(){
-
-var condition = function(event){
-  event.targetTouches = [];
-  event.changedTouches = event.touches = [{
-    pageX: event.page.x, pageY: event.page.y,
-    clientX: event.client.x, clientY: event.client.y
-  }];
-
-  return true;
-};
-
-var mouseup = function(e) {
-  var target = e.target;
-  while (target != this && (target = target.parentNode));
-  this.fireEvent(target ? 'touchend' : 'touchcancel', arguments);
-  document.removeEvent('mouseup', this.retrieve('touch:mouseup'));
-};
-
-Element.defineCustomEvent('touchstart', {
-
-  base: 'mousedown',
-
-  condition: function() {
-    var bound = this.retrieve('touch:mouseup');
-    if (!bound) {
-      bound = mouseup.bind(this);
-      this.store('touch:mouseup', bound);
-    }
-    document.addEvent('mouseup', bound);
-    return condition.apply(this, arguments);
-  }
-
-}).defineCustomEvent('touchmove', {
-
-  base: 'mousemove',
-
-  condition: condition
-
-});
-
-})();
-
-/*
----
- 
-script: Touchable.js
- 
-description: A mousedown event that lasts even when you move your mouse over. 
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Mixin
-  - Mobile/Mouse
-  - Mobile/Click
-  - Mobile/Touch
-
- 
-provides:   
-  - LSD.Mixin.Touchable
- 
-...
-*/
-
-
-LSD.Mixin.Touchable = new Class({
-  behaviour: ':touchable',
+    this.parent.apply(this, arguments);
+    this.setItems(this.options.items || this.items);
+  },
   
-  options: {
-    events: {
-      enabled: {
-        element: {
-          'touchstart': 'activate',
-          'touchend': 'deactivate',
-          'touchcancel': 'deactivate'
-        }
+  selectItem: function(item) {
+    if (!(item = this.getItem(item)) && this.options.list.force) return false;
+    var unselect = (this.options.list.unselect !== null) ? this.options.list.unselect : !this.options.list.multiple;
+    var selected = this.selectedItem;
+    if (unselect && (selected != item) && selected && selected.unselect) this.unselectItem(selected);
+    this.setSelectedItem.apply(this, arguments); 
+    this.fireEvent('set', [item, this.getItemIndex(item)]);
+    item.select();
+    return item;
+  },
+  
+  unselectItem: function(item) {
+    if (!(item = this.getItem(item)) || !this.isItemSelected(item)) return false;
+    if (item.unselect) item.unselect();
+    this.unsetSelectedItem.apply(this, arguments);
+    this.fireEvent('unset', [item, this.getItemIndex(item)]);
+    delete item;
+  },
+  
+  setSelectedItem: function(item, type) {
+    var property = (type || 'selected') + 'Item';
+    if (this.options.list.multiple)  {
+      property += 's';
+      if (!this[property]) this[property] = [];
+      this[property].push(item);
+    } else this[property] = item
+  },
+  
+  unsetSelectedItem: function(item, type) {
+    var property = (type || 'selected') + 'Item';
+    if (this.options.list.multiple)  {
+      property += 's';
+      if (this[property]) this[property].erase(item);
+    } else delete this[property]
+  },
+
+  getSelectedItem: function() {
+    return this.selectedItem || (this.selectedItems ? this.selectedItems.getLast() : null);
+  },
+  
+  getSelectedItems: function(type) {
+    if (this.selectedItems) return Array.prototype.slice.call(this.selectedItems, 0);
+    return this.selectedItem ? [this.selectedItem] : [];
+  },
+  
+  isItemSelected: function(item) {
+    return this.selectedItems ? this.selectedItems.indexOf(item) > -1 : (this.selectedItem == item)
+  },
+  
+  buildItem: function(value) {
+    if (this.options.layout.item) return this.buildLayout(this.options.layout.item);
+    return new Element('div', {
+      'class': 'lsd option', 
+      'html': value.toString(), 
+      'events': {
+        click: function() {
+          this.selectItem(value);
+        }.bind(this)
       }
-    },
-    states: {
-      active: {
-        enabler: 'activate',
-        disabler: 'deactivate'
+    });
+  },
+  
+  getItem: function(item) {
+    return (item && item.select) ? item : this.findItemByValue(item);
+  },
+  
+  setItems: function(items) {
+    this.list = [];
+    this.widgets = [];
+    items.each(this.addItem.bind(this));
+    return this;
+  },
+  
+  addItem: function(item) {
+    if (item.setList) var data = item.getValue ? item.getValue() : item.value || LSD.uid(item), widget = item, item = data;
+    if (this.options.list.force && !this.getSelectedItem()) this.selectItem(item);
+    if (!this.list.contains(item)) {
+      if (widget) {
+        widget.listWidget = this;
+        this.widgets.push(widget);
       }
+      return true;
     }
-  }
-});
-/*
----
-
-name: DOMReady
-
-description: Contains the custom event domready.
-
-license: MIT-style license.
-
-requires: [Browser, Element, Element.Event]
-
-provides: [DOMReady, DomReady]
-
-...
-*/
-
-(function(window, document){
-
-var ready,
-	loaded,
-	checks = [],
-	shouldPoll,
-	timer,
-	testElement = document.createElement('div');
-
-var domready = function(){
-	clearTimeout(timer);
-	if (ready) return;
-	Browser.loaded = ready = true;
-	document.removeListener('DOMContentLoaded', domready).removeListener('readystatechange', check);
+    return false;
+  },
+  
+  makeItems: function() {
+    var item, i = this.widgets.length;
+    while (item = this.list[i++]) this.makeItem(item);
+  },
 	
-	document.fireEvent('domready');
-	window.fireEvent('domready');
-};
+  makeItem: function(item) {
+    var widget = this.buildItem.apply(this, arguments);
+    widget.item = widget.value = item;
+    if (widget.write) widget.write(item)
+    else widget.set('html', item.toString());
+    return widget;
+  },
+  
+  getItems: function() {
+    return this.list;
+  },
+  
+  hasItems: function() {
+    var items = this.getItems()
+    return items && items.length > 0;
+  },
+  
+  getItemIndex: function(item) {
+    return this.getItems().indexOf(item || this.selectedItem);
+  },
+  
+  findItemByValue: function(value) {
+    for (var i = 0, widget; widget = this.widgets[i++];) {
+      var val = widget.value == null ? (widget.getValue ? widget.getValue() : null) : widget.value;
+      if (val === value) return this.widgets[i];
+    }
+    return null;
+  },
+  
+  getItemValue: function(item) {
+    for (var i = 0, j = this.widgets.length; i < j; i++) {
+      if (this.widgets[i] == item) return this.list[i];
+    }
+    return null;
+  },
+  
+  getActiveItem: function() {
+    var active = (this.chosenItem || this.selectedItem);
+    return active ? active.value : null;
+  },
 
-var check = function(){
-	for (var i = checks.length; i--;) if (checks[i]()){
-		domready();
-		return true;
-	}
-	return false;
-};
+  next: function(e) {
+    this.makeItems();
+    var next = this.getItems()[this.getItemIndex(this.getActiveItem()) + 1];
+    if (!next && this.options.list.endless) next = this.getItems()[0];
+    if (this.selectItem(next, true, !!e)) {
+      if (e && e.stop) e.stop();
+      return !!this.fireEvent('next', [next]);
+    }
+    return false;
+  },
 
-var poll = function(){
-	clearTimeout(timer);
-	if (!check()) timer = setTimeout(poll, 10);
-};
-
-document.addListener('DOMContentLoaded', domready);
-
-/*<ltIE8>*/
-// doScroll technique by Diego Perini http://javascript.nwbox.com/IEContentLoaded/
-// testElement.doScroll() throws when the DOM is not ready, only in the top window
-var doScrollWorks = function(){
-	try {
-		testElement.doScroll();
-		return true;
-	} catch (e){}
-	return false;
-}
-// If doScroll works already, it can't be used to determine domready
-//   e.g. in an iframe
-if (testElement.doScroll && !doScrollWorks()){
-	checks.push(doScrollWorks);
-	shouldPoll = true;
-}
-/*</ltIE8>*/
-
-if (document.readyState) checks.push(function(){
-	var state = document.readyState;
-	return (state == 'loaded' || state == 'complete');
+  previous: function(e) {
+    this.makeItems();
+    var previous = this.getItems()[this.getItemIndex(this.getActiveItem()) - 1];
+    if (!previous && this.options.list.endless) previous = this.getItems().getLast();
+    if (this.selectItem(previous, true)) {
+      if (e && e.stop) e.stop();
+      return !!this.fireEvent('previous', [previous]);
+    }
+    return false;
+  },
+  
+  sort: function(sort) {
+    return this.getItems().sort(sort)
+  },
+  
+  filter: function(filter) {
+    return this.getItems().filter(filter)
+  }
+  
 });
-
-if ('onreadystatechange' in document) document.addListener('readystatechange', check);
-else shouldPoll = true;
-
-if (shouldPoll) poll();
-
-Element.Events.domready = {
-	onAdd: function(fn){
-		if (ready) fn.call(this);
-	}
-};
-
-// Make sure that domready fires before load
-Element.Events.load = {
-	base: 'load',
-	onAdd: function(fn){
-		if (loaded && this == window) fn.call(this);
-	},
-	condition: function(){
-		if (this == window){
-			domready();
-			delete Element.Events.load;
-		}
-		return true;
-	}
-};
-
-// This is based on the custom load event
-window.addEvent('load', function(){
-	loaded = true;
-});
-
-})(window, document);
-
 /*
 ---
  
-script: Application.js
+script: Choice.js
  
-description: A class to handle execution and bootstraping of LSD
+description: Trait that completes List. Allows one item to be chosen and one selected (think navigating to a menu item to select)
  
 license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
  
 requires:
-  - Core/DomReady
-  - Core/Options
-  - Core/Events
-  - More/String.QueryString
-  
-provides:
-  - LSD.Application
+  - LSD.Trait.List
+ 
+provides: 
+  - LSD.Trait.Choice
  
 ...
 */
-LSD.Application = new Class({
-  Implements: [Options, Events],
+
+
+LSD.Trait.Choice = new Class({
   
-  options: {
-    method: 'augment'
+  selectItem: function(item, temp) {
+    if (temp !== true) return this.parent.apply(this, arguments)
+    if (!(item = this.getItem(item)) && this.options.list.force) return false;
+    var chosen = this.chosenItem;
+    this.setSelectedItem(item, 'chosen');
+    this.fireEvent('choose', [item, this.getItemIndex()]);
+    if (item.choose() && chosen) chosen.forget();
+    return item;
   },
   
-  initialize: function(document, options) {
-    if (!LSD.application) LSD.application = this;
-    this.param = (location.search.length > 1) ? location.search.substr(1, location.search.length - 1).parseQueryString() : {}
-    if (document) this.element = document.id(document);
-    if (options) this.setOptions(options);
-    document.addEvent('domready', function() {
-      if (this.param.benchmark != null) console.profile();
-      this.setDocument(document);
-      if (this.param.benchmark != null) console.profileEnd();
-    }.bind(this));
+  forgetChosenItem: function(item) {
+    item = this.getItem(item) || this.chosenItem;
+    if (item) item.forget();
+    this.unsetSelectedItem(item, 'chosen');
   },
   
-  setHead: function(head) {
-    for (var i = 0, el, els = head.getElementsByTagName('meta'); el = els[i++];) {
-      var type = el.getAttribute('rel');
-      if (type) {
-        if (!this[type]) this[type] = {};
-        var content = el.getAttribute('content')
-        this[type][el.getAttribute('name')] = (content.charAt(0) =="{") ? JSON.decode(content) : content;
-      }
+  selectChosenItem: function() {
+    return this.selectItem(this.chosenItem)
+  },
+
+  getChosenItems: function() {
+    return this.chosenItem || (this.chosenItems ? this.chosenItems.getLast() : null);
+  },
+  
+  getChosenItems: function(type) {
+    return this.chosenItems || (this.chosenItem && [this.chosenItem]);
+  },
+  
+  getSelectedOptionPosition: function() {
+    var height = 0;
+    if (!this.selectedItem) return height;
+    for (var i = 0, j = this.widgets.length; i < j; i++) {
+      if (this.widgets[i] == this.selectedItem) break;
+      height += this.widgets[i].getLayoutHeight();
     }
-  },
-  
-  setDocument: function(document) {
-    this.setHead(document.head);
-    var element = this.element = document.body;
-    this.setBody(document.body);
-  },
-  
-  setBody: function(element) {
-    this.fireEvent('beforeBody', element);
-    var body = this.body = new (this.getBodyClass(element))(element);
-    this.fireEvent('body', [body, element]);
-    return body;
-  },
-  
-  getBodyClass: function() {
-    return LSD.Element.find('body');
-  },
-  
-  getBody: function() {
-    return this.body;
-  },
-  
-  redirect: function(url) {
-    window.location.href = url;
+    return height
   }
-  
 });
 /*
 ---
@@ -17519,6 +18115,17 @@ LSD.Mixin.Request = new Class({
           
         }
       }
+    },
+    events: {
+      self: {
+        getCommandAction: function() {
+          if (!this.isRequestURLLocal()) return 'send';
+        },
+
+        getTargetAction: function() {
+          if (this.getCommandAction() == 'send') return 'update';
+        }
+      }
     }
   },
   
@@ -17596,14 +18203,6 @@ LSD.Mixin.Request = new Class({
     if (!base) base = location.pathname;
     var url = this.getRequestURL();
     return (url.charAt(0) == "#") || url.match(new RegExp('(?:' + host + ')?' + base + '/?#'));
-  },
-  
-  getCommandAction: function() {
-    if (!this.isRequestURLLocal()) return 'send';
-  },
-  
-  getTargetAction: function() {
-    return this.parent.apply(this, arguments) || ((this.getCommandAction() == 'send') && 'update')
   }
 });
 /*
@@ -17883,522 +18482,6 @@ LSD.Mixin.Resource = new Class({
   
   getModel: function() {
     return this.getResource().init(this.getResourceID() || this.element);
-  }
-});
-/*
----
- 
-script: Item.js
- 
-description: Methods to get and set microdata closely to html5 spsec
- 
-license: MIT-style license.
- 
-requires:
-- Core/Element
- 
-provides: [Element.prototype.getItems, Element.Properties.item, Element.Microdata]
- 
-...
-*/
-if (!Element.Item) Element.Item = {};
-Element.Item = {
-  walk: function(element, callback, memo, prefix) {
-    var prop = element.getAttribute('itemprop');
-    var scope = !!element.getAttribute('itemscope');
-    if (prefix && prop) {
-      if (!memo) memo = [];
-      memo.push(prop);
-    }
-    for (var i = 0, children = element.childNodes, child; child = children[i++];) {
-      if (child.nodeType != 1) continue;
-      memo = Element.Item.walk.call(this, child, callback, memo, prefix);
-    }
-    var reference = element.getAttribute('itemref');
-    if (scope && reference) {
-      for (var i = 0, bits = reference.split(/\s*/), j = bits.length; i < j; i++) {
-        var node = document.getElementById(bits[i]);
-        if (node) Element.Item.walk.call(this, child, callback, memo, prefix);
-      }
-    }
-    if (prefix && prop) memo.pop();
-    return (prop) ? callback.call(this, element, prop, scope, memo) : memo;
-  },
-  
-  serialize: function(element) {
-    return Element.Item.walk(element, function(element, prop, scope, object) {
-      if (!object) object = {};
-      if (scope) {
-        var obj = {};
-        obj[prop] = object;
-        return obj;
-      } else {
-        object[prop] = Element.get(element, 'itemvalue');
-        return object;
-      }
-    })
-  }
-};
-
-[Document, Element].invoke('implement', {
-  getItems: function(tokens, strict) {
-    var selector = '[itemscope]:not([itemprop])';
-    if (tokens) selector += tokens.split(' ').map(function(type) {
-      return '[itemtype' + (strict ? '~' : '*') + '=' + type + ']'
-    }).join('');
-    return this.getElements(selector).each(function(element) {
-      return element.get('item');
-    }).get('item')
-  }
-});
-
-(function() {
-  var push = function(properties, property, value) {
-    var old = properties[property];
-    if (old) { //multiple values, convert to array
-      if (!old.push) properties[property] = [old];
-      properties[property].push(value)
-    } else {
-      properties[property] = value;
-    }
-  }
-
-Element.Properties.properties = {
-  get: function() {
-    var properties = {};
-    var property = Element.getProperty(this, 'itemprop'), scope;
-    if (property) {
-      var scope = Element.getProperty(this, 'itemscope');
-      if (!scope) {
-        var value = Element.get(this, 'itemvalue');
-        if (value) push(properties, property, value);
-      }
-    }
-    for (var i = 0, child; child = this.childNodes[i++];) {
-      if (child.nodeType != 1) continue;
-      var values = Element.get(child, 'properties');
-      for (var prop in values) push(properties, prop, values[prop]);
-    }
-    
-    var reference = Element.getProperty(this, 'itemref');
-    if (reference) {
-      var selector = reference.split(' ').map(function(id) { return '#' + id}).join(', ');
-      var elements = Slick.search(document.body, selector);
-      for (var i = 0, reference; reference = elements[i++];) {
-        var values = Element.get(reference, 'properties');
-        for (var prop in values) push(properties, prop, values[prop]);
-      }
-    }
-    
-    if (scope) {
-      var props = {};
-      props[property] = properties;
-      return props;
-    }
-    return properties;
-  },
-  
-  set: function(value) {
-    for (var i = 0, child; child = this.childNodes[i++];) {
-      if (child.nodeType != 1) continue;
-      var property = Element.getProperty(child, 'itemprop');
-      if (property) Element.set(child, 'itemvalue', value[property]);
-      else Element.set(child, 'properties', value)
-    };
-  }
-};
-
-})();
-
-Element.Properties.item = {
-  get: function() {
-    if (!Element.getProperty(this, 'itemscope')) return;
-    return Element.get(this, 'properties');
-  },
-  
-  set: function(value) {
-    if (!Element.getProperty(this, 'itemscope')) return;
-    return Element.set(this, 'properties', value);
-  }
-};
-
-(function() {
-
-var resolve = function(url) {
-  if (!url) return '';
-  var img = document.createElement('img');
-  img.setAttribute('src', url);
-  return img.src;
-}
-
-Element.Properties.itemvalue = {
-  get: function() {
-    var property = this.getProperty('itemprop');
-    if (!property) return;
-    switch (this.get('tag')) {
-      case 'meta':
-        return this.get('content') || '';
-      case 'input':
-      case 'select':
-      case 'textarea':
-        return this.get('value');
-      case 'audio':
-      case 'embed':
-      case 'iframe':
-      case 'img':
-      case 'source':
-      case 'video':
-        return resolve(this.get('src'));
-      case 'a':
-      case 'area':
-      case 'link':
-        return resolve(this.get('href'));
-      case 'object':
-        return resolve(this.get('data'));
-      case 'time':
-        var datetime = this.get('datetime');
-        if (!(datetime === undefined)) return Date.parse(datetime);
-      default:
-        return this.getProperty('itemvalue') || this.get('text').trim();
-    }
-  },
-
-  set: function(value) {
-    var property = this.getProperty('itemprop');
-    var scope = this.getProperty('itemscope');
-    if (property === undefined) return;
-    else if (scope && Object.type(value[scope])) return this.set('item', value[scope]);
-    
-    switch (this.get('tag')) {
-      case 'meta':
-        return this.set('content', value);
-      case 'audio':
-      case 'embed':
-      case 'iframe':
-      case 'img':
-      case 'source':
-      case 'video':
-        return this.set('src', value);
-      case 'a':
-      case 'area':
-      case 'link':
-        return this.set('href', value);
-      case 'object':
-        return this.set('data', value);
-      case 'time':
-        var datetime = this.get('datetime');
-        if (!(datetime === undefined)) this.set('datetime', value)
-      default:
-        return this.set('html', value);
-    }
-  }
-}
-
-})();
-/*
----
- 
-script: List.js
- 
-description: Trait that makes it simple to work with a list of item (and select one of them)
- 
-license: Public domain (http://unlicense.org).
- 
-requires:
-  - LSD.Trait
-  - Core/Element
-  - Ext/Element.Properties.item
- 
-provides: 
-  - LSD.Trait.List
- 
-...
-*/
-
-
-LSD.Trait.List = new Class({  
-  options: {
-    list: {
-      endless: true,
-      force: false,
-      multiple: false,
-      unselect: null
-    },
-    proxies: {
-      container: {
-        condition: function(widget) {
-          return !!widget.setList
-        }
-      }
-    },
-    shortcuts: {
-      previous: 'previous',
-      next: 'next'
-    },
-    events: {
-      attach: function() {
-        var items = this.list && this.list.length ? this.list : this.options.list.items;
-        if (items) this.setItems(items);
-      }
-    },
-    has: {
-      many: {
-        items: {
-          selector: ':item',
-          events: {
-            select: function() {
-              this.listWidget.selectItem(this)
-            },
-            unselect: function() {
-              this.listWidget.unselectItem(this);
-            },
-            dispose: function() {
-              this.listWidget.unselectItem(this);
-            }
-          },
-          alias: 'listWidget',
-          states: {
-            add: Array.fast('selected')
-          },
-          pseudos: Array.fast('valued'),
-          callbacks: {
-            'fill': 'fill',
-            'empty': 'empty'
-          }
-        }
-      }
-    },
-    pseudos: Array.fast('list'),
-    states: {
-      empty: true
-    }
-  },
-  
-  initialize: function() {
-    this.parent.apply(this, arguments);
-    this.setItems(this.options.items || this.items);
-  },
-  
-  selectItem: function(item) {
-    if (!(item = this.getItem(item)) && this.options.list.force) return false;
-    var unselect = (this.options.list.unselect !== null) ? this.options.list.unselect : !this.options.list.multiple;
-    var selected = this.selectedItem;
-    if (unselect && (selected != item) && selected && selected.unselect) this.unselectItem(selected);
-    this.setSelectedItem.apply(this, arguments); 
-    this.fireEvent('set', [item, this.getItemIndex(item)]);
-    item.select();
-    return item;
-  },
-  
-  unselectItem: function(item) {
-    if (!(item = this.getItem(item)) || !this.isItemSelected(item)) return false;
-    if (item.unselect) item.unselect();
-    this.unsetSelectedItem.apply(this, arguments);
-    this.fireEvent('unset', [item, this.getItemIndex(item)]);
-    delete item;
-  },
-  
-  setSelectedItem: function(item, type) {
-    var property = (type || 'selected') + 'Item';
-    if (this.options.list.multiple)  {
-      property += 's';
-      if (!this[property]) this[property] = [];
-      this[property].push(item);
-    } else this[property] = item
-  },
-  
-  unsetSelectedItem: function(item, type) {
-    var property = (type || 'selected') + 'Item';
-    if (this.options.list.multiple)  {
-      property += 's';
-      if (this[property]) this[property].erase(item);
-    } else delete this[property]
-  },
-
-  getSelectedItem: function() {
-    return this.selectedItem || (this.selectedItems ? this.selectedItems.getLast() : null);
-  },
-  
-  getSelectedItems: function(type) {
-    if (this.selectedItems) return Array.prototype.slice.call(this.selectedItems, 0);
-    return this.selectedItem ? [this.selectedItem] : [];
-  },
-  
-  isItemSelected: function(item) {
-    return this.selectedItems ? this.selectedItems.indexOf(item) > -1 : (this.selectedItem == item)
-  },
-  
-  buildItem: function(value) {
-    if (this.options.layout.item) return this.buildLayout(this.options.layout.item);
-    return new Element('div', {
-      'class': 'lsd option', 
-      'html': value.toString(), 
-      'events': {
-        click: function() {
-          this.selectItem(value);
-        }.bind(this)
-      }
-    });
-  },
-  
-  getItem: function(item) {
-    return (item && item.select) ? item : this.findItemByValue(item);
-  },
-  
-  setItems: function(items) {
-    this.list = [];
-    this.widgets = [];
-    items.each(this.addItem.bind(this));
-    return this;
-  },
-  
-  addItem: function(item) {
-    if (item.setList) var data = item.getValue ? item.getValue() : item.value || LSD.uid(item), widget = item, item = data;
-    if (this.options.list.force && !this.getSelectedItem()) this.selectItem(item);
-    if (!this.list.contains(item)) {
-      if (widget) {
-        widget.listWidget = this;
-        this.widgets.push(widget);
-      }
-      return true;
-    }
-    return false;
-  },
-  
-  makeItems: function() {
-    var item, i = this.widgets.length;
-    while (item = this.list[i++]) this.makeItem(item);
-  },
-	
-  makeItem: function(item) {
-    var widget = this.buildItem.apply(this, arguments);
-    widget.item = widget.value = item;
-    if (widget.write) widget.write(item)
-    else widget.set('html', item.toString());
-    return widget;
-  },
-  
-  getItems: function() {
-    return this.list;
-  },
-  
-  hasItems: function() {
-    var items = this.getItems()
-    return items && items.length > 0;
-  },
-  
-  getItemIndex: function(item) {
-    return this.getItems().indexOf(item || this.selectedItem);
-  },
-  
-  findItemByValue: function(value) {
-    for (var i = 0, widget; widget = this.widgets[i++];) {
-      var val = widget.value == null ? (widget.getValue ? widget.getValue() : null) : widget.value;
-      if (val === value) return this.widgets[i];
-    }
-    return null;
-  },
-  
-  getItemValue: function(item) {
-    for (var i = 0, j = this.widgets.length; i < j; i++) {
-      if (this.widgets[i] == item) return this.list[i];
-    }
-    return null;
-  },
-  
-  getActiveItem: function() {
-    var active = (this.chosenItem || this.selectedItem);
-    return active ? active.value : null;
-  },
-
-  next: function(e) {
-    this.makeItems();
-    var next = this.getItems()[this.getItemIndex(this.getActiveItem()) + 1];
-    if (!next && this.options.list.endless) next = this.getItems()[0];
-    if (this.selectItem(next, true, !!e)) {
-      if (e && e.stop) e.stop();
-      return !!this.fireEvent('next', [next]);
-    }
-    return false;
-  },
-
-  previous: function(e) {
-    this.makeItems();
-    var previous = this.getItems()[this.getItemIndex(this.getActiveItem()) - 1];
-    if (!previous && this.options.list.endless) previous = this.getItems().getLast();
-    if (this.selectItem(previous, true)) {
-      if (e && e.stop) e.stop();
-      return !!this.fireEvent('previous', [previous]);
-    }
-    return false;
-  },
-  
-  sort: function(sort) {
-    return this.getItems().sort(sort)
-  },
-  
-  filter: function(filter) {
-    return this.getItems().filter(filter)
-  }
-  
-});
-/*
----
- 
-script: Choice.js
- 
-description: Trait that completes List. Allows one item to be chosen and one selected (think navigating to a menu item to select)
- 
-license: Public domain (http://unlicense.org).
- 
-requires:
-  - LSD.Trait.List
- 
-provides: 
-  - LSD.Trait.Choice
- 
-...
-*/
-
-
-LSD.Trait.Choice = new Class({
-  
-  selectItem: function(item, temp) {
-    if (temp !== true) return this.parent.apply(this, arguments)
-    if (!(item = this.getItem(item)) && this.options.list.force) return false;
-    var chosen = this.chosenItem;
-    this.setSelectedItem(item, 'chosen');
-    this.fireEvent('choose', [item, this.getItemIndex()]);
-    if (item.choose() && chosen) chosen.forget();
-    return item;
-  },
-  
-  forgetChosenItem: function(item) {
-    item = this.getItem(item) || this.selectedItem;
-    if (item) item.forget();
-    this.unsetSelectedItem(item, 'chosen');
-  },
-  
-  selectChosenItem: function() {
-    return this.selectItem(this.chosenItem)
-  },
-
-  getChosenItems: function() {
-    return this.chosenItem || (this.chosenItems ? this.chosenItems.getLast() : null);
-  },
-  
-  getChosenItems: function(type) {
-    return this.chosenItems || (this.chosenItem && [this.chosenItem]);
-  },
-  
-  getSelectedOptionPosition: function() {
-    var height = 0;
-    if (!this.selectedItem) return height;
-    for (var i = 0, j = this.widgets.length; i < j; i++) {
-      if (this.widgets[i] == this.selectedItem) break;
-      height += this.widgets[i].getLayoutHeight();
-    }
-    return height
   }
 });
 /*
@@ -18853,6 +18936,15 @@ LSD.Module.Events = new Class({
       node = node.parentNode;
     }
     return this;
+  },
+  
+  captureEvent: function(type, args) {
+		var events = this.$events[type];
+		if (!events) return;
+		for (var i = 0, event; event = events[i++];) {
+		  var result = event.apply(this, arguments);
+		  if (result) return result;
+		}
   }
 });
 
@@ -19542,7 +19634,7 @@ LSD.Module.Command = new Class({
   },
   
   getCommandAction: function() {
-    return this.attributes.commandaction;
+    return this.attributes.commandaction || this.captureEvent('getCommandAction', arguments);
   }
   
 });
@@ -19652,6 +19744,252 @@ new LSD.Type('Widget');
 /*
 ---
  
+script: Menu.js
+ 
+description: Menu widget base class
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD/LSD.Widget
+
+provides: 
+  - LSD.Widget.Menu
+ 
+...
+*/
+
+LSD.Widget.Menu = new Class({
+  Extends: LSD.Widget,
+  
+  options: {
+    tag: 'menu',
+    element: {
+      tag: 'menu'
+    }
+  }
+});
+
+LSD.Widget.Menu.Command = new Class({
+  Extends: LSD.Widget,
+  
+  options: {
+    tag: 'command',
+    element: {
+      tag: 'command'
+    },
+    pseudos: Array.fast('item')
+  }
+});
+
+!function(Command) {
+  Command.Command = Command.Checkbox = Command.Radio = Command;
+}(LSD.Widget.Menu.Command);
+/*
+---
+ 
+script: Context.js
+ 
+description: Menu widget to be used as a drop down
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Widget.Menu
+
+provides:
+  - LSD.Widget.Menu.Context
+  - LSD.Widget.Menu.Context.Button
+  - LSD.Widget.Menu.Context.Command
+  - LSD.Widget.Menu.Context.Command.Command
+  - LSD.Widget.Menu.Context.Command.Checkbox
+  - LSD.Widget.Menu.Context.Command.Radio
+ 
+...
+*/
+LSD.Widget.Menu.Context = new Class({
+  Extends: LSD.Widget.Menu,
+
+  options: { 
+    attributes: {
+      type: 'context',
+      tabindex: 0
+    }
+  }
+});
+
+LSD.Widget.Menu.Context.Command = new Class({
+  Extends: LSD.Widget.Menu.Command
+});
+
+!function(Context) {
+  Context.Button = Context.Option = Context.Radio = Context.Checkbox = Context.Command.Command = Context.Command;
+}(LSD.Widget.Menu.Context);
+
+    
+
+
+/*
+---
+ 
+script: Menu.js
+ 
+description: Dropdowns should be easy to use.
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Trait
+  - Widgets/LSD.Widget.Menu.Context
+
+provides:
+  - LSD.Trait.Menu
+ 
+...
+*/
+
+LSD.Trait.Menu = new Class({      
+  options: {
+    shortcuts: {
+      ok: 'set',
+      cancel: 'cancel'
+    },
+    events: {
+      _menu: {
+        self: {
+          expand: 'makeItems',
+          redraw: 'repositionMenu',
+          focus: 'repositionMenu',
+          blur: 'collapse',
+          next: 'expand',
+          previous: 'expand',
+          cancel: 'collapse'
+        }
+      }
+    },
+    menu: {
+      position: 'top',
+      width: 'auto',
+      origin: null
+    },
+    has: {
+      one: {
+        menu: {
+          selector: 'menu[type=context]',
+          proxy: function(widget) {
+            return widget.pseudos.item;
+          }
+        }
+      }
+    },
+    states: Array.fast('expanded')
+  },
+
+  cancel: function() {
+    this.collapse();
+  },
+
+  set: function() {
+    this.collapse();
+  },
+  
+  repositionMenu: function() {
+    if (!this.menu || this.collapsed) return;
+    var top = 0;
+    var origin = (this.options.menu.origin == 'document') ? this.document : this;
+    if (!origin.size) origin.setSize(true);
+    if (!this.menu.size) this.menu.setSize(true);
+    var position = LSD.position(origin.size, this.menu.size)
+    if (position.x != null) {
+      position.x += (this.offset.padding.left || 0) - (this.offset.inside.left || 0) + (this.offset.outside.left || 0);
+      this.menu.setStyle('left', position.x);
+    }
+    if (position.y != null) {
+      position.y += (this.offset.padding.top || 0) - (this.offset.inside.top || 0) + (this.offset.outside.top || 0);
+      this.menu.setStyle('top', position.y);
+    }
+    switch (this.options.menu.width) {
+      case "adapt": 
+        this.menu.setWidth(this.getStyle('width'));
+        break;
+      case "auto":
+        break;
+    }
+  },
+  
+  buildMenu: function() {
+    return this.buildLayout(this.options.layout.menu);
+  },
+  
+  expand: function() {
+    if (!this.menu) {
+      this.menu = this.buildMenu();
+      this.repositionMenu();
+      if (this.hasItems()) this.refresh();
+    } else {  
+      this.repositionMenu();
+    }
+    this.menu.show();
+  },
+  
+  collapse: function() {
+    if(this.menu) this.menu.hide();
+  },
+  
+  getSelectedOptionPosition: function() {
+    return 0
+  }
+});
+/*
+---
+ 
+script: Button.js
+ 
+description: A button widget. You click it, it fires the event
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD/LSD.Widget
+  - LSD/LSD.Mixin.Touchable
+
+provides: 
+  - LSD.Widget.Button
+ 
+...
+*/
+
+LSD.Widget.Button = new Class({
+
+  Extends: LSD.Widget,
+
+  options: {
+    tag: 'button',
+    element: {
+      tag: 'span'
+    },
+    label: '',
+    pseudos: Array.fast('touchable')
+  },
+  
+  write: function(content) {
+    this.setState('text');
+    return this.parent.apply(this, arguments);
+  }
+
+});
+
+/*
+---
+ 
 script: Native.js
  
 description: Wrapper for native browser controls
@@ -19720,7 +20058,7 @@ LSD.Native.Input = new Class({
   },
   
   getRawValue: function() {
-    return this.attributes.value && this.element.get('value');
+    return this.element.get('value');
   },
   
   focus: function() {
@@ -20134,6 +20472,238 @@ LSD.Native.Input.Submit = new Class({
 /*
 ---
  
+script: Table.js
+ 
+description: All-purpose table class
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD/LSD.Native
+  - LSD/LSD.Trait.List
+
+provides: 
+  - LSD.Native.Table
+ 
+...
+*/
+
+LSD.Native.Table = new Class({
+  Includes: [
+    LSD.Native,
+    LSD.Trait.List
+  ],
+  
+  options: {
+    header: null,
+    footer: null,
+    caption: null,
+    events: {
+      _table: {
+        self: {
+          build: function() {
+            var el = this.element;
+            this.head = el.tHead;
+            this.body = (el.tBodies ? el.tBodies[0] : el.tBody);
+            this.foot = el.tFoot;
+            this.setTable(this.options);
+          }
+        }
+      }
+    },
+    tag: 'table'
+  },
+  
+  setTable: function(table) {
+    if (table != this.options) this.setOptions(table);
+    if (table.caption) this.setCaption(table.caption);
+    if (table.header) this.setHeader(table.header);
+    if (table.data) this.setData(table.data);
+    if (table.footer) this.setFooter(table.footer);
+  },
+  
+  setData: function(data) {
+    if (!this.body) this.body = new Element('tbody').inject(this.element);
+    else this.body.empty()
+    for (var i = 0, row; row = data[i++];) this.body.appendChild(this.setRow(row));
+  },
+  
+  setRow: function(values) {
+    var element = document.createElement('tr');
+    for (var i = 0, value; value = values[i++];) element.appendChild(this.setCell(value));
+    return element;
+  },
+  
+  setCell: function(value) {
+    if (value.nodeType) return value;
+    var element = document.createElement('td');
+    element.appendText(value);
+    return element;
+  },
+  
+  setHeaderCell: function(value) {
+    if (value.nodeType) return value;
+    var element = document.createElement('th');
+    element.appendText(value);
+    return element;
+  },
+  
+  setCaption: function(text) {
+    if (!this.caption) this.caption = new Element('caption').inject(this.element);
+    this.caption.innerHTML = text;
+    return this.caption;
+  },
+  
+  setHeader: function(header) {
+    if (!this.head) this.head = new Element('thead').inject(this.element);
+    else this.head.empty()
+    header.each(function(name) {
+      this.head.appendChild(this.setHeaderCell(name))
+    }, this);
+    return this.head;
+  },
+  
+  setFooter: function(footer) {
+    if (!this.foot) this.foot = new Element('tfoot').inject(this.element);
+    else this.foot.empty()
+    footer.each(function(name) {
+      this.foot.appendChild(this.setHeaderCell(name))
+    }, this);
+    return this.foot;
+  }
+});
+/*
+---
+ 
+script: Calendar.js
+ 
+description: A nice simple calendar table
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Native.Table
+
+provides: 
+  - LSD.Native.Table.Calendar
+ 
+...
+*/
+
+LSD.Native.Table.Calendar = new Class({
+  Extends: LSD.Native.Table,
+  
+  options: {
+    date: null,
+    format: {
+      caption: "%B %Y"
+    },
+    classes: ['calendar'],
+    events: {
+      _calendar: {
+        self: {
+          'attach': function() {
+            this.setDate(this.options.date);
+          }
+        },
+        element: {
+          'touchstart:relay(td:not(.empty))': 'touchDate',
+          'touchend': 'untouchDate',
+          'touchcancel': 'untouchDate',
+          'click:relay(td:not(.empty))': 'selectDate'
+        }
+      }
+    }
+  },
+  
+  setRow: function(days) {
+    var row = this.parent.apply(this, arguments);
+    var number = days[0]
+    if ((number <= this.day) && (number + 7 > this.day)) {
+      row.className = 'selected';
+    } else if (number > this.day) {
+      row.className = 'future';
+    } else {
+      row.className = 'past';
+    }
+    return row;
+  },
+  
+  selectDate: function(e) {
+    var cell = e.target;
+    this.day = this.getDayFromCell(cell);
+    this.setCell(this.selected);
+    this.setDate(this.current.clone().set('date', this.day));
+    this.fireEvent('set', this.date);
+    this.selected = cell;
+    this.setCell(this.selected);
+  },
+  
+  touchDate: function(e) {
+    e.target.className += " touched"
+    this.touched = e.target;
+  },
+  
+  untouchDate: function(e) {
+    if (!this.touched) return;
+    this.touched.className = this.touched.className.replace(/\s*touched\s*/, ' ');
+    delete this.touched;
+  },
+  
+  getDayFromCell: function(cell) {
+    return parseInt(cell.innerHTML);
+  },
+  
+  setCell: function(number) {
+    var cell = this.parent.apply(this, arguments);
+    if (cell == number) number = this.getDayFromCell(cell);
+    if (number == ' ') {
+      cell.className = 'empty';
+    } else if (number == this.day) {
+      cell.className = 'selected';
+      this.selected = cell;
+    } else if (number > this.day) {
+      cell.className = 'future';
+    } else {
+      cell.className = 'past';
+    }
+    return cell;
+  },
+  
+  setDate: function(date) {
+    this.date = date = (date ? date.clone() : new Date);
+    var beginning = date.clone().set('date', 1);
+    if (this.currrent && !beginning.compare(this.currrent)) return; false;
+    this.current = beginning;
+    this.day = this.date.getDate();
+    var table = {
+      caption: date.format(this.options.format.caption),
+      data: [[]],
+      header: Locale.get('Date.days_abbr')
+    };
+    var data = table.data;
+    if (this.options.footer !== false) table.footer = table.header;
+    var day = beginning.get('day');
+    var last = date.getLastDayOfMonth();
+    for (var i = 0; i < day; i++) data[0].push(' ');
+    for (var i = 1; i <= last; i++) {
+      var index = Math.floor((i + day - 1) / 7);
+      var row = data[index];
+      if (!row) row = data[index] = [];
+      row.push(i);
+    }
+    if (row.length < 7) for (var i = 0, j = data.length - 1, k = (7 - ((last + day) % 7)); i < k; i++) data[j].push(' ');
+    if (this.built) this.setTable(table);
+    else Object.extend(this.options, table);
+  }
+});
+/*
+---
+ 
 script: Anchor.js
  
 description: A link that does requests and actions
@@ -20147,6 +20717,7 @@ requires:
   - LSD/LSD.Module.Accessories
   - LSD/LSD.Module.Layout
   - LSD/LSD.Mixin.Dialog
+  - LSD/LSD.Mixin.Request
 
 provides: 
   - LSD.Native.Anchor
@@ -20240,7 +20811,7 @@ LSD.Native.Label = new Class({
     if (event && event.preventDefault) event.preventDefault();
     if (!this.disabled) {
       this.focusControl();
-      if(this.control.click) this.control.click();
+      if(this.control && this.control.click) this.control.click();
       return this.parent.apply(this, arguments);
     }
   },
@@ -20297,47 +20868,6 @@ LSD.Native.Form = new Class({
     }
   }
 });
-/*
----
- 
-script: Button.js
- 
-description: A button widget. You click it, it fires the event
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD/LSD.Widget
-  - LSD/LSD.Mixin.Touchable
-
-provides: 
-  - LSD.Widget.Button
- 
-...
-*/
-
-LSD.Widget.Button = new Class({
-
-  Extends: LSD.Widget,
-
-  options: {
-    tag: 'button',
-    element: {
-      tag: 'span'
-    },
-    label: '',
-    pseudos: Array.fast('touchable')
-  },
-  
-  write: function(content) {
-    this.setState('text');
-    return this.parent.apply(this, arguments);
-  }
-
-});
-
 /*
 ---
 
@@ -20656,7 +21186,6 @@ LSD.Native.Form.Edit = new Class({
   },
   
   start: function(values) {
-    console.log(values)
     Element.Item.walk.call(this, this.element, function(node, prop, scope, prefix) {
       var editable = node.getProperty('editable');
       if (editable) {
@@ -20713,213 +21242,6 @@ LSD.Native.Form.Edit = new Class({
     return widget;
   }
 })
-/*
----
- 
-script: Menu.js
- 
-description: Menu widget base class
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD/LSD.Widget
-
-provides: 
-  - LSD.Widget.Menu
- 
-...
-*/
-
-LSD.Widget.Menu = new Class({
-  Extends: LSD.Widget,
-  
-  options: {
-    tag: 'menu',
-    element: {
-      tag: 'menu'
-    }
-  }
-});
-
-LSD.Widget.Menu.Command = new Class({
-  Extends: LSD.Widget,
-  
-  options: {
-    tag: 'command',
-    element: {
-      tag: 'command'
-    },
-    pseudos: Array.fast('item')
-  }
-});
-
-!function(Command) {
-  Command.Command = Command.Checkbox = Command.Radio = Command;
-}(LSD.Widget.Menu.Command);
-/*
----
- 
-script: Context.js
- 
-description: Menu widget to be used as a drop down
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Widget.Menu
-
-provides:
-  - LSD.Widget.Menu.Context
-  - LSD.Widget.Menu.Context.Button
-  - LSD.Widget.Menu.Context.Command
-  - LSD.Widget.Menu.Context.Command.Command
-  - LSD.Widget.Menu.Context.Command.Checkbox
-  - LSD.Widget.Menu.Context.Command.Radio
- 
-...
-*/
-LSD.Widget.Menu.Context = new Class({
-  Extends: LSD.Widget.Menu,
-
-  options: { 
-    attributes: {
-      type: 'context',
-      tabindex: 0
-    }
-  }
-});
-
-LSD.Widget.Menu.Context.Command = new Class({
-  Extends: LSD.Widget.Menu.Command
-});
-
-!function(Context) {
-  Context.Button = Context.Option = Context.Radio = Context.Checkbox = Context.Command.Command = Context.Command;
-}(LSD.Widget.Menu.Context);
-
-    
-
-
-/*
----
- 
-script: Menu.js
- 
-description: Dropdowns should be easy to use.
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Trait
-  - Widgets/LSD.Widget.Menu.Context
-
-provides:
-  - LSD.Trait.Menu
- 
-...
-*/
-
-LSD.Trait.Menu = new Class({      
-  options: {
-    shortcuts: {
-      ok: 'set',
-      cancel: 'cancel'
-    },
-    events: {
-      _menu: {
-        self: {
-          expand: 'makeItems',
-          redraw: 'repositionMenu',
-          focus: 'repositionMenu',
-          //blur: 'collapse',
-          next: 'expand',
-          previous: 'expand',
-          cancel: 'collapse'
-        }
-      }
-    },
-    menu: {
-      position: 'top',
-      width: 'auto',
-      origin: null
-    },
-    has: {
-      one: {
-        menu: {
-          selector: 'menu[type=context]',
-          proxy: function(widget) {
-            return widget.pseudos.item;
-          },
-          states: {
-            set: {
-              expanded: 'hidden'
-            }
-          }
-        }
-      }
-    },
-    states: Array.fast('expanded')
-  },
-
-  cancel: function() {
-    this.collapse();
-  },
-
-  set: function() {
-    this.collapse();
-  },
-  
-  repositionMenu: function() {
-    if (!this.menu || this.collapsed) return;
-    var top = 0;
-    var origin = (this.options.menu.origin == 'document') ? this.document : this;
-    if (!origin.size) origin.setSize(true);
-    if (!this.menu.size) this.menu.setSize(true);
-    var position = LSD.position(origin.size, this.menu.size)
-    if (position.x != null) {
-      position.x += (this.offset.padding.left || 0) - (this.offset.inside.left || 0) + (this.offset.outside.left || 0);
-      this.menu.setStyle('left', position.x);
-    }
-    if (position.y != null) {
-      position.y += (this.offset.padding.top || 0) - (this.offset.inside.top || 0) + (this.offset.outside.top || 0);
-      this.menu.setStyle('top', position.y);
-    }
-    switch (this.options.menu.width) {
-      case "adapt": 
-        this.menu.setWidth(this.getStyle('width'));
-        break;
-      case "auto":
-        break;
-    }
-  },
-  
-  buildMenu: function() {
-    return this.buildLayout(this.options.layout.menu);
-  },
-  
-  expand: function() {
-    if (!this.menu) {
-      this.menu = this.buildMenu();
-      this.repositionMenu();
-      if (this.hasItems()) this.refresh();
-    } else {  
-      this.repositionMenu();
-    }
-    if (this.hasItems()) this.menu.show();
-    else this.menu.hide();
-  },
-  
-  getSelectedOptionPosition: function() {
-    return 0
-  }
-});
 /*
 ---
  
@@ -21312,12 +21634,11 @@ LSD.Mixin.Focus.Propagation = {
     var active = parent.document.activeElement;
     var hierarchy = [];
     if (active) {
-      var widget = active;
-      while (widget.parentNode) hierarchy.unshift(widget = widget.parentNode);
+      for (var widget = active; widget.parentNode && hierarchy.push(widget); widget = widget.parentNode);
     }
     while (parent = parent.parentNode) {
       if (active && hierarchy.contains(parent)) break;
-      if (parent.options && (parent.options.tabindex != null) && parent.blur) parent.blur(true);
+      if (parent.options && (parent.attributes.tabindex != null) && parent.blur) parent.blur(true);
     }
   }
 };
@@ -21364,7 +21685,7 @@ LSD.Widget.Select = new Class({
         self: {
           set: function(item) {
             this.setValue(item.getValue());
-            this.write(item.getTitle())
+            this.write(item.getTitle());
             this.collapse();
           },
           collapse: 'forgetChosenItem'
@@ -21386,6 +21707,7 @@ LSD.Widget.Select = new Class({
       many: {
         items: {
           layout: 'select-option',
+          mutation: '> option, > li',
           relay: {
             mouseover: function() {
               if (!this.chosen) this.listWidget.selectItem(this, true)
@@ -21420,10 +21742,7 @@ LSD.Widget.Select.Button = new Class({
 });
 
 LSD.Widget.Select.Option = new Class({
-  Includes: [
-    LSD.Widget,
-    LSD.Trait.Value
-  ],
+  Extends: LSD.Widget,
   
   options: {
     tag: 'option',
@@ -21431,7 +21750,11 @@ LSD.Widget.Select.Option = new Class({
   },
   
   getTitle: function() {
-    return this.getValue();
+    return this.element.get('text').trim();
+  },
+  
+  getValue: function() {
+    return this.attributes.value || this.element.get('text').trim();
   }
 });
 
@@ -21555,7 +21878,7 @@ LSD.Widget.Input = new Class({
     attributes: {
       type: 'text'
     },
-    focusable: false, 
+    focusable: false,
     writable: true,
     events: {
       _input: {
@@ -21694,7 +22017,7 @@ LSD.Widget.Input.Radio = new Class({
 
   click: function(event){
     if (event && event.preventDefault) event.preventDefault();
-    if (!this.checked && !this.disabled) return this.parent.apply(this, arguments);
+    if (!this.disabled) return this.parent.apply(this, arguments);
   }
 });
 /*
@@ -21740,7 +22063,7 @@ LSD.Widget.Input.Checkbox = new Class({
   
   click: function(event){
     if (event && event.preventDefault) event.preventDefault();
-    if (!this.checked && !this.disabled) return this.parent.apply(this, arguments);
+    if (!this.disabled) return this.parent.apply(this, arguments);
   }
 });
 /*
@@ -21854,7 +22177,7 @@ Wrongler.Widget.Body.Dialog = new Class({
         self: {
           show: 'build',
           build: function() {
-            this.element.inject(document.id('content'));
+            this.element.inject(this.options.caller());
           }
         }
       }
@@ -22094,6 +22417,243 @@ Wrongler.Widget.Input.Range.Thumb = LSD.Widget.Input.Range.Thumb;
 /*
 ---
  
+script: Date.js
+ 
+description: Date picker input
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - Wrongler.Widget.Input
+  - Native/LSD.Native.Table.Calendar
+  - LSD/LSD.Widget
+  - LSD/LSD.Trait.Date
+
+provides: 
+  - Wrongler.Widget.Input.Date
+
+...
+*/
+
+Wrongler.Widget.Input.Date = new Class({
+  Includes: [
+    LSD.Widget,
+    LSD.Trait.Date
+  ],
+  
+  options: {
+    tag: 'input',
+    attributes: {
+      type: 'date'
+    },
+    element: {
+      tag: 'div'
+    },
+    date: {
+      format: '%d %b %Y'
+    },
+    shortcuts: {
+      cancel: 'cancel'
+    },
+    events: {
+      _date: {
+        element: {
+          click: 'expand'
+        },
+        self: {
+          blur: 'collapse',
+          dominject: function(){
+            this.setDate(this.getDate());
+          }
+        } 
+      }
+    },
+    writable: true,
+    layout: {
+      children: Array.fast('::button')
+    },
+    has: {
+      one: {
+        button: {
+          selector: 'button',
+          layout: 'select-button'
+        },
+        datepicker: {
+          selector: ':datepicker',
+          layout: 'datepicker',
+          events: {
+            self: {
+              selectDate: function(date){
+                this.listWidget.setDate(date);
+                this.listWidget.collapse();
+              }
+            },
+            element: {
+              click: function(event){
+                if (event) event.stop();
+              }
+            }
+          }
+        }
+      }
+    },
+    states: Array.fast('expanded')
+  },
+  
+  setDate: function(date) {
+    this.parent.apply(this, arguments);
+    if (date){
+      this.setValue(this.formatDate(date));
+      this.write(this.formatDate(date));
+    };
+    if (this.datepicker) this.datepicker.setDate(date);
+  },
+  
+  cancel: function() {
+    this.collapse();
+  },
+  
+  buildDatepicker: function(){
+    return this.buildLayout(this.options.layout.datepicker);
+  },
+  
+  expand: function() {
+    if (!this.datepicker){
+      this.datepicker = this.buildDatepicker();
+      this.datepicker.listWidget = this;
+    };
+    this.datepicker.show();
+  },
+  
+  collapse: function(){
+    if(this.datepicker) this.datepicker.hide();
+  }
+});
+
+Wrongler.Widget.Datepicker = new Class({
+  Includes: [
+    LSD.Widget,
+    LSD.Trait.Date
+  ],
+  
+  options: {
+    attributes: {
+      animation: 'fade'
+    },
+    animation: {
+      duration: 350,
+      transition: 'circ:out'
+    },
+    classes: Array.fast('datepicker'),
+    pseudos: Array.fast('datepicker'),
+    writable: true,
+    layout: {
+      children: {
+        '.arrow::decrementor': 'Previous month',
+        '.arrow::incrementor': 'Next month',
+        '::table': true
+      }
+    },
+    has: {
+      one: {
+        table: {
+          selector: 'table[type=calendar]',
+          events: {
+            set: 'selectDate'
+          }
+        },
+        decrementor: {
+          selector: 'button#decrement',
+          events: {
+            click: 'decrement'
+          }
+        },
+        incrementor: {
+          selector: 'button#increment',
+          events: {
+            click: 'increment'
+          }
+        }
+      }
+    }
+  },
+  
+  getData: function() {
+    return this.date;
+  },
+  
+  setDate: function(date) {
+    this.parent.apply(this, arguments);
+    this.table.setDate(date);
+  },
+  
+  selectDate: function(date) {
+    this.setDate(date);
+    this.fireEvent('onSelectDate', date);
+  }  
+});
+/*
+---
+ 
+script: Select.js
+ 
+description: Basic selectbox
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - Wrongler.Widget
+  - Widgets/LSD.Widget.Select
+
+provides: [Wrongler.Widget.Select, Wrongler.Widget.Select.Button, Wrongler.Widget.Select.Option]
+
+...
+*/
+
+Wrongler.Widget.Select = new Class({
+  Extends: LSD.Widget.Select,
+  
+  options: {
+    element: {
+      tag: 'div'
+    }
+  }
+});
+
+Wrongler.Widget.Select.Button = LSD.Widget.Select.Button;
+
+Wrongler.Widget.Select.Option = new Class({
+  Extends: LSD.Widget.Select.Option,
+  
+  options: {
+    element: {
+      tag: 'div'
+    }
+  }
+});
+
+Wrongler.Widget.Menu = LSD.Widget.Menu;
+
+Wrongler.Widget.Menu.Context = new Class({
+  Extends: LSD.Widget.Menu.Context,
+  
+  options: {
+    attributes: {
+      animation: 'fade'
+    },
+    animation: {
+      duration: 350,
+      transition: 'circ:out' 
+    }
+  }
+});
+/*
+---
+ 
 script: Application.js
  
 description: Main script of application
@@ -22109,7 +22669,6 @@ requires:
   - Native/LSD.Native.Textarea
   - Native/LSD.Native.Button
   - Native/LSD.Native.Label
-  - Widgets/LSD.Widget.Select
   - LSD/LSD.Action.*
   - LSD/LSD.Application
   

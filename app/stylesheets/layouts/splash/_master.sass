@@ -98,8 +98,6 @@ body
         :padding
           :left= $ninesixty_gutter_width
           :right= $ninesixty_gutter_width * 1.5 + $container_form_button_width
-        &.is-placeheld, &.is-placeheld > input[type="text"]
-          :color #aaaaa7
       input[type="text"]
         :width= $container_form_width - $ninesixty_gutter_width * 4.5 - $container_form_button_width
         :height= $container_form_input
@@ -107,7 +105,9 @@ body
         :color= $black
         :font
           :size 18px
-        :background none
+        :background none  
+        &.is-placeheld
+          :color #aaaaa7
       > .button
         :position absolute
         +inline-block

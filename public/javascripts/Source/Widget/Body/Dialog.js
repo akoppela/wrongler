@@ -44,7 +44,7 @@ Wrongler.Widget.Body.Dialog = new Class({
         self: {
           show: 'build',
           build: function() {
-            this.element.inject(document.id('content'));
+            this.element.inject('content');
           }
         }
       }

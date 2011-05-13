@@ -1,0 +1,50 @@
+/* gallery
+
+#container #content > .lightbox #gallery
+  > .thumb
+    :margin
+      :left= $ninesixty_gutter_width
+      :right= $ninesixty_gutter_width
+    +box-shadow('0 0 10px #e2e2cd')
+    > img
+      :display block
+      :width 100%
+      +list-fix
+  > footer
+    :margin
+      :top= $baseline / 2
+    :background url(/images/gradients/vertical/fade.png) repeat-x
+    :border
+      :top 1px solid #e4e4e1
+    > menu
+      :position relative
+      :overflow hidden
+      :margin
+        :left= $ninesixty_gutter_width
+        :right= $ninesixty_gutter_width
+      :white-space nowrap
+      +children-inline
+      > a
+        :position relative
+        :width= $pictures_width
+        :height= $pictures_height
+        :margin
+          :top= $baseline / 2
+          :right= $ninesixty_gutter_width
+        +hover-opacity(0.9, true)
+        &:before
+          :content ''
+          +absoluted
+          :background #b6b7ae no-repeat center
+          +opacity(0.5, true)
+        &.video:after
+          :content ''
+          +absoluted
+          :background url(/images/arrows/play.png) no-repeat center
+        &.is-working
+          &:before
+            +opacity(0.6, true)
+            :background
+              :image url(/images/icons/loader.gif)
+          &:after
+            :display none

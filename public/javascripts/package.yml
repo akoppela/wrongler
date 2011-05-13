@@ -16,4 +16,6 @@ sources:
   - Source/Widget/Input/Checkbox.js
   - Source/Widget/Input/Radio.js
   - Source/Widget/Input/Range.js
+  - Source/Widget/Input/Date.js
+  - Source/Widget/Select.js
   - Source/Application.js
