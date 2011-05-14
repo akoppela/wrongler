@@ -77,6 +77,7 @@
   "/javascripts/Packages/mootools-more/Source/Locale/Locale.en-US.Date.js",
   "/javascripts/Packages/mootools-more/Source/Types/Date.js",
   "/javascripts/Packages/lsd/Source/Trait/Date.js",
+  "/javascripts/Packages/mootools-more/Source/Locale/Locale.ru-RU.Date.js",
   "/javascripts/Packages/Sheet.js/Source/sg-regex-tools.js",
   "/javascripts/Packages/Sheet.js/Source/SheetParser.CSS.js",
   "/javascripts/Packages/Sheet.js/Source/SheetParser.Value.js",

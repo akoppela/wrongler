@@ -14,6 +14,8 @@ requires:
   - Native/LSD.Native.Table.Calendar
   - LSD/LSD.Widget
   - LSD/LSD.Trait.Date
+  - LSD/LSD.Trait.Date
+  - More/Locale.ru-RU.Date
 
 provides: 
   - Wrongler.Widget.Input.Date
@@ -178,3 +180,9 @@ Wrongler.Widget.Datepicker = new Class({
     this.fireEvent('onSelectDate', date);
   }  
 });
+
+Locale.define('ru-RU', 'Date', {
+	months_abbr: ['Января', 'Февраля', 'Марта', 'Апреля', 'Мая','Июня','Июля','Августа','Сентября','Октября','Ноября','Декабря']
+}).inherit('ru-RU', 'Date');
+
+Locale.use('ru-RU');

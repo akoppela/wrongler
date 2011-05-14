@@ -86,6 +86,7 @@
       "Core/Fx.Transitions",
       "More/Locale",
       "More/Lang",
+      "More/Locale.ru-RU.Date",
       "More/Locale.en-US.Date",
       "More/Date",
       "More/Events.Pseudos",

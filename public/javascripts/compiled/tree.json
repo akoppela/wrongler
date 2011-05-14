@@ -45,7 +45,9 @@
           "Wrongler.Widget.Input",
           "Native/LSD.Native.Table.Calendar",
           "LSD/LSD.Widget",
-          "LSD/LSD.Trait.Date"
+          "LSD/LSD.Trait.Date",
+          "LSD/LSD.Trait.Date",
+          "More/Locale.ru-RU.Date"
         ],
         "provides": [
           "Wrongler.Widget.Input.Date"
