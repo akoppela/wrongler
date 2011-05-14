@@ -5292,11 +5292,15 @@ Object.append(LSD, {
   })
 });
 
-
 States.get = function(name) { 
   return LSD.States.Known[name];
 };
 
+(function(toString) {
+  Type.isEnumerable = function(item){
+  	return (item != null && typeof item.length == 'number' && toString.call(item) != '[object Function]' && !item.localName && !item.nodeType);
+  };
+})(Object.prototype.toString);
 /*
 ---
  
@@ -7483,6 +7487,9 @@ LSD.Mixin.Placeholder = new Class({
         enable: function(){
           this.element.set('autocomplete', 'off');
           this.onPlacehold();
+        },
+        disable: function(){
+          this.onUnplacehold();
         }
       }
     },
@@ -12880,14 +12887,14 @@ LSD.Module.DOM = new Class({
             When dispose event comes from the element, 
             it is is already removed from dom
             */
-            //'dispose': ['dispose', true]
+            'dispose': 'onElementDispose'
           },
           self: {
-            'dispose': function(parent, light) {
-              if (light !== true && this.element) this.element.dispose();
-            },
             'destroy': function() {
               if (this.parentNode) this.dispose();
+            },
+            'dispose': function() {
+              if (this.element.parentNode) this.element.dispose();
             }
           }
         }
@@ -12956,12 +12963,15 @@ LSD.Module.DOM = new Class({
   
   insertBefore: function(insertion, element) {
     return this.appendChild(insertion, function() {
-      element.parentNode.insertBefore(document.id(insertion), document.id(element))
-    });
+      if (element)
+        document.id(element.parentNode).insertBefore(document.id(insertion), document.id(element))
+      else
+        document.id(this).insertBefore(document.id(insertion))
+    }.bind(this));
   },
-  
+
   extractDocument: function(widget) {
-    var element = widget.lsd ? widget.element : widget;;
+    var element = widget.lsd ? widget.element : widget;
     var isDocument = widget.documentElement || (instanceOf(widget, LSD.Document));
     var parent = this.parentNode;
     if (isDocument  // if document
@@ -13037,13 +13047,21 @@ LSD.Module.DOM = new Class({
     else this.addEvent('dominject', callback.bind(this))
   },
   
-  dispose: function(mode) {
+  onElementDispose: function() {
+    if (this.parentNode) this.dispose();
+  },
+
+  dispose: function() {
     var parent = this.parentNode;
     if (!parent) return;
     this.fireEvent('beforeDispose', parent);
     parent.removeChild(this);
-    this.fireEvent('dispose', [parent, mode]);
+    this.fireEvent('dispose', parent);
     return this;
+  },
+  
+  onElementDispose: function() {
+    if (this.parentNode) this.dispose();
   }
 });
 
@@ -13087,7 +13105,7 @@ Object.append(LSD.Module.DOM, {
   
   findDocument: function(target) {
     if (target.documentElement) return target;
-    if (target.document) return target.document;
+    if (target.document && target.document.lsd) return target.document;
     if (target.lsd) return;
     var body = target.ownerDocument.body;
     var document = (target != body) && Element.retrieve(body, 'widget');
@@ -21842,8 +21860,8 @@ LSD.Trait.Input = new Class({
     return this.getInput();
   },
   
-  empty: function() {
-    this.input.set('value', '')
+  getValueInput: function() {
+    return this.input
   }
 });
 /*
@@ -21959,9 +21977,8 @@ LSD.Widget.Input.Range = new Class({
     this.addPseudo(this.options.mode);
   },
 
-  onSet: function() {
-    this.focus();
-    this.setValue(arguments[0]);
+  onSet: function(value) {
+    this.setValue(value);
   }
 });
 
@@ -22017,7 +22034,7 @@ LSD.Widget.Input.Radio = new Class({
 
   click: function(event){
     if (event && event.preventDefault) event.preventDefault();
-    if (!this.disabled) return this.parent.apply(this, arguments);
+    if (!this.checked && !this.disabled) return this.parent.apply(this, arguments);
   }
 });
 /*
@@ -22177,7 +22194,7 @@ Wrongler.Widget.Body.Dialog = new Class({
         self: {
           show: 'build',
           build: function() {
-            this.element.inject(this.options.caller());
+            this.element.inject('content');
           }
         }
       }
@@ -22246,13 +22263,11 @@ Wrongler.Widget.Body.Dialog.Lightbox = new Class({
         self: {
           build: function(){
             this.overlay = new Element('div', {
-              'class': 'overlay',
-              events: {
-                click: function(){
-                  this.cancel();
-                }.bind(this)
-              }
+              'class': 'overlay'
             }).inject(this.element);
+            this.overlay.addEvent('click', function(){
+              this.cancel();
+            }.bind(this));
             this.addEvent('destroy', this.overlay.destroy.bind(this.overlay));
           }
         }

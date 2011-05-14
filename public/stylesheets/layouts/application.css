@@ -3075,13 +3075,6 @@ body {
       padding-bottom: 7px;
       padding-left: 5px;
       padding-right: 5px; }
-      #container #new-dispute > .information > section > ol > li > aside > * {
-        zoom: 1;
-        display: inline;
-        display: -moz-inline-box;
-        display: inline-block;
-        *display: inline;
-        vertical-align: top; }
       #container #new-dispute > .information > section > ol > li > aside > .button {
         position: relative;
         height: 16px;
@@ -3103,7 +3096,8 @@ body {
         opacity: 0.95;
         -moz-opacity: 0.95;
         filter: progid:DXImageTransform.Microsoft.Alpha(opacity=95);
-        background: #c6c9af; }
+        background: #c6c9af;
+        display: none; }
         #container #new-dispute > .information > section > ol > li > aside > .button:hover {
           opacity: 1;
           -moz-opacity: 1;
@@ -3131,6 +3125,15 @@ body {
             box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25);
             -moz-box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25);
             -webkit-box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25); }
+    #container #new-dispute > .information > section > ol > li:first-child > aside > .button, #container #new-dispute > .information > section > ol > li:first-child + li > aside > .button {
+      display: none !important; }
+    #container #new-dispute > .information > section > ol > li:hover > aside > .button {
+      zoom: 1;
+      display: inline;
+      display: -moz-inline-box;
+      display: inline-block;
+      *display: inline;
+      vertical-align: top; }
     #container #new-dispute > .information > section > ol > li ~ li {
       margin-top: 20px; }
   #container #new-dispute > .information > section > menu {

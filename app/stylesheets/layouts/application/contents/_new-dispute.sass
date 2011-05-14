@@ -132,9 +132,13 @@
             :padding
               :left= $ninesixty_gutter_width / 2
               :right= $ninesixty_gutter_width / 2
-            +children-inline
             > .button
               +brown-button
+              :display none
+          &:first-child > aside > .button, &:first-child + li > aside > .button
+            :display none !important
+          &:hover > aside > .button
+            +inline-block
           & ~ li
             :margin
               :top= $baseline
