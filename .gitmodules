@@ -52,3 +52,6 @@
 [submodule "public/javascripts/Packages/slick"]
 	path = public/javascripts/Packages/slick
 	url = git://github.com/lovelyscalabledrawings/slick.git
+[submodule "public/javascripts/Packages/mootools-history"]
+	path = public/javascripts/Packages/mootools-history
+	url = git://github.com/Inviz/mootools-history.git

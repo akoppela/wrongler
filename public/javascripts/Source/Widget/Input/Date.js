@@ -11,9 +11,7 @@ authors: Yaroslaff Fedin
  
 requires:
   - Wrongler.Widget.Input
-  - Native/LSD.Native.Table.Calendar
-  - LSD/LSD.Widget
-  - LSD/LSD.Trait.Date
+  - Widgets/LSD.Widget.Table.Calendar
   - LSD/LSD.Trait.Date
   - More/Locale.ru-RU.Date
 
@@ -24,10 +22,7 @@ provides:
 */
 
 Wrongler.Widget.Input.Date = new Class({
-  Includes: [
-    LSD.Widget,
-    LSD.Trait.Date
-  ],
+  Implements: [LSD.Trait.Date],
   
   options: {
     tag: 'input',
@@ -57,9 +52,7 @@ Wrongler.Widget.Input.Date = new Class({
       }
     },
     writable: true,
-    layout: {
-      children: Array.fast('::button')
-    },
+    layout: Array.fast('::button'),
     has: {
       one: {
         button: {
@@ -119,10 +112,7 @@ Wrongler.Widget.Input.Date = new Class({
 });
 
 Wrongler.Widget.Datepicker = new Class({
-  Includes: [
-    LSD.Widget,
-    LSD.Trait.Date
-  ],
+  Implements: [LSD.Trait.Date],
   
   options: {
     attributes: {
@@ -136,11 +126,9 @@ Wrongler.Widget.Datepicker = new Class({
     pseudos: Array.fast('datepicker'),
     writable: true,
     layout: {
-      children: {
-        '.arrow::decrementor': 'Previous month',
-        '.arrow::incrementor': 'Next month',
-        '::table': true
-      }
+      '.arrow::decrementor': 'Previous month',
+      '.arrow::incrementor': 'Next month',
+      '::table': true
     },
     has: {
       one: {

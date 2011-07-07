@@ -1,6 +1,6 @@
 /* gallery
 
-#container #content > .lightbox #gallery
+#lightbox #gallery
   > .thumb
     :margin
       :left= $ninesixty_gutter_width
@@ -41,7 +41,7 @@
           :content ''
           +absoluted
           :background url(/images/arrows/play.png) no-repeat center
-        &.is-working
+        &.working
           &:before
             +opacity(0.6, true)
             :background

@@ -6,8 +6,6 @@
     /[if IE]
       = stylesheet_link_tag "ie"
       = javascript_include_tag 'html5'
-    /[if IE 7]
-      = stylesheet_link_tag "ie7"
     = javascript_include_tag 'compiled/includes'
   %body{:style => 'padding:5px;'}
     = render 'shared/user_bar'
@@ -16,4 +14,3 @@
       #content
         = render 'shared/start_tip'
         = yield
-        /= render 'shared/lightbox'

@@ -17,35 +17,24 @@
     "provides": [
       "Wrongler.Widget"
     ],
-    "Select": {
-      "desc": "Basic selectbox",
-      "requires": [
-        "Wrongler.Widget",
-        "Widgets/LSD.Widget.Select"
-      ],
-      "provides": [
-        "Wrongler.Widget.Select",
-        "Wrongler.Widget.Select.Button",
-        "Wrongler.Widget.Select.Option"
-      ]
-    },
     "Input": {
       "desc": "A base class for all kinds of form controls",
       "requires": [
         "Wrongler.Widget",
         "Native/LSD.Native.Input.*",
+        "Native/LSD.Native.Textarea",
+        "Widgets/LSD.Widget.Input.Submit",
         "LSD/LSD.Mixin.Placeholder"
       ],
       "provides": [
-        "Wrongler.Widget.Input"
+        "Wrongler.Widget.Input",
+        "Wrongler.Widget.Textarea"
       ],
       "Date": {
         "desc": "Date picker input",
         "requires": [
           "Wrongler.Widget.Input",
-          "Native/LSD.Native.Table.Calendar",
-          "LSD/LSD.Widget",
-          "LSD/LSD.Trait.Date",
+          "Widgets/LSD.Widget.Table.Calendar",
           "LSD/LSD.Trait.Date",
           "More/Locale.ru-RU.Date"
         ],
@@ -84,47 +73,23 @@
         ]
       }
     },
-    "Animated": {
-      "desc": "Basic widget animated",
-      "requires": [
-        "Wrongler.Widget",
-        "LSD/LSD.Native",
-        "LSD/LSD.Mixin.Animation",
-        "LSD/LSD.Mixin.Focus",
-        "Core/Fx.Transitions"
-      ],
-      "provides": [
-        "Wrongler.Widget.Animated"
-      ]
-    },
     "Body": {
       "desc": "Body widget",
       "requires": [
         "Wrongler.Widget",
-        "Native/LSD.Native.Body"
+        "Widgets/LSD.Widget.Body"
       ],
       "provides": [
         "Wrongler.Widget.Body"
       ],
-      "Dialog": {
+      "Lightbox": {
         "desc": "An in-page independent document (like iphone app page)",
         "requires": [
           "Wrongler.Widget.Body",
-          "Native/LSD.Native.Body",
-          "LSD/LSD.Trait.Fieldset"
+          "Core/Element.Dimensions"
         ],
         "provides": [
-          "Wrongler.Widget.Body.Dialog"
-        ]
-      },
-      "Dialog.Lightbox": {
-        "desc": "An in-page independent document (like iphone app page)",
-        "requires": [
-          "Wrongler.Widget.Body.Dialog",
-          "LSD/LSD.Mixin.Focus"
-        ],
-        "provides": [
-          "Wrongler.Widget.Body.Dialog.Lightbox"
+          "Wrongler.Widget.Body.Lightbox"
         ]
       }
     }
@@ -134,12 +99,12 @@
     "requires": [
       "Wrongler",
       "Wrongler.Widget.*",
-      "Native/LSD.Native.Form",
-      "Native/LSD.Native.Textarea",
-      "Native/LSD.Native.Button",
-      "Native/LSD.Native.Label",
+      "Widgets/LSD.Widget.Button",
+      "Widgets/LSD.Widget.Form",
+      "LSD/LSD.Mixin.Request",
+      "LSD/LSD.Mixin.Target",
       "LSD/LSD.Action.*",
-      "LSD/LSD.Application"
+      "LSD/LSD.Document"
     ],
     "provides": [
       "Wrongler.Application"

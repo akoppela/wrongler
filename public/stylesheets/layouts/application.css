@@ -2017,12 +2017,12 @@ body {
             right: 0;
             bottom: 0;
             background: url(/images/arrows/play.png) no-repeat center; }
-          #container #dispute-view > .information > aside > menu > a.is-working:before {
+          #container #dispute-view > .information > aside > menu > a.working:before {
             opacity: 0.6;
             -moz-opacity: 0.6;
             filter: progid:DXImageTransform.Microsoft.Alpha(opacity=60);
             background-image: url(/images/icons/loader.gif); }
-          #container #dispute-view > .information > aside > menu > a.is-working:after {
+          #container #dispute-view > .information > aside > menu > a.working:after {
             display: none; }
       #container #dispute-view > .information > aside > p {
         zoom: 1;
@@ -2770,6 +2770,8 @@ body {
         box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25);
         -moz-box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25);
         -webkit-box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25); }
+    #container #new-dispute > header > section > .checkbox > .button.is-active {
+      margin-top: 0; }
     #container #new-dispute > header > section > .checkbox > .button[hidden] {
       display: none; }
 #container #new-dispute > header > section + aside {
@@ -3262,12 +3264,12 @@ body {
           right: 0;
           bottom: 0;
           background: url(/images/arrows/play.png) no-repeat center; }
-        #container #new-dispute > .information > aside > menu > a.is-working:before {
+        #container #new-dispute > .information > aside > menu > a.working:before {
           opacity: 0.6;
           -moz-opacity: 0.6;
           filter: progid:DXImageTransform.Microsoft.Alpha(opacity=60);
           background-image: url(/images/icons/loader.gif); }
-        #container #new-dispute > .information > aside > menu > a.is-working:after {
+        #container #new-dispute > .information > aside > menu > a.working:after {
           display: none; }
     #container #new-dispute > .information > aside > p {
       margin-top: 20px;
@@ -3438,35 +3440,35 @@ body {
           -webkit-box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.2); }
 
 /* gallery */
-#container #content > .lightbox #gallery > .thumb {
+#lightbox #gallery > .thumb {
   margin-left: 10px;
   margin-right: 10px;
   box-shadow: 0 0 10px #e2e2cd;
   -moz-box-shadow: 0 0 10px #e2e2cd;
   -webkit-box-shadow: 0 0 10px #e2e2cd; }
-  #container #content > .lightbox #gallery > .thumb > img {
+  #lightbox #gallery > .thumb > img {
     display: block;
     width: 100%;
     zoom: 1;
     vertical-align: top; }
-#container #content > .lightbox #gallery > footer {
+#lightbox #gallery > footer {
   margin-top: 10px;
   background: url(/images/gradients/vertical/fade.png) repeat-x;
   border-top: 1px solid #e4e4e1; }
-  #container #content > .lightbox #gallery > footer > menu {
+  #lightbox #gallery > footer > menu {
     position: relative;
     overflow: hidden;
     margin-left: 10px;
     margin-right: 10px;
     white-space: nowrap; }
-    #container #content > .lightbox #gallery > footer > menu > * {
+    #lightbox #gallery > footer > menu > * {
       zoom: 1;
       display: inline;
       display: -moz-inline-box;
       display: inline-block;
       *display: inline;
       vertical-align: top; }
-    #container #content > .lightbox #gallery > footer > menu > a {
+    #lightbox #gallery > footer > menu > a {
       position: relative;
       width: 60px;
       height: 40px;
@@ -3475,11 +3477,11 @@ body {
       opacity: 0.9;
       -moz-opacity: 0.9;
       filter: progid:DXImageTransform.Microsoft.Alpha(opacity=90); }
-      #container #content > .lightbox #gallery > footer > menu > a:hover {
+      #lightbox #gallery > footer > menu > a:hover {
         opacity: 1;
         -moz-opacity: 1;
         filter: progid:DXImageTransform.Microsoft.Alpha(opacity=100); }
-      #container #content > .lightbox #gallery > footer > menu > a:before {
+      #lightbox #gallery > footer > menu > a:before {
         content: "";
         position: absolute;
         top: 0;
@@ -3490,7 +3492,7 @@ body {
         opacity: 0.5;
         -moz-opacity: 0.5;
         filter: progid:DXImageTransform.Microsoft.Alpha(opacity=50); }
-      #container #content > .lightbox #gallery > footer > menu > a.video:after {
+      #lightbox #gallery > footer > menu > a.video:after {
         content: "";
         position: absolute;
         top: 0;
@@ -3498,27 +3500,27 @@ body {
         right: 0;
         bottom: 0;
         background: url(/images/arrows/play.png) no-repeat center; }
-      #container #content > .lightbox #gallery > footer > menu > a.is-working:before {
+      #lightbox #gallery > footer > menu > a.working:before {
         opacity: 0.6;
         -moz-opacity: 0.6;
         filter: progid:DXImageTransform.Microsoft.Alpha(opacity=60);
         background-image: url(/images/icons/loader.gif); }
-      #container #content > .lightbox #gallery > footer > menu > a.is-working:after {
+      #lightbox #gallery > footer > menu > a.working:after {
         display: none; }
 
 /* chose friends */
-#container #content > .lightbox #chose-friends > form {
+#lightbox #chose-friends > form {
   margin-top: 5px;
   margin-left: 10px;
   margin-right: 10px; }
-  #container #content > .lightbox #chose-friends > form > .input[type="text"] {
+  #lightbox #chose-friends > form > .input[type="text"] {
     height: 28px;
     padding-left: 9px;
     padding-right: 9px;
     border: 1px solid #cfd0ca;
     background: #fdfdfd;
     width: 380px; }
-    #container #content > .lightbox #chose-friends > form > .input[type="text"] > input {
+    #lightbox #chose-friends > form > .input[type="text"] > input {
       height: 28px;
       line-height: 28px;
       width: 100%;
@@ -3526,25 +3528,25 @@ body {
       font-size: 14px;
       font-style: italic;
       background: none; }
-      #container #content > .lightbox #chose-friends > form > .input[type="text"] > input.is-placeheld {
+      #lightbox #chose-friends > form > .input[type="text"] > input.is-placeheld {
         color: #9d9e91; }
-    #container #content > .lightbox #chose-friends > form > .input[type="text"] > input {
+    #lightbox #chose-friends > form > .input[type="text"] > input {
       font-size: 12px;
       font-style: italic; }
-#container #content > .lightbox #chose-friends > section {
+#lightbox #chose-friends > section {
   margin-top: 15px;
   padding-left: 5px;
   padding-right: 5px;
   background: url(/images/gradients/vertical/fade.png) repeat-x;
   border-top: 1px solid #e4e4e1; }
-  #container #content > .lightbox #chose-friends > section > * {
+  #lightbox #chose-friends > section > * {
     zoom: 1;
     display: inline;
     display: -moz-inline-box;
     display: inline-block;
     *display: inline;
     vertical-align: top; }
-  #container #content > .lightbox #chose-friends > section > .friend {
+  #lightbox #chose-friends > section > .friend {
     position: relative;
     width: 144px;
     height: 45px;
@@ -3554,7 +3556,7 @@ body {
     padding: 2px;
     border: 1px solid transparent;
     cursor: pointer; }
-    #container #content > .lightbox #chose-friends > section > .friend > img {
+    #lightbox #chose-friends > section > .friend > img {
       zoom: 1;
       display: inline;
       display: -moz-inline-box;
@@ -3563,28 +3565,28 @@ body {
       vertical-align: top;
       width: 45px;
       height: 45px; }
-      #container #content > .lightbox #chose-friends > section > .friend > img + div {
+      #lightbox #chose-friends > section > .friend > img + div {
         margin-top: -45px; }
-    #container #content > .lightbox #chose-friends > section > .friend > div {
+    #lightbox #chose-friends > section > .friend > div {
       margin-left: 55px; }
-      #container #content > .lightbox #chose-friends > section > .friend > div > h3 {
+      #lightbox #chose-friends > section > .friend > div > h3 {
         padding-top: 1px;
         line-height: 14px; }
-        #container #content > .lightbox #chose-friends > section > .friend > div > h3 > span {
+        #lightbox #chose-friends > section > .friend > div > h3 > span {
           display: block; }
-      #container #content > .lightbox #chose-friends > section > .friend > div > span {
+      #lightbox #chose-friends > section > .friend > div > span {
         margin-top: -1px;
         display: block;
         color: #9d9e91;
         font-size: 11px;
         padding-left: 10px;
         background: url(/images/icons/egg_grey.png) no-repeat left center; }
-    #container #content > .lightbox #chose-friends > section > .friend:hover {
+    #lightbox #chose-friends > section > .friend:hover {
       background: #e8e8e5; }
-    #container #content > .lightbox #chose-friends > section > .friend.chosen {
+    #lightbox #chose-friends > section > .friend.chosen {
       background: #e8e8e5;
       border-color: #585952; }
-      #container #content > .lightbox #chose-friends > section > .friend.chosen:before {
+      #lightbox #chose-friends > section > .friend.chosen:before {
         content: "";
         position: absolute;
         width: 15px;
@@ -3593,7 +3595,7 @@ body {
         left: 0;
         margin-top: -15px;
         background: #d1d1cb; }
-      #container #content > .lightbox #chose-friends > section > .friend.chosen:after {
+      #lightbox #chose-friends > section > .friend.chosen:after {
         content: "";
         position: absolute;
         top: 100%;
@@ -3602,7 +3604,7 @@ body {
         height: 14px;
         margin-top: -13px;
         background: #585952 url(/images/icons/chose_friends_check.png) no-repeat 4px 3px; }
-#container #content > .lightbox #chose-friends > footer {
+#lightbox #chose-friends > footer {
   margin-top: 10px;
   height: 28px;
   line-height: 28px;
@@ -3612,14 +3614,14 @@ body {
   background: url(/images/gradients/vertical/fade.png) repeat-x;
   border-top: 1px solid #e4e4e1;
   text-align: right; }
-  #container #content > .lightbox #chose-friends > footer > * {
+  #lightbox #chose-friends > footer > * {
     zoom: 1;
     display: inline;
     display: -moz-inline-box;
     display: inline-block;
     *display: inline;
     vertical-align: top; }
-  #container #content > .lightbox #chose-friends > footer > .button {
+  #lightbox #chose-friends > footer > .button {
     position: relative;
     height: 27px;
     line-height: 26px;
@@ -3655,11 +3657,11 @@ body {
     color: #585952;
     text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
     background: #a4a693 url(/images/gradients/vertical/brown_big_button.png) repeat-x; }
-    #container #content > .lightbox #chose-friends > footer > .button:hover {
+    #lightbox #chose-friends > footer > .button:hover {
       opacity: 1;
       -moz-opacity: 1;
       filter: progid:DXImageTransform.Microsoft.Alpha(opacity=100); }
-    #container #content > .lightbox #chose-friends > footer > .button:before {
+    #lightbox #chose-friends > footer > .button:before {
       content: "";
       position: absolute;
       top: 0;
@@ -3675,14 +3677,14 @@ body {
       box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.25);
       -moz-box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.25);
       -webkit-box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.25); }
-    #container #content > .lightbox #chose-friends > footer > .button.is-active {
+    #lightbox #chose-friends > footer > .button.is-active {
       height: 26px;
       margin-top: 1px; }
-      #container #content > .lightbox #chose-friends > footer > .button.is-active:before {
+      #lightbox #chose-friends > footer > .button.is-active:before {
         box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25);
         -moz-box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25);
         -webkit-box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25); }
-    #container #content > .lightbox #chose-friends > footer > .button:before {
+    #lightbox #chose-friends > footer > .button:before {
       -moz-border-radius: 3px;
       -o-border-radius: 3px;
       -ms-border-radius: 3px;
@@ -3692,10 +3694,10 @@ body {
       box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.2);
       -moz-box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.2);
       -webkit-box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.2); }
-    #container #content > .lightbox #chose-friends > footer > .button.is-active {
+    #lightbox #chose-friends > footer > .button.is-active {
       height: 25px;
       margin-top: 2px; }
-      #container #content > .lightbox #chose-friends > footer > .button.is-active:before {
+      #lightbox #chose-friends > footer > .button.is-active:before {
         box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.2);
         -moz-box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.2);
         -webkit-box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.2); }
@@ -3735,7 +3737,7 @@ body {
       margin-top: -40px; }
 
 /* lightbox */
-#container #content > .lightbox {
+#lightbox {
   position: absolute;
   top: 0;
   left: 0;
@@ -3743,7 +3745,7 @@ body {
   bottom: 0;
   z-index: 100;
   top: -4px; }
-  #container #content > .lightbox > .overlay {
+  #lightbox > .overlay {
     position: absolute;
     top: 0;
     left: 0;
@@ -3753,9 +3755,11 @@ body {
     opacity: 0.25;
     -moz-opacity: 0.25;
     filter: progid:DXImageTransform.Microsoft.Alpha(opacity=25); }
-  #container #content > .lightbox > .container {
+  #lightbox > .container {
+    display: block;
     position: relative;
-    top: 100px;
+    z-index: 1;
+    top: 60px !important;
     margin-left: auto;
     margin-right: auto;
     width: 660px;
@@ -3765,13 +3769,13 @@ body {
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
     -moz-box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
     -webkit-box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25); }
-    #container #content > .lightbox > .container > aside {
+    #lightbox > .container > aside {
       height: 16px;
       padding-top: 12px;
       padding-bottom: 12px;
       padding-left: 10px;
       padding-right: 10px; }
-      #container #content > .lightbox > .container > aside > .button {
+      #lightbox > .container > aside > .button {
         zoom: 1;
         display: inline;
         display: -moz-inline-box;
@@ -3791,7 +3795,7 @@ body {
         padding-right: 7px;
         color: white;
         font-size: 11px; }
-        #container #content > .lightbox > .container > aside > .button > span {
+        #lightbox > .container > aside > .button > span {
           zoom: 1;
           display: inline;
           display: -moz-inline-box;
@@ -3799,17 +3803,17 @@ body {
           *display: inline;
           vertical-align: top;
           height: 14px; }
-          #container #content > .lightbox > .container > aside > .button > span:hover {
+          #lightbox > .container > aside > .button > span:hover {
             height: 13px;
             border-bottom: 1px dotted white; }
-      #container #content > .lightbox > .container > aside + section {
+      #lightbox > .container > aside + section {
         margin-top: -40px; }
-    #container #content > .lightbox > .container > section > h2 {
+    #lightbox > .container > section > h2 {
       height: 40px;
       line-height: 40px;
       padding-left: 10px;
       padding-right: 10px;
       font-family: Cambria, Georgia, Arial;
       font-size: 20px; }
-      #container #content > .lightbox > .container > section > h2 > span {
+      #lightbox > .container > section > h2 > span {
         color: #9d9e91; }

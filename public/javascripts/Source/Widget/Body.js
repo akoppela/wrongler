@@ -11,7 +11,7 @@ authors: Andrey Koppel
  
 requires:
   - Wrongler.Widget
-  - Native/LSD.Native.Body
+  - Widgets/LSD.Widget.Body
 
 provides:
   - Wrongler.Widget.Body
@@ -19,4 +19,4 @@ provides:
 ...
 */
 
-Wrongler.Widget.Body = LSD.Native.Body;
+Wrongler.Widget.Body = LSD.Widget.Body;

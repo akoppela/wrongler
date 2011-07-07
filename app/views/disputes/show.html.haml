@@ -13,7 +13,7 @@
     %section>
       .checkbox<
         %section>
-          %input{:type => 'radio', :name => 'dispute_radio', :id => 'first_radio', :target => '$$ #first-radio-popup :display()'}
+          %input{:type => 'radio', :name => 'dispute_radio', :id => 'first_radio', :target => '$$ #first-radio-popup :show(), $$ #second-radio-popup :hide()'}
         %aside>
           %label{:for => 'first_radio'}= raw('<span>Конечно же, Ливерпуль.</span>')
         .pop-up#first-radio-popup{:hidden => 'hidden', :animation => 'slide'}<
@@ -25,7 +25,7 @@
     %aside>
       .checkbox<
         %section>
-          %input{:type => 'radio', :name => 'dispute_radio', :id => 'second_radio', :target => '$$ #second-radio-popup :display()'}
+          %input{:type => 'radio', :name => 'dispute_radio', :id => 'second_radio', :target => '$$ #first-radio-popup :hide(), $$ #second-radio-popup :show()'}
         %aside>
           %label{:for => 'second_radio'}= raw('<span>Ну какие вопросы. Это Манчестер!</span>')
         .pop-up#second-radio-popup{:hidden => 'hidden', :animation => 'slide'}<
@@ -55,16 +55,16 @@
     %aside>
       %h3 Фото и видео
       %menu<
-        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '/disputes/1/pictures', :class => 'video', :target => 'lightbox', :transport => :xhr
-        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#', :class => 'video', :target => 'lightbox', :transport => :xhr
-        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#', :class => 'video', :target => 'lightbox', :transport => :xhr
-        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#', :target => 'lightbox', :transport => :xhr
-        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#', :target => 'lightbox', :transport => :xhr
-        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#', :target => 'lightbox', :transport => :xhr
-        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#', :target => 'lightbox', :transport => :xhr
-        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#', :class => 'video', :target => 'lightbox', :transport => :xhr
-        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#', :target => 'lightbox', :transport => :xhr
-        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#', :target => 'lightbox', :transport => :xhr
-        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#', :class => 'video', :target => 'lightbox', :transport => :xhr
-        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#', :class => 'video', :target => 'lightbox', :transport => :xhr
-      %p= link_to 'еще 15 фотографий', '#', :target => 'lightbox', :transport => :xhr
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '/disputes/1/pictures', :class => 'video', :target => '&&::lightbox', :transport => :xhr
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#', :class => 'video', :target => '&&::lightbox', :transport => :xhr
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#', :class => 'video', :target => '&&::lightbox', :transport => :xhr
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#', :target => '&&::lightbox', :transport => :xhr
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#', :target => '&&::lightbox', :transport => :xhr
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#', :target => '&&::lightbox', :transport => :xhr
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#', :target => '&&::lightbox', :transport => :xhr
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#', :class => 'video', :target => '&&::lightbox', :transport => :xhr
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#', :target => '&&::lightbox', :transport => :xhr
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#', :target => '&&::lightbox', :transport => :xhr
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#', :class => 'video', :target => '&&::lightbox', :transport => :xhr
+        = link_to raw('<img src="/images/icons/picture.jpg" alt="London" />'), '#', :class => 'video', :target => '&&::lightbox', :transport => :xhr
+      %p= link_to 'еще 15 фотографий', '#', :target => '&&::lightbox', :transport => :xhr

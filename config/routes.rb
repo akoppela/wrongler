@@ -1,5 +1,11 @@
 Wrongler::Application.routes.draw do
-  resources :auctions, :users
+  resources :auctions
+  
+  resources :users do
+    member do
+      get 'friends'
+    end
+  end
   
   resources :disputes do
     resources :comments

@@ -5,7 +5,7 @@
       .checkbox<
         %input{:type => 'checkbox', :name => 'friends_checkbox', :id => 'friends_checkbox', :target => '$$ #choose-friends-button :display()'}>
         %label{:for => 'friends_checkbox'}> Только для друзей
-        %a.button#choose-friends-button{:href => '#', :hidden => 'hidden'}> Выбрать друзей
+        %a.button#choose-friends-button{:href => '/users/1/friends', :target => '&&::lightbox', :transport => 'xhr', :hidden => 'hidden'}> Выбрать друзей
     %aside<
       %p= link_to 'Я пошутил, не хочу создавать', '#'
   %section
@@ -21,7 +21,6 @@
         %option{:value => '3'} Третья
     %article<
       %label{:for => 'dispute-time'}>= raw('Дата завершения<span>Время случайное</span>')
-      %input{:type => 'date', :id => 'dispute-time'}
   .information<
     %section>
       %h3 Варианты
@@ -43,7 +42,7 @@
             %a.button{:href => '#', :target => '$ ! li:nth-child(n+3) :delete()'} Убрать
         %li
           .input
-            %input{:type => 'text', :name => 'variant[3]', :placeholder => '123'}
+            %input{:type => 'text', :name => 'variant[3]'}
           %aside<
             %a.button{:href => '#', :target => '$ ! li:nth-child(n+3) :delete()'} Убрать
       %menu<

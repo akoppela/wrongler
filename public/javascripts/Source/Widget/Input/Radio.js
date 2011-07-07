@@ -24,13 +24,6 @@ Wrongler.Widget.Input.Radio = new Class({
   options: {
     element: {
       tag: 'div'
-    },
-    events: {
-      _radio: {
-        self: {
-          uncheck: 'callChain'
-        }
-      }
     }
   }
 });

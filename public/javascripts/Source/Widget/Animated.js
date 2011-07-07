@@ -11,9 +11,8 @@ authors: Andrey Koppel
  
 requires:
   - Wrongler.Widget
-  - LSD/LSD.Native
   - LSD/LSD.Mixin.Animation
-  - LSD/LSD.Mixin.Focus
+  - LSD/LSD.Mixin.Focusable
   - Core/Fx.Transitions
 
 provides:
@@ -23,8 +22,6 @@ provides:
 */
 
 Wrongler.Widget.Animated = new Class({
-  Extends: LSD.Native,
-  
   options: {
     tag: 'widget',
     animation: {

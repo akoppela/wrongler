@@ -3,7 +3,7 @@ $lightbox_container = 660px
 
 $lightbox_header = $baseline * 2
 
-#container #content > .lightbox
+#lightbox
   +absoluted
   :z-index 100
   :top -4px
@@ -12,8 +12,10 @@ $lightbox_header = $baseline * 2
     :background #50514c
     +opacity(0.25, true)
   > .container
+    :display block
     :position relative
-    :top 100px
+    :z-index 1
+    :top 60px !important
     +grid-container($lightbox_container)
     :background= $white
     :padding

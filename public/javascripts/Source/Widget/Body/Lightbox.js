@@ -1,7 +1,7 @@
 /*
 ---
  
-script: Dialog.Lightbox.js
+script: Lightbox.js
  
 description: An in-page independent document (like iphone app page)
  
@@ -10,25 +10,37 @@ license: Public domain (http://unlicense.org).
 authors: Yaroslaff Fedin
  
 requires:
-  - Wrongler.Widget.Body.Dialog
-  - LSD/LSD.Mixin.Focus
+  - Wrongler.Widget.Body
+  - Core/Element.Dimensions
 
 provides:
-  - Wrongler.Widget.Body.Dialog.Lightbox
+  - Wrongler.Widget.Body.Lightbox
 
 ...
 */
 
-Wrongler.Widget.Body.Dialog.Lightbox = new Class({
-  Extends: Wrongler.Widget.Body.Dialog,
+Wrongler.Widget.Body.Lightbox = new Class({
+  Extends: Wrongler.Widget.Body,
 
   options: {
-    tag: 'lightbox',
+    element: {
+      tag: 'section',
+      id: 'lightbox'
+    },
+    attributes: {
+      type: 'lightbox'
+    },
     container: {
       enabled: true
     },
+    lightbox: {
+      top: 130
+    },
     events : {
       _lightbox: {
+        element: {
+          'click:relay(.cancel)': 'cancel'
+        },
         self: {
           build: function(){
             this.overlay = new Element('div', {
@@ -38,9 +50,15 @@ Wrongler.Widget.Body.Dialog.Lightbox = new Class({
               this.cancel();
             }.bind(this));
             this.addEvent('destroy', this.overlay.destroy.bind(this.overlay));
+            this.getWrapper().setStyle('top', document.body.getScroll().y + this.options.lightbox.top);
           }
         }
       }
     }
+  },
+  
+  cancel: function() {
+    this.destroy();
+    this.fireEvent('cancel', arguments);
   }
 });

@@ -12,12 +12,13 @@ authors: Andrey Koppel
 requires:
   - Wrongler
   - Wrongler.Widget.*
-  - Native/LSD.Native.Form
-  - Native/LSD.Native.Textarea
-  - Native/LSD.Native.Button
-  - Native/LSD.Native.Label
+  - Widgets/LSD.Widget.Button
+  - Widgets/LSD.Widget.Form
+  - LSD/LSD.Mixin.Request
+  - LSD/LSD.Mixin.Target
   - LSD/LSD.Action.*
-  - LSD/LSD.Application
+  - LSD/LSD.Document
+  
   
 provides:
   - Wrongler.Application
@@ -25,13 +26,15 @@ provides:
 ...
 */
 
-Wrongler.Application = new LSD.Application(document);
+LSD.Element.pool.push(LSD.Widget);
 
-// Transformations
-Wrongler.Transformations = {
-  'a.button': 'button',
-  'a.button[type="submit"]': 'input[type="submit"]',
-  'div[animation]': 'animated'
+Wrongler.Application = new LSD.Document({
+  mutations: {
+    'a.button[type="submit"]': 'button-submit',
+    'a.button': 'button'
+  }
+});
+
+LSD.Allocations.lightbox.parent = function() {
+  return document.id('content');
 };
-Wrongler.Widget.Body.prototype.options.mutations = Wrongler.Transformations;
-Wrongler.Widget.Body.prototype.options.layout.options.context = 'element';

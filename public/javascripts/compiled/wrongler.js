@@ -534,29 +534,44 @@ extends: Core/Core
 
 (function(){
 
-var arrayish = Array.prototype.indexOf;
+var arrayish = Array.prototype.slice;
 var stringish = String.prototype.indexOf
 var regexpish = RegExp.prototype.exec;
 //Speedup 1: Avoid typeOf
+var object = {object: 1};
 var cloneOf = function(item){
-  if (item && typeof(item) == 'object' && item.indexOf != stringish && item.exec != regexpish && !(item.nodeName && item.nodeType)) {
-    if (item.indexOf == arrayish) return item.clone();
-    else return Object.clone(item);
+  if (item && typeof(item) == 'object') {
+    var family = item.$family && item.$family();
+    if (family == 'array' || item.slice == arrayish) return item.clone();
+    if (family ? family == 'object' : (!item.indexOf || item.indexOf != stringish) 
+      && (!item.exec || item.exec != regexpish)
+      && !(item.nodeName && item.nodeType))
+      return Object.clone(item);
   }
   return item;
 };
 Array.implement('clone', function(){
-	var i = this.length, clone = new Array(i);
-	while (i--) clone[i] = cloneOf(this[i]);
+	var i = this.length, clone = this.slice(0), item;
+	for (var item; i--;) {
+	  item = this[i];
+	  if (item && typeof(item) == 'object') {
+      var family = item.$family && item.$family();
+      if (family == 'array' || item.slice == arrayish) clone[i] = item.clone();
+      else if (family ? family == 'object' : (!item.indexOf || item.indexOf != stringish) 
+        && (!item.exec || item.exec != regexpish)
+        && !(item.nodeName && item.nodeType))
+        clone[i] = Object.clone(item);
+    }
+	}
 	return clone;
 });
 
 //Speedup 2: Avoid typeOf
 var mergeOne = function(source, key, current){
   if (current && typeof(current) == 'object' && current.indexOf != stringish && current.exec != regexpish && !(current.nodeName && current.nodeType) && (!current.$family || current.$family() == 'object')) {
-    if (current.indexOf != arrayish) {
+    if (current.slice != arrayish) {
       var target = source[key];
-			if (target && typeof(target) == 'object' && current.indexOf != stringish && target.exec != regexpish && target.indexOf != arrayish) Object.merge(source[key], current);
+			if (target && typeof(target) == 'object' && current.indexOf != stringish && target.exec != regexpish && target.slice != arrayish) Object.merge(source[key], current);
 			else source[key] = Object.clone(current);
     } else source[key] = current.clone();
   } else source[key] = current;
@@ -1701,111 +1716,114 @@ extends: Core/Class
 (function(){
 
 var Class = this.Class = new Type('Class', function(params){
-	if (instanceOf(params, Function)) params = {initialize: params};
+  if (instanceOf(params, Function)) params = {initialize: params};
 
-	var newClass = function(){
-		reset(this);
-		if (newClass.$prototyping) return this;
-		this.$caller = null;
-		var value = (this.initialize) ? this.initialize.apply(this, arguments) : this;
-		this.$caller = this.caller = null;
-		return value;
-	}.extend(this).implement(params);
+  var newClass = function(){
+    reset(this);
+    if (newClass.$prototyping) return this;
+    this.$caller = null;
+    var value = (this.initialize) ? this.initialize.apply(this, arguments) : this;
+    this.$caller = this.caller = null;
+    return value;
+  }.extend(this).implement(params);
 
-	newClass.$constructor = Class;
-	newClass.prototype.$constructor = newClass;
-	newClass.prototype.parent = parent;
+  newClass.$constructor = Class;
+  newClass.prototype.$constructor = newClass;
+  newClass.prototype.parent = parent;
 
-	return newClass;
+  return newClass;
 });
 
 var parent = function(){
-	if (!this.$caller) throw new Error('The method "parent" cannot be called.');
-	var name = this.$caller.$name,
-		parent = this.$caller.$owner.parent,
-		previous = (parent) ? parent.prototype[name] : null;
-	if (!previous) throw new Error('The method "' + name + '" has no parent.');
-	return previous.apply(this, arguments);
+  if (!this.$caller) throw new Error('The method "parent" cannot be called.');
+  var name = this.$caller.$name,
+    parent = this.$caller.$owner.parent,
+    previous = (parent) ? parent.prototype[name] : null;
+  if (!previous) throw new Error('The method "' + name + '" has no parent.');
+  return previous.apply(this, arguments);
 };
 
 
-var indexOf = Array.prototype.indexOf;
-var exec = RegExp.prototype.exec;
+var arrayish = Array.prototype.slice;
+var regexpish = RegExp.prototype.exec;
 //Speedup1: Avoid typeOf in reset
 
 // before: 
 // switch (typeOf(value)){
-//	case 'object':
-//	case 'array':
+//  case 'object':
+//  case 'array':
 
 // after:
+var F = function(){};
 var reset = function(object){
-	for (var key in object){
-		var value = object[key];
-    if (value && typeof(value) == 'object' && value.exec != exec) {
-      if (value.indexOf != indexOf) {
-				var F = function(){};
-				F.prototype = value;
-				object[key] = reset(new F);
-      } else object[key] = value.clone();
+  for (var key in object){
+    var value = object[key];
+    if (value && typeof(value) == 'object' && value.exec != regexpish) {
+      var family = value.$family && value.$family();
+      if (family === 'array' || value.slice == arrayish) {
+        object[key] = value.clone();
+      } else if (!family || family == 'object'){
+        F.prototype = value; 
+        object[key] = reset(new F);
+      }
     }
-	}
-	return object;
+  }
+  return object;
 };
 
 var wrap = function(self, key, method){
-	if (method.$origin) method = method.$origin;
-	var wrapper = function(){
-		if (method.$protected && this.$caller == null) throw new Error('The method "' + key + '" cannot be called.');
-		var caller = this.caller, current = this.$caller;
-		this.caller = current; this.$caller = wrapper;
-		var result = method.apply(this, arguments);
-		this.$caller = current; this.caller = caller;
-		return result;
-	}.extend({$owner: self, $origin: method, $name: key});
-	return wrapper;
+  if (method.$origin) method = method.$origin;
+  var wrapper = function(){
+    if (method.$protected && this.$caller == null) throw new Error('The method "' + key + '" cannot be called.');
+    var caller = this.caller, current = this.$caller;
+    this.caller = current; this.$caller = wrapper;
+    var result = method.apply(this, arguments);
+    this.$caller = current; this.caller = caller;
+    return result;
+  }.extend({$owner: self, $origin: method, $name: key});
+  return wrapper;
 };
 
 //Speedup 2: Avoid typeOf in implement
 var apply = Function.prototype.apply
 var implement = function(key, value, retain){
-	if (Class.Mutators.hasOwnProperty(key)){
-		value = Class.Mutators[key].call(this, value);
-		if (value == null) return this;
-	}
+  if (Class.Mutators.hasOwnProperty(key)){
+    value = Class.Mutators[key].call(this, value);
+    if (value == null) return this;
+  }
 
-	if (value && value.call && (value.apply == apply)){
-		if (value.$hidden) return this;
-		this.prototype[key] = (retain) ? value : wrap(this, key, value);
-	} else {
-		Object.merge(this.prototype, key, value);
-	}
+  if (value && value.call && (value.apply == apply)){
+    if (value.$hidden) return this;
+    this.prototype[key] = (retain) ? value : wrap(this, key, value);
+  } else {
+    Object.merge(this.prototype, key, value);
+  }
 
-	return this;
+  return this;
 };
 
 var getInstance = function(klass){
-	klass.$prototyping = true;
-	var proto = new klass;
-	delete klass.$prototyping;
-	return proto;
+  klass.$prototyping = true;
+  var proto = new klass;
+  delete klass.$prototyping;
+  return proto;
 };
 
 Class.implement('implement', implement.overloadSetter());
 
 Class.Mutators = {
 
-	Extends: function(parent){
-		this.parent = parent;
-		this.prototype = getInstance(parent);
-	},
+  Extends: function(parent){
+    this.parent = parent;
+    this.prototype = getInstance(parent);
+  },
 
-	Implements: function(items){
-		Array.from(items).each(function(item){
-			var instance = new item;
-			for (var key in instance) implement.call(this, key, instance[key], true);
-		}, this);
-	}
+  Implements: function(items){
+    Array.from(items).each(function(item){
+      var instance = new item;
+      for (var key in instance) implement.call(this, key, instance[key], true);
+    }, this);
+  }
 };
 
 })();
@@ -1876,6 +1894,12 @@ FastArray.prototype = {
     var bits = [];
     for (var key in this) if (this.hasOwnProperty(key)) bits.push(key);
     return bits.join(delimeter)
+  },
+  
+  toObject: function() {
+    var object = {};
+    for (var key in this) if (this.hasOwnProperty(key)) object[key] = this[key];
+    return object;
   }
 };
 /*
@@ -1900,28 +1924,27 @@ provides:
 
 Class.mixin = function(instance, klass, light) {
   var proto = klass.prototype;
-  Object.each(proto, function(value, name) {
+  for (var name in proto) !function(value) {
     if (typeof value !== 'function') return;
     switch (name) {
       case "parent": case "initialize": case "uninitialize": case "$constructor":
         return;
     }
     value = value.$origin;
-    var origin = instance[name], parent, wrap
+    var origin = instance[name], parent, wrap;
     if (origin) {
+      if (light) return;
       if (origin.$mixes) return origin.$mixes.push(value);
       parent = origin.$owner;
       wrap = origin;
       origin = origin.$origin;
     };
-    if (instance[name] && light) return;
     var wrapper = instance[name] = function() {
       var stack = wrapper.$stack;
-      if (!stack) stack = wrapper.$stack = wrapper.$mixes.clone()
+      if (!stack) stack = wrapper.$stack = Array.prototype.slice.call(wrapper.$mixes, 0);
       var mix = stack.pop();
       wrapper.$owner = {parent: mix ? instance.$constructor : parent}
-      if (!mix) mix = origin;
-      if (!mix) return;
+      if (!mix && !(mix = origin)) return;
       var caller = this.caller, current = this.$caller;
       this.caller = current; this.$caller = wrapper;
       var result = (mix || origin).apply(this, arguments);
@@ -1932,7 +1955,7 @@ Class.mixin = function(instance, klass, light) {
     wrapper.$mixes = [value];
     wrapper.$origin = origin;
     wrapper.$name = name;
-  });
+  }(proto[name]);
   if (proto.initialize) {
     var parent = instance.parent; instance.parent = function(){};
     proto.initialize.call(instance, instance);
@@ -1942,18 +1965,18 @@ Class.mixin = function(instance, klass, light) {
 
 Class.unmix = function(instance, klass, light) {
   var proto = klass.prototype;
-  Object.each(proto, function(value, key) {
+  for (var name in proto) !function(value) {
     if (typeof value !== 'function') return;
-    var remixed = instance[key]
+    var remixed = instance[name]
     if (remixed && remixed.$mixes) {
       if (light) return;
       remixed.$mixes.erase(value.$origin);
       if (!remixed.$mixes.length) {
-        if (remixed.$origin) instance[key] = remixed.$origin;
-        else delete instance[key];
+        if (remixed.$origin) instance[name] = remixed.$origin;
+        else delete instance[name];
       }
     }
-  })
+  }(proto[name]);
   if (proto.uninitialize) {
     var parent = instance.parent; instance.parent = function(){};
     proto.uninitialize.call(instance, instance);
@@ -2105,22 +2128,6 @@ extends: Core/Class.Extras
 ...
 */
 
-//dont use typeOf in loop :)
-
-(function(apply) {
-  
-  Options.prototype.setOptions = function(){
-  	var options = this.options = Object.merge.apply(null, [{}, this.options].append(arguments));
-  	if (this.addEvent) for (var option in options){
-  	  var value = options[option];
-  		if (!value || (value.apply != apply) || !(/^on[A-Z]/).test(option)) continue;
-  		this.addEvent(option, options[option]);
-  		delete options[option];
-  	}
-  	return this;
-  }
-
-})(Function.prototype.apply);
 /*
 ---
  
@@ -2366,13 +2373,13 @@ var States = new Class({
       return this.setStateTo(name, false, state, arguments, disabler)
     }
     this[state.toggler] = function() { 
-      return this.setStateTo(name, !this[state.property || name], state, arguments, toggler)
+      return this.setStateTo(name, !this[state && state.property || name], state, arguments, toggler)
     }
-    if (state.initial || this[state.property || name]) this[state.enabler]();
+    if (state.initial || this[state && state.property || name]) this[state.enabler]();
   },
 
   removeState: function(name, state) {
-    if (!state) state = States.get(state);
+    if (!state) state = States.get(name);
     delete this.$states[name];
   },
   
@@ -2385,7 +2392,7 @@ var States = new Class({
     if (disabler.indexOf) disabler = (object.bindEvent ? object.bindEvent(disabler) : object[disabler].bind(object));
     this[method](events.enabler, enabler);
     this[method](events.disabler, disabler);
-    if (this[first.property || from]) object[second.enabler]();
+    if (object[second.enabler] && this[first.property || from]) object[second.enabler]();
   },
   
   unlinkState: function(object, from, to) {
@@ -2394,8 +2401,8 @@ var States = new Class({
   
   setStateTo: function(name, value, state, args, callback) {
     if (!state || state === true) state = States.get(name);
-    if (this[state.property || name] == value) return false;
-    this[state.property || name] = !!value;
+    if (this[state && state.property || name] == value) return false;
+    this[state && state.property || name] = !!value;
     if (callback) {
       var result = callback.apply(this, args);
       if (result === false) return false;
@@ -2430,7 +2437,7 @@ provides: [Macro, Class.hasParent]
 
 Class.hasParent = function(klass) {
   var caller = klass.$caller;
-  return !!(caller.$owner.parent && caller.$owner.parent.prototype[caller.$name]);
+  return !!(caller && caller.$owner.parent && caller.$owner.parent.prototype[caller.$name]);
 };
 
 Macro = {};
@@ -2502,307 +2509,13 @@ Macro.delegate = function(name, method) {
 /*
 ---
 
-name: Fx
-
-description: Contains the basic animation logic to be extended by all other Fx Classes.
-
-license: MIT-style license.
-
-requires: [Chain, Events, Options]
-
-provides: Fx
-
-...
-*/
-
-(function(){
-
-var Fx = this.Fx = new Class({
-
-	Implements: [Chain, Events, Options],
-
-	options: {
-		/*
-		onStart: nil,
-		onCancel: nil,
-		onComplete: nil,
-		*/
-		fps: 60,
-		unit: false,
-		duration: 500,
-		frames: null,
-		frameSkip: true,
-		link: 'ignore'
-	},
-
-	initialize: function(options){
-		this.subject = this.subject || this;
-		this.setOptions(options);
-	},
-
-	getTransition: function(){
-		return function(p){
-			return -(Math.cos(Math.PI * p) - 1) / 2;
-		};
-	},
-
-	step: function(now){
-		if (this.options.frameSkip){
-			var diff = (this.time != null) ? (now - this.time) : 0, frames = diff / this.frameInterval;
-			this.time = now;
-			this.frame += frames;
-		} else {
-			this.frame++;
-		}
-		
-		if (this.frame < this.frames){
-			var delta = this.transition(this.frame / this.frames);
-			this.set(this.compute(this.from, this.to, delta));
-		} else {
-			this.frame = this.frames;
-			this.set(this.compute(this.from, this.to, 1));
-			this.stop();
-		}
-	},
-
-	set: function(now){
-		return now;
-	},
-
-	compute: function(from, to, delta){
-		return Fx.compute(from, to, delta);
-	},
-
-	check: function(){
-		if (!this.isRunning()) return true;
-		switch (this.options.link){
-			case 'cancel': this.cancel(); return true;
-			case 'chain': this.chain(this.caller.pass(arguments, this)); return false;
-		}
-		return false;
-	},
-
-	start: function(from, to){
-		if (!this.check(from, to)) return this;
-		this.from = from;
-		this.to = to;
-		this.frame = (this.options.frameSkip) ? 0 : -1;
-		this.time = null;
-		this.transition = this.getTransition();
-		var frames = this.options.frames, fps = this.options.fps, duration = this.options.duration;
-		this.duration = Fx.Durations[duration] || duration.toInt();
-		this.frameInterval = 1000 / fps;
-		this.frames = frames || Math.round(this.duration / this.frameInterval);
-		this.fireEvent('start', this.subject);
-		pushInstance.call(this, fps);
-		return this;
-	},
-	
-	stop: function(){
-		if (this.isRunning()){
-			this.time = null;
-			pullInstance.call(this, this.options.fps);
-			if (this.frames == this.frame){
-				this.fireEvent('complete', this.subject);
-				if (!this.callChain()) this.fireEvent('chainComplete', this.subject);
-			} else {
-				this.fireEvent('stop', this.subject);
-			}
-		}
-		return this;
-	},
-	
-	cancel: function(){
-		if (this.isRunning()){
-			this.time = null;
-			pullInstance.call(this, this.options.fps);
-			this.frame = this.frames;
-			this.fireEvent('cancel', this.subject).clearChain();
-		}
-		return this;
-	},
-	
-	pause: function(){
-		if (this.isRunning()){
-			this.time = null;
-			pullInstance.call(this, this.options.fps);
-		}
-		return this;
-	},
-	
-	resume: function(){
-		if ((this.frame < this.frames) && !this.isRunning()) pushInstance.call(this, this.options.fps);
-		return this;
-	},
-	
-	isRunning: function(){
-		var list = instances[this.options.fps];
-		return list && list.contains(this);
-	}
-
-});
-
-Fx.compute = function(from, to, delta){
-	return (to - from) * delta + from;
-};
-
-Fx.Durations = {'short': 250, 'normal': 500, 'long': 1000};
-
-// global timers
-
-var instances = {}, timers = {};
-
-var loop = function(){
-	var now = Date.now();
-	for (var i = this.length; i--;){
-		var instance = this[i];
-		if (instance) instance.step(now);
-	}
-};
-
-var pushInstance = function(fps){
-	var list = instances[fps] || (instances[fps] = []);
-	list.push(this);
-	if (!timers[fps]) timers[fps] = loop.periodical(Math.round(1000 / fps), list);
-};
-
-var pullInstance = function(fps){
-	var list = instances[fps];
-	if (list){
-		list.erase(this);
-		if (!list.length && timers[fps]){
-			delete instances[fps];
-			timers[fps] = clearInterval(timers[fps]);
-		}
-	}
-};
-
-})();
-
-/*
----
-
-name: Fx.Transitions
-
-description: Contains a set of advanced transitions to be used with any of the Fx Classes.
-
-license: MIT-style license.
-
-credits:
-  - Easing Equations by Robert Penner, <http://www.robertpenner.com/easing/>, modified and optimized to be used with MooTools.
-
-requires: Fx
-
-provides: Fx.Transitions
-
-...
-*/
-
-Fx.implement({
-
-	getTransition: function(){
-		var trans = this.options.transition || Fx.Transitions.Sine.easeInOut;
-		if (typeof trans == 'string'){
-			var data = trans.split(':');
-			trans = Fx.Transitions;
-			trans = trans[data[0]] || trans[data[0].capitalize()];
-			if (data[1]) trans = trans['ease' + data[1].capitalize() + (data[2] ? data[2].capitalize() : '')];
-		}
-		return trans;
-	}
-
-});
-
-Fx.Transition = function(transition, params){
-	params = Array.from(params);
-	var easeIn = function(pos){
-		return transition(pos, params);
-	};
-	return Object.append(easeIn, {
-		easeIn: easeIn,
-		easeOut: function(pos){
-			return 1 - transition(1 - pos, params);
-		},
-		easeInOut: function(pos){
-			return (pos <= 0.5 ? transition(2 * pos, params) : (2 - transition(2 * (1 - pos), params))) / 2;
-		}
-	});
-};
-
-Fx.Transitions = {
-
-	linear: function(zero){
-		return zero;
-	}
-
-};
-
-//<1.2compat>
-
-Fx.Transitions = new Hash(Fx.Transitions);
-
-//</1.2compat>
-
-Fx.Transitions.extend = function(transitions){
-	for (var transition in transitions) Fx.Transitions[transition] = new Fx.Transition(transitions[transition]);
-};
-
-Fx.Transitions.extend({
-
-	Pow: function(p, x){
-		return Math.pow(p, x && x[0] || 6);
-	},
-
-	Expo: function(p){
-		return Math.pow(2, 8 * (p - 1));
-	},
-
-	Circ: function(p){
-		return 1 - Math.sin(Math.acos(p));
-	},
-
-	Sine: function(p){
-		return 1 - Math.cos(p * Math.PI / 2);
-	},
-
-	Back: function(p, x){
-		x = x && x[0] || 1.618;
-		return Math.pow(p, 2) * ((x + 1) * p - x);
-	},
-
-	Bounce: function(p){
-		var value;
-		for (var a = 0, b = 1; 1; a += b, b /= 2){
-			if (p >= (7 - 4 * a) / 11){
-				value = b * b - Math.pow((11 - 6 * a - 11 * p) / 4, 2);
-				break;
-			}
-		}
-		return value;
-	},
-
-	Elastic: function(p, x){
-		return Math.pow(2, 10 * --p) * Math.cos(20 * p * Math.PI * (x && x[0] || 1) / 3);
-	}
-
-});
-
-['Quad', 'Cubic', 'Quart', 'Quint'].each(function(transition, i){
-	Fx.Transitions[transition] = new Fx.Transition(function(p){
-		return Math.pow(p, i + 2);
-	});
-});
-
-/*
----
-
 name: JSON
 
 description: JSON encoder and decoder.
 
 license: MIT-style license.
 
-See Also: <http://www.json.org/>
+SeeAlso: <http://www.json.org/>
 
 requires: [Array, String, Number, Function]
 
@@ -3047,8 +2760,8 @@ if (this.Type) new Type('Color', Color);
 ---
 name: ART
 description: "The heart of ART."
-requires: [Core/Class, Color/Color, Table/Table]
-provides: [ART, ART.Element, ART.Container]
+requires: [Core/Class, Color/Color]
+provides: [ART, ART.Element, ART.Container, ART.Transform]
 ...
 */
 
@@ -3060,7 +2773,7 @@ ART.version = '09.dev';
 ART.build = 'DEV';
 
 ART.Element = new Class({
-	
+
 	/* dom */
 
 	inject: function(element){
@@ -3068,58 +2781,41 @@ ART.Element = new Class({
 		element.appendChild(this.element);
 		return this;
 	},
-	
+
 	eject: function(){
 		var element = this.element, parent = element.parentNode;
 		if (parent) parent.removeChild(element);
 		return this;
 	},
-	
+
 	/* events */
-	
-	listen: function(type, fn){
-		if (!this._events) this._events = {};
-		
+
+	subscribe: function(type, fn, bind){
 		if (typeof type != 'string'){ // listen type / fn with object
-			for (var t in type) this.listen(t, type[t]);
+			var subscriptions = [];
+			for (var t in type) subscriptions.push(this.subscribe(t, type[t]));
+			return function(){ // unsubscribe
+				for (var i = 0, l = subscriptions.length; i < l; i++)
+					subscriptions[i]();
+				return this;
+			};
 		} else { // listen to one
-			if (!this._events[type]) this._events[type] = new Table;
-			var events = this._events[type];
-			if (events.get(fn)) return this;
-			var bound = fn.bind(this);
-			events.set(fn, bound);
+			var bound = fn.bind(bind || this);
 			var element = this.element;
-			if (element.addEventListener) element.addEventListener(type, bound, false);
-			else element.attachEvent('on' + type, bound);
+			if (element.addEventListener){
+				element.addEventListener(type, bound, false);
+				return function(){ // unsubscribe
+					element.removeEventListener(type, bound, false);
+					return this;
+				};
+			} else {
+				element.attachEvent('on' + type, bound);
+				return function(){ // unsubscribe
+					element.detachEvent('on' + type, bound);
+					return this;
+				};
+			}
 		}
-
-		return this;
-	},
-	
-	ignore: function(type, fn){
-		if (!this._events) return this;
-		
-		if (typeof type != 'string'){ // ignore type / fn with object
-			for (var t in type) this.ignore(t, type[t]);
-			return this;
-		}
-		
-		var events = this._events[type];
-		if (!events) return this;
-		
-		if (fn == null){ // ignore every of type
-			events.each(function(fn, bound){
-				this.ignore(type, fn);
-			}, this);
-		} else { // ignore one
-			var bound = events.get(fn);
-			if (!bound) return this;
-			var element = this.element;
-			if (element.removeEventListener) element.removeEventListener(type, bound, false);
-			else element.detachEvent('on' + type, bound);
-		}
-
-		return this;
 	}
 
 });
@@ -3129,6 +2825,128 @@ ART.Container = new Class({
 	grab: function(){
 		for (var i = 0; i < arguments.length; i++) arguments[i].inject(this);
 		return this;
+	}
+
+});
+
+var transformTo = function(xx, yx, xy, yy, x, y){
+	if (xx && typeof xx == 'object'){
+		yx = xx.yx; yy = xx.yy; y = xx.y;
+		xy = xx.xy; x = xx.x; xx = xx.xx;
+	}
+	this.xx = xx == null ? 1 : xx;
+	this.yx = yx || 0;
+	this.xy = xy || 0;
+	this.yy = yy == null ? 1 : yy;
+	this.x = (x == null ? this.x : x) || 0;
+	this.y = (y == null ? this.y : y) || 0;
+	this._transform();
+	return this;
+};
+
+ART.Transform = new Class({
+
+	initialize: transformTo,
+
+	_transform: function(){},
+
+	xx: 1, yx: 0, x: 0,
+	xy: 0, yy: 1, y: 0,
+
+	transform: function(xx, yx, xy, yy, x, y){
+		var m = this;
+		if (xx && typeof xx == 'object'){
+			yx = xx.yx; yy = xx.yy; y = xx.y;
+			xy = xx.xy; x = xx.x; xx = xx.xx;
+		}
+		if (!x) x = 0;
+		if (!y) y = 0;
+		return this.transformTo(
+			m.xx * xx + m.xy * yx,
+			m.yx * xx + m.yy * yx,
+			m.xx * xy + m.xy * yy,
+			m.yx * xy + m.yy * yy,
+			m.xx * x + m.xy * y + m.x,
+			m.yx * x + m.yy * y + m.y
+		);
+	},
+
+	transformTo: transformTo,
+
+	translate: function(x, y){
+		return this.transform(1, 0, 0, 1, x, y);
+	},
+
+	move: function(x, y){
+		this.x += x || 0;
+		this.y += y || 0;
+		this._transform();
+		return this;
+	},
+
+	scale: function(x, y){
+		if (y == null) y = x;
+		return this.transform(x, 0, 0, y, 0, 0);
+	},
+
+	rotate: function(deg, x, y){
+		if (x == null || y == null){
+			x = (this.left || 0) + (this.width || 0) / 2;
+			y = (this.top || 0) + (this.height || 0) / 2;
+		}
+
+		var rad = deg * Math.PI / 180, sin = Math.sin(rad), cos = Math.cos(rad);
+
+		this.transform(1, 0, 0, 1, x, y);
+		var m = this;
+
+		return this.transformTo(
+			cos * m.xx - sin * m.yx,
+			sin * m.xx + cos * m.yx,
+			cos * m.xy - sin * m.yy,
+			sin * m.xy + cos * m.yy,
+			m.x,
+			m.y
+		).transform(1, 0, 0, 1, -x, -y);
+	},
+
+	moveTo: function(x, y){
+		var m = this;
+		return this.transformTo(m.xx, m.yx, m.xy, m.yy, x, y);
+	},
+
+	rotateTo: function(deg, x, y){
+		var m = this;
+		var flip = m.yx / m.xx > m.yy / m.xy ? -1 : 1;
+		if (m.xx < 0 ? m.xy >= 0 : m.xy < 0) flip = -flip;
+		return this.rotate(deg - Math.atan2(flip * m.yx, flip * m.xx) * 180 / Math.PI, x, y);
+	},
+
+	scaleTo: function(x, y){
+		// Normalize
+		var m = this;
+
+		var h = Math.sqrt(m.xx * m.xx + m.yx * m.yx);
+		m.xx /= h; m.yx /= h;
+
+		h = Math.sqrt(m.yy * m.yy + m.xy * m.xy);
+		m.yy /= h; m.xy /= h;
+
+		return this.scale(x, y);
+	},
+
+	resizeTo: function(width, height){
+		var w = this.width, h = this.height;
+		if (!w || !h) return this;
+		return this.scaleTo(width / w, height / h);
+	},
+
+	point: function(x, y){
+		var m = this;
+		return {
+			x: m.xx * x + m.xy * y + m.x,
+			y: m.yx * x + m.yy * y + m.y
+		};
 	}
 
 });
@@ -3197,8 +3015,8 @@ ART.Element.implement({
 name: ART.Path
 description: "Class to generate a valid SVG path using method calls."
 authors: ["[Valerio Proietti](http://mad4milk.net)", "[Sebastian Markbåge](http://calyptus.eu/)"]
-provides: ART.Path
-requires: ART
+provides: [ART.Path]
+requires: [ART, ART.Transform]
 ...
 */
 
@@ -3206,168 +3024,227 @@ requires: ART
 
 /* private functions */
 
-var parse = function(path){
+var parameterCount = {
+	l: 2, z: 0,
+	h: 1, v: 1,
+	c: 6, s: 4,
+	q: 4, t: 2,
+	a: 7
+};
+
+function parse(path){
+
+	if (!path) return [];
 
 	var parts = [], index = -1,
-	    bits = path.match(/[a-df-z]|[\-+]?(?:[\d\.]e[\-+]?|[^\s\-+,a-z])+/ig);
+	    bits = path.match(/[a-df-z]|[\-+]?(?:[\d\.]e[\-+]?|[^\s\-+,a-z])+/ig),
+	    command, part, paramCount = 0;
 
 	for (var i = 0, l = bits.length; i < l; i++){
 		var bit = bits[i];
-		if (bit.match(/^[a-z]/i)) parts[++index] = [bit];
-		else parts[index].push(Number(bit));
+		if (bit.match(/^[a-z]/i)){
+			command = bit;
+			parts[++index] = part = [command];
+			if (command == 'm') command = 'l';
+			else if (command == 'M') command = 'L';
+			paramCount = parameterCount[command.toLowerCase()];
+		} else {
+			if (part.length > paramCount) parts[++index] = part = [command];
+			part.push(Number(bit));
+		}
 	}
 	
 	return parts;
 
 };
 
-var circle = Math.PI * 2, north = circle / 2, west = north / 2, east = -west, south = 0;
+function visitCurve(sx, sy, c1x, c1y, c2x, c2y, ex, ey, lineTo){
+	var gx = ex - sx, gy = ey - sy,
+		g = gx * gx + gy * gy,
+		v1, v2, cx, cy, u;
 
-var calculateArc = function(rx, ry, rotation, large, clockwise, x, y, tX, tY){
-	var cx = x / 2, cy = y / 2,
-		rxry = rx * rx * ry * ry, rycx = ry * ry * cx * cx, rxcy = rx * rx * cy * cy,
+	cx = c1x - sx; cy = c1y - sy;
+	u = cx * gx + cy * gy;
+
+	if (u > g){
+		cx -= gx;
+		cy -= gy;
+	} else if (u > 0 && g != 0){
+		cx -= u/g * gx;
+		cy -= u/g * gy;
+	}
+
+	v1 = cx * cx + cy * cy;
+
+	cx = c2x - sx; cy = c2y - sy;
+	u = cx * gx + cy * gy;
+
+	if (u > g){
+		cx -= gx;
+		cy -= gy;
+	} else if (u > 0 && g != 0){
+		cx -= u/g * gx;
+		cy -= u/g * gy;
+	}
+
+	v2 = cx * cx + cy * cy;
+
+	if (v1 < 0.01 && v2 < 0.01){
+		lineTo(sx, sy, ex, ey);
+		return;
+	}
+
+	// Split curve
+	var s1x =   (c1x + c2x) * 0.5,   s1y =   (c1y + c2y) * 0.5,
+	    l1x =   (c1x + sx)  * 0.5,   l1y =   (c1y + sy)  * 0.5,
+	    l2x =   (l1x + s1x) * 0.5,   l2y =   (l1y + s1y) * 0.5,
+	    r2x =   (ex + c2x)  * 0.5,   r2y =   (ey + c2y)  * 0.5,
+	    r1x =   (r2x + s1x) * 0.5,   r1y =   (r2y + s1y) * 0.5,
+	    l2r1x = (l2x + r1x) * 0.5,   l2r1y = (l2y + r1y) * 0.5;
+
+	// TODO: Manual stack if necessary. Currently recursive without tail optimization.
+	visitCurve(sx, sy, l1x, l1y, l2x, l2y, l2r1x, l2r1y, lineTo);
+	visitCurve(l2r1x, l2r1y, r1x, r1y, r2x, r2y, ex, ey, lineTo);
+};
+
+var circle = Math.PI * 2;
+
+function visitArc(rx, ry, rotation, large, clockwise, x, y, tX, tY, curveTo, arcTo){
+	var rad = rotation * Math.PI / 180, cos = Math.cos(rad), sin = Math.sin(rad);
+	x -= tX; y -= tY;
+	
+	// Ellipse Center
+	var cx = cos * x / 2 + sin * y / 2,
+		cy = -sin * x / 2 + cos * y / 2,
+		rxry = rx * rx * ry * ry,
+		rycx = ry * ry * cx * cx,
+		rxcy = rx * rx * cy * cy,
 		a = rxry - rxcy - rycx;
 
 	if (a < 0){
 		a = Math.sqrt(1 - a / rxry);
 		rx *= a; ry *= a;
+		cx = x / 2; cy = y / 2;
 	} else {
 		a = Math.sqrt(a / (rxcy + rycx));
 		if (large == clockwise) a = -a;
-		cx += -a * y / 2 * rx / ry;
-		cy +=  a * x / 2 * ry / rx;
+		var cxd = -a * cy * rx / ry,
+		    cyd =  a * cx * ry / rx;
+		cx = cos * cxd - sin * cyd + x / 2;
+		cy = sin * cxd + cos * cyd + y / 2;
 	}
 
-	var sa = Math.atan2(cx, -cy), ea = Math.atan2(-x + cx, y - cy);
-	if (!+clockwise){ var t = sa; sa = ea; ea = t; }
-	if (ea < sa) ea += circle;
+	// Rotation + Scale Transform
+	var xx =  cos / rx, yx = sin / rx,
+	    xy = -sin / ry, yy = cos / ry;
+
+	// Start and End Angle
+	var sa = Math.atan2(xy * -cx + yy * -cy, xx * -cx + yx * -cy),
+	    ea = Math.atan2(xy * (x - cx) + yy * (y - cy), xx * (x - cx) + yx * (y - cy));
 
 	cx += tX; cy += tY;
+	x += tX; y += tY;
 
-	return {
-		circle: [cx - rx, cy - ry, cx + rx, cy + ry],
-		boundsX: [
-			ea > circle + west || (sa < west && ea > west) ? cx - rx : tX,
-			ea > circle + east || (sa < east && ea > east) ? cx + rx : tX
-		],
-		boundsY: [
-			ea > north ? cy - ry : tY,
-			ea > circle + south || (sa < south && ea > south) ? cy + ry : tY
-		]
-	};
+	// Circular Arc
+	if (rx == ry && arcTo){
+		arcTo(
+			tX, tY, x, y,
+			cx, cy, rx, sa, ea, !clockwise
+		);
+		return;
+	}
+
+	// Inverse Rotation + Scale Transform
+	xx = cos * rx; yx = -sin * ry;
+	xy = sin * rx; yy =  cos * ry;
+
+	// Bezier Curve Approximation
+	var arc = ea - sa;
+	if (arc < 0 && clockwise) arc += circle;
+	else if (arc > 0 && !clockwise) arc -= circle;
+
+	var n = Math.ceil(Math.abs(arc / (circle / 4))),
+	    step = arc / n,
+	    k = (4 / 3) * Math.tan(step / 4),
+	    a = sa;
+
+	x = Math.cos(a); y = Math.sin(a);
+
+	for (var i = 0; i < n; i++){
+		var cp1x = x - k * y, cp1y = y + k * x;
+
+		a += step;
+		x = Math.cos(a); y = Math.sin(a);
+
+		var cp2x = x + k * y, cp2y = y - k * x;
+
+		curveTo(
+			tX, tY,
+			cx + xx * cp1x + yx * cp1y, cy + xy * cp1x + yy * cp1y,
+			cx + xx * cp2x + yx * cp2y, cy + xy * cp2x + yy * cp2y,
+			(tX = (cx + xx * x + yx * y)), (tY = (cy + xy * x + yy * y))
+		);
+	}
 };
 
-var extrapolate = function(parts, precision){
-	
-	var boundsX = [], boundsY = [];
-	
-	var ux = (precision != null) ? function(x){
-		boundsX.push(x); return Math.round(x * precision);
-	} : function(x){
-		boundsX.push(x); return x;
-	}, uy = (precision != null) ? function(y){
-		boundsY.push(y); return Math.round(y * precision);
-	} : function(y){
-		boundsY.push(y); return y;
-	}, np = (precision != null) ? function(v){
-		return Math.round(v * precision);
-	} : function(v){
-		return v;
-	};
+/* Measure bounds */
 
-	var reflect = function(sx, sy, ex, ey){
-		return [ex * 2 - sx, ey * 2 - sy];
-	};
-	
-	var X = 0, Y = 0, px = 0, py = 0, r;
-	
-	var path = '', inX, inY;
-	
-	for (i = 0; i < parts.length; i++){
-		var v = Array.slice(parts[i]), f = v.shift(), l = f.toLowerCase();
-		var refX = l == f ? X : 0, refY = l == f ? Y : 0;
-		
-		if (l != 'm' && inX == null){
-			inX = X; inY = Y;
-		}
+var left, right, top, bottom;
 
-		switch (l){
-			
-			case 'm':
-				path += 'm' + ux(X = refX + v[0]) + ',' + uy(Y = refY + v[1]);
-			break;
-			
-			case 'l':
-				path += 'l' + ux(X = refX + v[0]) + ',' + uy(Y = refY + v[1]);
-			break;
-			
-			case 'c':
-				px = refX + v[2]; py = refY + v[3];
-				path += 'c' + ux(refX + v[0]) + ',' + uy(refY + v[1]) + ',' + ux(px) + ',' + uy(py) + ',' + ux(X = refX + v[4]) + ',' + uy(Y = refY + v[5]);
-			break;
+function lineBounds(sx, sy, x, y){
+	left   = Math.min(left,   sx, x);
+	right  = Math.max(right,  sx, x);
+	top    = Math.min(top,    sy, y);
+	bottom = Math.max(bottom, sy, y);
+};
 
-			case 's':
-				r = reflect(px, py, X, Y);
-				px = refX + v[0]; py = refY + v[1];
-				path += 'c' + ux(r[0]) + ',' + uy(r[1]) + ',' + ux(px) + ',' + uy(py) + ',' + ux(X = refX + v[2]) + ',' + uy(Y = refY + v[3]);
-			break;
-			
-			case 'q':
-				px = refX + v[0]; py = refY + v[1];
-				path += 'c' + ux(refX + v[0]) + ',' + uy(refY + v[1]) + ',' + ux(px) + ',' + uy(py) + ',' + ux(X = refX + v[2]) + ',' + uy(Y = refY + v[3]);
-			break;
-			
-			case 't':
-				r = reflect(px, py, X, Y);
-				px = refX + r[0]; py = refY + r[1];
-				path += 'c' + ux(px) + ',' + uy(py) + ',' + ux(px) + ',' + uy(py) + ',' + ux(X = refX + v[0]) + ',' + uy(Y = refY + v[1]);
-			break;
+function curveBounds(sx, sy, p1x, p1y, p2x, p2y, x, y){
+	left   = Math.min(left,   sx, p1x, p2x, x);
+	right  = Math.max(right,  sx, p1x, p2x, x);
+	top    = Math.min(top,    sy, p1y, p2y, y);
+	bottom = Math.max(bottom, sy, p1y, p2y, y);
+};
 
-			case 'a':
-				px = refX + v[5]; py = refY + v[6];
+var west = circle / 2, south = west / 2, north = -south, east = 0;
 
-				if (!+v[0] || !+v[1] || (px == X && py == Y)){
-					path += 'l' + ux(X = px) + ',' + uy(Y = py);
-					break;
-				}
-				
-				v[7] = X; v[8] = Y;
-				r = calculateArc.apply(null, v);
+function arcBounds(sx, sy, ex, ey, cx, cy, r, sa, ea, ccw){
+	var bbsa = ccw ? ea : sa, bbea = ccw ? sa : ea;
+	if (bbea < bbsa) bbea += circle;
 
-				boundsX.push.apply(boundsX, r.boundsX);
-				boundsY.push.apply(boundsY, r.boundsY);
+	// Bounds
+	var bbl = (bbea > west) ? (cx - r) : (ex),
+	    bbr = (bbea > circle + east || (bbsa < east && bbea > east)) ? (cx + r) : (ex),
+	    bbt = (bbea > circle + north || (bbsa < north && bbea > north)) ? (cy - r) : (ey),
+	    bbb = (bbea > circle + south || (bbsa < south && bbea > south)) ? (cy + r) : (ey);
 
-				path += (v[4] == 1 ? 'wa' : 'at') + r.circle.map(np) + ',' + ux(X) + ',' + uy(Y) + ',' + ux(X = px) + ',' + uy(Y = py);
-			break;
+	left   = Math.min(left,   sx, bbl, bbr);
+	right  = Math.max(right,  sx, bbl, bbr);
+	top    = Math.min(top,    sy, bbt, bbb);
+	bottom = Math.max(bottom, sy, bbt, bbb);
+};
 
-			case 'h':
-				path += 'l' + ux(X = refX + v[0]) + ',' + uy(Y);
-			break;
-			
-			case 'v':
-				path += 'l' + ux(X) + ',' + uy(Y = refY + v[0]);
-			break;
-			
-			case 'z':
-				path += 'x';
-				if (inX != null){
-					path += 'm' + ux(X = inX) + ',' + uy(Y = inY);
-					inX = null;
-				}
-			break;
-			
-		}
+/* Measure length */
+
+var length, desiredLength, desiredPoint;
+
+function traverseLine(sx, sy, ex, ey){
+	var x = ex - sx,
+		y = ey - sy,
+		l = Math.sqrt(x * x + y * y);
+	length += l;
+	if (length >= desiredLength){
+		var offset = (length - desiredLength) / l,
+		    cos = x / l,
+		    sin = y / l;
+		ex -= x * offset; ey -= y * offset;
+		desiredPoint = new ART.Transform(cos, sin, -sin, cos, ex, ey);
+		desiredLength = Infinity;
 	}
-	
-	var right = Math.max.apply(Math, boundsX),
-		bottom = Math.max.apply(Math, boundsY),
-		left = Math.min.apply(Math, boundsX),
-		top = Math.min.apply(Math, boundsY),
-		height = bottom - top,
-		width = right - left;
-	
-	return [path, {left: left, top: top, right: right, bottom: bottom, width: width, height: height}];
+};
 
+function measureLine(sx, sy, ex, ey){
+	var x = ex - sx, y = ey - sy;
+	length += Math.sqrt(x * x + y * y);
 };
 
 /* Utility command factories */
@@ -3399,31 +3276,21 @@ ART.Path = new Class({
 	initialize: function(path){
 		if (path instanceof ART.Path){ //already a path, copying
 			this.path = Array.slice(path.path);
-			this.box = path.box;
-			this.vml = path.vml;
-			this.svg = path.svg;
+			this.cache = path.cache;
 		} else {
 			this.path = (path == null) ? [] : parse(path);
-			this.box = null;
-			this.vml = null;
-			this.svg = null;
+			this.cache = { svg: String(path) };
 		}
-
-		return this;
 	},
 	
 	push: function(){ //modifying the current path resets the memoized values.
-		this.box = null;
-		this.vml = null;
-		this.svg = null;
+		this.cache = {};
 		this.path.push(Array.slice(arguments));
 		return this;
 	},
 	
 	reset: function(){
-		this.box = null;
-		this.vml = null;
-		this.svg = null;
+		this.cache = {};
 		this.path = [];
 		return this;
 	},
@@ -3449,100 +3316,159 @@ ART.Path = new Class({
 		return this.push('z');
 	},
 	
-	/* split each continuous line into individual paths */
-	
-	splitContinuous: function(){
-		var parts = this.path, newPaths = [], path = new ART.Path();
+	/* visitor */
+
+	visit: function(lineTo, curveTo, arcTo, moveTo, close){
+		var reflect = function(sx, sy, ex, ey){
+			return [ex * 2 - sx, ey * 2 - sy];
+		};
 		
-		var X = 0, Y = 0, inX, inY;
-		for (i = 0; i < parts.length; i++){
-			var v = parts[i], f = v[0], l = f.toLowerCase();
+		if (!curveTo) curveTo = function(sx, sy, c1x, c1y, c2x, c2y, ex, ey){
+			visitCurve(sx, sy, c1x, c1y, c2x, c2y, ex, ey, lineTo);
+		};
+		
+		var X = 0, Y = 0, px = 0, py = 0, r, inX, inY;
+		
+		var parts = this.path;
+		
+		for (var i = 0; i < parts.length; i++){
+			var v = Array.slice(parts[i]), f = v.shift(), l = f.toLowerCase();
+			var refX = l == f ? X : 0, refY = l == f ? Y : 0;
 			
-			if (l != 'm' && inX == null){ inX = X; inY = Y; }
-			
-			if (l != f){ X = 0; Y = 0; }
-			
-			if (l == 'm' || l == 'l' || l == 't'){ X += v[1]; Y += v[2]; }
-			else if (l == 'c'){ X += v[5]; Y += v[6]; }
-			else if (l == 's' || l == 'q'){ X += v[3]; Y += v[4]; }
-			else if (l == 'a'){ X += v[6]; Y += v[7]; }
-			else if (l == 'h'){ X += v[1]; }
-			else if (l == 'v'){ Y += v[1]; }
-			else if (l == 'z' && inX != null){
-				X = inX; Y = inY;
-				inX = null;
+			if (l != 'm' && l != 'z' && inX == null){
+				inX = X; inY = Y;
 			}
 
-			if (path.path.length > 0 && (l == 'm' || l == 'z')){
-				newPaths.push(path);
-				path = new ART.Path().push('M', X, Y);
-			} else {
-				path.path.push(v);
+			switch (l){
+				
+				case 'm':
+					if (moveTo) moveTo(X, Y, X = refX + v[0], Y = refY + v[1]);
+					else { X = refX + v[0]; Y = refY + v[1]; }
+				break;
+				
+				case 'l':
+					lineTo(X, Y, X = refX + v[0], Y = refY + v[1]);
+				break;
+				
+				case 'c':
+					px = refX + v[2]; py = refY + v[3];
+					curveTo(X, Y, refX + v[0], refY + v[1], px, py, X = refX + v[4], Y = refY + v[5]);
+				break;
+
+				case 's':
+					r = reflect(px, py, X, Y);
+					px = refX + v[0]; py = refY + v[1];
+					curveTo(X, Y, r[0], r[1], px, py, X = refX + v[2], Y = refY + v[3]);
+				break;
+				
+				case 'q':
+					px = (refX + v[0]); py = (refY + v[1]);
+					curveTo(X, Y, (X + px * 2) / 3, (Y + py * 2) / 3, ((X = refX + v[2]) + px * 2) / 3, ((Y = refY + v[3]) + py * 2) / 3, X, Y);
+				break;
+				
+				case 't':
+					r = reflect(px, py, X, Y);
+					px = r[0]; py = r[1];
+					curveTo(X, Y, (X + px * 2) / 3, (Y + py * 2) / 3, ((X = refX + v[0]) + px * 2) / 3, ((Y = refY + v[1]) + py * 2) / 3, X, Y);
+				break;
+
+				case 'a':
+					px = refX + v[5]; py = refY + v[6];
+					if (!v[0] || !v[1] || (px == X && py == Y)) lineTo(X, Y, px, py);
+					else visitArc(v[0], v[1], v[2], v[3], v[4], px, py, X, Y, curveTo, arcTo);
+					X = px; Y = py;
+				break;
+
+				case 'h':
+					lineTo(X, Y, X = refX + v[0], Y);
+				break;
+				
+				case 'v':
+					lineTo(X, Y, X, Y = refY + v[0]);
+				break;
+				
+				case 'z':
+					if (inX != null){
+						if (close){
+							close();
+							if (moveTo) moveTo(X, Y, X = inX, Y = inY);
+							else { X = inX; Y = inY; }
+						} else {
+							lineTo(X, Y, X = inX, Y = inY);
+						}
+						inX = null;
+					}
+				break;
+				
+			}
+			if (l != 's' && l != 'c' && l != 't' && l != 'q'){
+				px = X; py = Y;
 			}
 		}
-
-		newPaths.push(path);
-		return newPaths;
 	},
 	
 	/* transformation, measurement */
 	
 	toSVG: function(){
-		if (this.svg == null){
+		if (this.cache.svg == null){
 			var path = '';
 			for (var i = 0, l = this.path.length; i < l; i++) path += this.path[i].join(' ');
-			this.svg = path;
+			this.cache.svg = path;
 		}
-		return this.svg;
+		return this.cache.svg;
 	},
 	
-	toVML: function(precision){
-		if (this.vml == null){
-			var data = extrapolate(this.path, precision);
-			this.box = data[1];
-			this.vml = data[0];
+	measure: function(){
+		if (this.cache.box == null){
+			left = top = Infinity;
+			right = bottom = -Infinity;
+			this.visit(lineBounds, curveBounds, arcBounds);
+			if (left == Infinity)
+				this.cache.box = {left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0};
+			else
+				this.cache.box = {left: left, top: top, right: right, bottom: bottom, width: right - left, height: bottom - top };
 		}
-		return this.vml;
+		return this.cache.box;
 	},
-	
-	measure: function(precision){
-		if (this.box == null){
-					
-			if (this.path.length){
-				var data = extrapolate(this.path, precision);
-				this.box = data[1];
-				this.vml = data[2];
-			} else {
-				this.box = {left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0};
-				this.vml = '';
-				this.svg = '';
-			}
-		
-		}
-		
-		return this.box;
+
+	point: function(lengthToPoint){
+		length = 0;
+		desiredLength = lengthToPoint;
+		desiredPoint = null;
+		this.visit(traverseLine);
+		return desiredPoint;
+	},
+
+	measureLength: function(){
+		length = 0;
+		this.visit(measureLine);
+		return length;
 	}
-	
+
 });
 
 ART.Path.prototype.toString = ART.Path.prototype.toSVG;
 
 })();
-
 /*
 ---
 name: ART.SVG
 description: "SVG implementation for ART"
 provides: [ART.SVG, ART.SVG.Group, ART.SVG.Shape, ART.SVG.Image, ART.SVG.Text]
-requires: [ART, ART.Element, ART.Container, ART.Path]
+requires: [ART, ART.Element, ART.Container, ART.Transform, ART.Path]
 ...
 */
 
 (function(){
 	
-var NS = 'http://www.w3.org/2000/svg', XLINK = 'http://www.w3.org/1999/xlink', UID = 0, createElement = function(tag){
-	return document.createElementNS(NS, tag);
-};
+var NS = 'http://www.w3.org/2000/svg', XLINK = 'http://www.w3.org/1999/xlink', XML = 'http://www.w3.org/XML/1998/namespace',
+    UID = 0,
+    createElement = function(tag){
+        return document.createElementNS(NS, tag);
+    };
+
+var ua = navigator && navigator.userAgent,
+    hasBaseline = !(/opera|safari|ie/i).test(ua) || (/chrome/i).test(ua);
 
 // SVG Base Class
 
@@ -3564,6 +3490,8 @@ ART.SVG = new Class({
 		var element = this.element;
 		element.setAttribute('width', width);
 		element.setAttribute('height', height);
+		this.width = width;
+		this.height = height;
 		return this;
 	},
 	
@@ -3578,46 +3506,23 @@ ART.SVG = new Class({
 ART.SVG.Element = new Class({
 	
 	Extends: ART.Element,
+	
+	Implements: ART.Transform,
 
 	initialize: function(tag){
 		this.uid = String.uniqueID();
 		var element = this.element = createElement(tag);
 		element.setAttribute('id', 'e' + this.uid);
-		this.transform = {translate: [0, 0], rotate: [0, 0, 0], scale: [1, 1]};
 	},
 	
 	/* transforms */
 	
-	_writeTransform: function(){
-		var transforms = [];
-		for (var transform in this.transform) transforms.push(transform + '(' + this.transform[transform].join(',') + ')');
-		this.element.setAttribute('transform', transforms.join(' '));
+	_transform: function(){
+		var m = this;
+		this.element.setAttribute('transform', 'matrix(' + [m.xx, m.yx, m.xy, m.yy, m.x, m.y] + ')');
 	},
 	
-	rotate: function(deg, x, y){
-		if (x == null || y == null){
-			var box = this.measure();
-			x = box.left + box.width / 2; y = box.top + box.height / 2;
-		}
-		this.transform.rotate = [deg, x, y];
-		this._writeTransform();
-		return this;
-	},
-
-	scale: function(x, y){
-		if (y == null) y = x;
-		this.transform.scale = [x, y];
-		this._writeTransform();
-		return this;
-	},
-
-	translate: function(x, y){
-		this.transform.translate = [x, y];
-		this._writeTransform();
-		return this;
-	},
-	
-	setOpacity: function(opacity){
+	blend: function(opacity){
 		this.element.setAttribute('opacity', opacity);
 		return this;
 	},
@@ -3632,8 +3537,26 @@ ART.SVG.Element = new Class({
 	show: function(){
 		this.element.setAttribute('display', '');
 		return this;
-	}
+	},
 	
+	// interaction
+	
+	indicate: function(cursor, tooltip){
+		var element = this.element;
+		if (cursor) this.element.style.cursor = cursor;
+		if (tooltip){
+			var title = this.titleElement; 
+			if (title){
+				title.firstChild.nodeValue = tooltip;
+			} else {
+				this.titleElement = title = createElement('title');
+				title.appendChild(document.createTextNode(tooltip));
+				element.insertBefore(title, element.firstChild);
+			}
+		}
+		return this;
+	}
+
 });
 
 // SVG Group Class
@@ -3643,17 +3566,12 @@ ART.SVG.Group = new Class({
 	Extends: ART.SVG.Element,
 	Implements: ART.Container,
 	
-	initialize: function(){
+	initialize: function(width, height){
 		this.parent('g');
+		this.width = width;
+		this.height = height;
 		this.defs = createElement('defs');
 		this.element.appendChild(this.defs);
-		this.children = [];
-	},
-	
-	measure: function(){
-		return ART.Path.measure(this.children.map(function(child){
-			return child.currentPath;
-		}));
 	}
 	
 });
@@ -3674,45 +3592,55 @@ ART.SVG.Base = new Class({
 	
 	inject: function(container){
 		this.eject();
-		if (container instanceof ART.SVG.Group) container.children.push(this);
 		this.container = container;
-		this._injectGradient('fill');
-		this._injectGradient('stroke');
+		this._injectBrush('fill');
+		this._injectBrush('stroke');
 		this.parent(container);
 		return this;
 	},
 	
 	eject: function(){
 		if (this.container){
-			if (this.container instanceof ART.SVG.Group) this.container.children.erase(this);
 			this.parent();
-			this._ejectGradient('fill');
-			this._ejectGradient('stroke');
+			this._ejectBrush('fill');
+			this._ejectBrush('stroke');
 			this.container = null;
 		}
 		return this;
 	},
 	
-	_injectGradient: function(type){
+	_injectBrush: function(type){
 		if (!this.container) return;
-		var gradient = this[type + 'Gradient'];
-		if (gradient) this.container.defs.appendChild(gradient);
+		var brush = this[type + 'Brush'];
+		if (brush) this.container.defs.appendChild(brush);
 	},
 	
-	_ejectGradient: function(type){
+	_ejectBrush: function(type){
 		if (!this.container) return;
-		var gradient = this[type + 'Gradient'];
-		if (gradient) this.container.defs.removeChild(gradient);
+		var brush = this[type + 'Brush'];
+		if (brush) this.container.defs.removeChild(brush);
 	},
 	
 	/* styles */
 	
+	_createBrush: function(type, tag){
+		this._ejectBrush(type);
+
+		var brush = createElement(tag);
+		this[type + 'Brush'] = brush;
+
+		var id = type + '-brush-e' + this.uid;
+		brush.setAttribute('id', id);
+
+		this._injectBrush(type);
+
+		this.element.setAttribute(type, 'url(#' + id + ')');
+
+		return brush;
+	},
+
 	_createGradient: function(type, style, stops){
-		this._ejectGradient(type);
-
-		var gradient = createElement(style + 'Gradient');
-
-		this[type + 'Gradient'] = gradient;
+		var gradient = this._createBrush(type, style);
 
 		var addColor = function(offset, color){
 			color = Color.detach(color);
@@ -3728,20 +3656,16 @@ ART.SVG.Base = new Class({
 		if ('length' in stops) for (var i = 0, l = stops.length - 1; i <= l; i++) addColor(i / l, stops[i]);
 		else for (var offset in stops) addColor(offset, stops[offset]);
 
-		var id = 'g' + String.uniqueID();
-		gradient.setAttribute('id', id);
+		gradient.setAttribute('spreadMethod', 'reflect'); // Closer to the VML gradient
 
-		this._injectGradient(type);
 
 		this.element.removeAttribute('fill-opacity');
-		this.element.setAttribute(type, 'url(#' + id + ')');
-		
 		return gradient;
 	},
 	
 	_setColor: function(type, color){
-		this._ejectGradient(type);
-		this[type + 'Gradient'] = null;
+		this._ejectBrush(type);
+		this[type + 'Brush'] = null;
 		var element = this.element;
 		if (color == null){
 			element.setAttribute(type, 'none');
@@ -3759,39 +3683,117 @@ ART.SVG.Base = new Class({
 		return this;
 	},
 
-	fillRadial: function(stops, focusX, focusY, radius, centerX, centerY){
-		var gradient = this._createGradient('fill', 'radial', stops);
+	fillRadial: function(stops, focusX, focusY, radiusX, radiusY, centerX, centerY){
+		var gradient = this._createGradient('fill', 'radialGradient', stops);
 
-		if (focusX != null) gradient.setAttribute('fx', focusX);
-		if (focusY != null) gradient.setAttribute('fy', focusY);
+		gradient.setAttribute('gradientUnits', 'userSpaceOnUse');
+		
 
-		if (radius) gradient.setAttribute('r', radius);
-
+		if (focusX == null) focusX = (this.left || 0) + (this.width || 0) * 0.5;
+		if (focusY == null) focusY = (this.top || 0) + (this.height || 0) * 0.5;
+		if (radiusY == null) radiusY = radiusX || (this.height * 0.5) || 0;
+		if (radiusX == null) radiusX = (this.width || 0) * 0.5;
 		if (centerX == null) centerX = focusX;
 		if (centerY == null) centerY = focusY;
+		
+		var ys = radiusY / radiusX;
 
-		if (centerX != null) gradient.setAttribute('cx', centerX);
-		if (centerY != null) gradient.setAttribute('cy', centerY);
+		gradient.setAttribute('fx', focusX);
+		gradient.setAttribute('fy', focusY / ys);
 
-		gradient.setAttribute('spreadMethod', 'reflect'); // Closer to the VML gradient
+		gradient.setAttribute('r', radiusX);
+		if (ys != 1) gradient.setAttribute('gradientTransform', 'scale(1,' + ys + ')');
+
+		gradient.setAttribute('cx', centerX);
+		gradient.setAttribute('cy', centerY / ys);
 		
 		return this;
 	},
 
-	fillLinear: function(stops, angle){
-		var gradient = this._createGradient('fill', 'linear', stops);
+	fillLinear: function(stops, x1, y1, x2, y2){
+		var gradient = this._createGradient('fill', 'linearGradient', stops);
+		
+		if (arguments.length == 5){
+			gradient.setAttribute('gradientUnits', 'userSpaceOnUse');
+		} else {
+			var angle = ((x1 == null) ? 270 : x1) * Math.PI / 180;
 
-		angle = ((angle == null) ? 270 : angle) * Math.PI / 180;
+			var x = Math.cos(angle), y = -Math.sin(angle),
+				l = (Math.abs(x) + Math.abs(y)) / 2;
 
-		var x = Math.cos(angle), y = -Math.sin(angle),
-			l = (Math.abs(x) + Math.abs(y)) / 2;
+			x *= l; y *= l;
 
-		x *= l; y *= l;
+			x1 = 0.5 - x;
+			x2 = 0.5 + x;
+			y1 = 0.5 - y;
+			y2 = 0.5 + y;
+		}
 
-		gradient.setAttribute('x1', 0.5 - x);
-		gradient.setAttribute('x2', 0.5 + x);
-		gradient.setAttribute('y1', 0.5 - y);
-		gradient.setAttribute('y2', 0.5 + y);
+		gradient.setAttribute('x1', x1);
+		gradient.setAttribute('y1', y1);
+		gradient.setAttribute('x2', x2);
+		gradient.setAttribute('y2', y2);
+
+		return this;
+	},
+
+	fillImage: function(url, width, height, left, top, color1, color2){
+		var pattern = this._createBrush('fill', 'pattern');
+
+		var image = createElement('image');
+		image.setAttributeNS(XLINK, 'href', url);
+		image.setAttribute('width', width);
+		image.setAttribute('height', height);
+		image.setAttribute('preserveAspectRatio', 'none'); // none, xMidYMid slice, xMidYMid meet
+
+		if (color1 != null){
+			color1 = new Color(color1);
+			if (color2 == null){
+				color2 = new Color(color1);
+				color2.alpha = 0;
+			} else {
+				color2 = new Color(color2);
+			}
+
+			var r = (color1.red - color2.red) / (255 * 3),
+				g = (color1.green - color2.green) / (255 * 3),
+				b = (color1.blue - color2.blue) / (255 * 3),
+				a = (color1.alpha - color2.alpha) / 3;
+			
+			var matrix = [
+				r, r, r, 0, color2.red / 255,
+				g, g, g, 0, color2.green / 255,
+				b, b, b, 0, color2.blue / 255,
+				a, a, a, 0, color2.alpha
+			];
+
+			var filter = createElement('filter');
+			filter.setAttribute('id', 'testfilter' + this.uid);
+
+			var cm = createElement('feColorMatrix');
+			cm.setAttribute('type', 'matrix');
+			cm.setAttribute('values', matrix.join(' '));
+
+			image.setAttribute('fill', '#000');
+			image.setAttribute('filter', 'url(#testfilter' + this.uid + ')');
+
+			filter.appendChild(cm);
+			pattern.appendChild(filter);
+		}
+
+		pattern.appendChild(image);
+		
+		pattern.setAttribute('patternUnits', 'userSpaceOnUse');
+		pattern.setAttribute('patternContentsUnits', 'userSpaceOnUse');
+		
+		pattern.setAttribute('x', left || 0);
+		pattern.setAttribute('y', top || 0);
+		
+		pattern.setAttribute('width', width);
+		pattern.setAttribute('height', height);
+
+		//pattern.setAttribute('viewBox', '0 0 75 50');
+		//pattern.setAttribute('preserveAspectRatio', 'xMidYMid slice');
 
 		return this;
 	},
@@ -3814,24 +3816,20 @@ ART.SVG.Shape = new Class({
 	
 	Extends: ART.SVG.Base,
 	
-	initialize: function(path){
+	initialize: function(path, width, height){
 		this.parent('path');
 		this.element.setAttribute('fill-rule', 'evenodd');
+		this.width = width;
+		this.height = height;
 		if (path != null) this.draw(path);
 	},
 	
-	getPath: function(){
-		return this.currentPath || new ART.Path;
-	},
-	
-	draw: function(path){
-		this.currentPath = (path instanceof ART.Path) ? path : new ART.Path(path);
-		this.element.setAttribute('d', this.currentPath.toSVG());
+	draw: function(path, width, height){
+		if (!(path instanceof ART.Path)) path = new ART.Path(path);
+		this.element.setAttribute('d', path.toSVG());
+		if (width != null) this.width = width;
+		if (height != null) this.height = height;
 		return this;
-	},
-	
-	measure: function(){
-		return this.getPath().measure();
 	}
 
 });
@@ -3850,6 +3848,8 @@ ART.SVG.Image = new Class({
 		element.setAttributeNS(XLINK, 'href', src);
 		element.setAttribute('width', width);
 		element.setAttribute('height', height);
+		this.width = width;
+		this.height = height;
 		return this;
 	}
 	
@@ -3857,6 +3857,23 @@ ART.SVG.Image = new Class({
 
 var fontAnchors = { left: 'start', center: 'middle', right: 'end' },
     fontAnchorOffsets = { middle: '50%', end: '100%' };
+
+/* split each continuous line into individual paths */
+
+var splitPaths, splitPath;
+
+function splitMove(sx, sy, x, y){
+	if (splitPath.length > 3) splitPaths.push(splitPath);
+	splitPath = ['M', x, y];
+};
+
+function splitLine(sx, sy, x, y){
+	splitPath.push('L', x, y);
+};
+
+function splitCurve(sx, sy, p1x, p1y, p2x, p2y, x, y){
+	splitPath.push('C', p1x, p1y, p2x, p2y, x, y);
+};
 
 ART.SVG.Text = new Class({
 
@@ -3905,14 +3922,16 @@ ART.SVG.Text = new Class({
 		// Note: Gecko will (incorrectly) align gradients for each row, while others applies one for the entire element
 		
 		var lines = String(text).split(/\r?\n/), l = lines.length,
-		    baseline = paths ? 'middle' : 'text-before-edge';
+		    baseline = 'central';
 		
 		if (paths && l > paths.length) l = paths.length;
 		
-		element.setAttribute('dominant-baseline', baseline);
+		if (hasBaseline) element.setAttribute('dominant-baseline', baseline);
+
+		element.setAttributeNS(XML, 'space', 'preserve');
 		
 		for (var i = 0; i < l; i++){
-			var line = lines[i], row;
+			var line = lines[i], row, content;
 			if (paths){
 				row = createElement('textPath');
 				row.setAttributeNS(XLINK, 'href', '#' + paths[i].getAttribute('id'));
@@ -3920,13 +3939,37 @@ ART.SVG.Text = new Class({
 			} else {
 				row = createElement('tspan');
 				row.setAttribute('x', 0);
-				row.setAttribute('dy', i == 0 ? '0' : '1em');
+				row.setAttribute('y', (i * 1.1 + 0.5) + 'em');
 			}
-			row.setAttribute('baseline-shift', paths ? '-0.5ex' : '-2ex'); // Opera
-			row.setAttribute('dominant-baseline', baseline);
-			row.appendChild(document.createTextNode(line));
+			if (hasBaseline){
+				row.setAttribute('dominant-baseline', baseline);
+				content = row;
+			} else if (paths){
+				content = createElement('tspan');
+				content.setAttribute('dy', '0.35em');
+				row.appendChild(content);
+			} else {
+				content = row;
+				row.setAttribute('y', (i * 1.1 + 0.85) + 'em');
+			}
+			content.setAttributeNS(XML, 'space', 'preserve');
+			content.appendChild(document.createTextNode(line));
 			element.appendChild(row);
 		}
+		
+		// Measure
+		// TODO: Move to lazy ES5 left/top/width/height/bottom/right property getters
+		var bb;
+		try { bb = element.getBBox(); } catch (x){ }
+		if (!bb || !bb.width) bb = this._whileInDocument(element.getBBox, element);
+		
+		this.left = bb.x;
+		this.top = bb.y;
+		this.width = bb.width;
+		this.height = bb.height;
+		this.right = bb.x + bb.width;
+		this.bottom = bb.y + bb.height;
+		return this;
 	},
 	
 	// TODO: Unify path injection with gradients and imagefills
@@ -3965,11 +4008,15 @@ ART.SVG.Text = new Class({
 	_createPaths: function(path){
 		this._ejectPaths();
 		var id = 'p' + String.uniqueID() + '-';
-		var paths = path.splitContinuous();
+		
+		splitPaths = []; splitPath = ['M', 0, 0];
+		path.visit(splitLine, splitCurve, null, splitMove);
+		splitPaths.push(splitPath);
+		
 		var result = [];
-		for (var i = 0, l = paths.length; i < l; i++){
+		for (var i = 0, l = splitPaths.length; i < l; i++){
 			var p = createElement('path');
-			p.setAttribute('d', paths[i].toSVG());
+			p.setAttribute('d', splitPaths[i].join(' '));
 			p.setAttribute('id', id + i);
 			result.push(p);
 		}
@@ -3991,21 +4038,11 @@ ART.SVG.Text = new Class({
 		if (container) this.inject(container);
 		if (parent) parent.insertBefore(element, sibling);
 		return result;
-	},
-	
-	measure: function(){
-		var element = this.element, bb;
-
-		try { bb = element.getBBox(); } catch (x){ }
-		if (!bb || !bb.width) bb = this._whileInDocument(element.getBBox, element);
-		
-		return { left: bb.x, top: bb.y, width: bb.width, height: bb.height, right: bb.x + bb.width, bottom: bb.y + bb.height };
 	}
 
 });
 
 })();
-
 /*
 ---
  
@@ -4134,13 +4171,15 @@ name: ART.VML
 description: "VML implementation for ART"
 authors: ["[Simo Kinnunen](http://twitter.com/sorccu)", "[Valerio Proietti](http://mad4milk.net)", "[Sebastian Markbåge](http://calyptus.eu/)"]
 provides: [ART.VML, ART.VML.Group, ART.VML.Shape, ART.VML.Text]
-requires: [ART, ART.Element, ART.Container, ART.Path]
+requires: [ART, ART.Element, ART.Container, ART.Transform, ART.Path]
 ...
 */
 
 (function(){
 
 var precision = 100, UID = 0;
+
+var defaultBox = { left: 0, top: 0, width: 500, height: 500 };
 
 // VML Base Class
 
@@ -4160,11 +4199,13 @@ ART.VML = new Class({
 	inject: function(element){
 		if (element.element) element = element.element;
 		element.appendChild(this.vml);
+		return this;
 	},
 	
 	resize: function(width, height){
 		this.width = width;
 		this.height = height;
+		
 		var style = this.vml.style;
 		style.pixelWidth = width;
 		style.pixelHeight = height;
@@ -4178,10 +4219,6 @@ ART.VML = new Class({
 		this.element.coordorigin = halfPixel + ',' + halfPixel;
 		this.element.coordsize = (width * precision) + ',' + (height * precision);
 
-		this.children.each(function(child){
-			child._transform();
-		});
-		
 		return this;
 	},
 	
@@ -4209,6 +4246,7 @@ ART.VML.init = function(document){
 
 	styleSheet = document.createStyleSheet();
 	styleSheet.addRule('vml', 'display:inline-block;position:relative;overflow:hidden;');
+	styleTag('skew');
 	styleTag('fill');
 	styleTag('stroke');
 	styleTag('path');
@@ -4225,14 +4263,14 @@ ART.VML.Element = new Class({
 	
 	Extends: ART.Element,
 	
+	Implements: ART.Transform,
+	
 	initialize: function(tag){
 		this.uid = String.uniqueID();
 		if (!(tag in styledTags)) styleTag(tag);
 
 		var element = this.element = document.createElement('av:' + tag);
 		element.setAttribute('id', 'e' + this.uid);
-		
-		this.transform = {translate: [0, 0], scale: [1, 1], rotate: [0, 0, 0]};
 	},
 	
 	/* dom */
@@ -4256,87 +4294,6 @@ ART.VML.Element = new Class({
 		return this;
 	},
 
-	/* transform */
-
-	_transform: function(){
-		var l = this.left || 0, t = this.top || 0,
-		    w = this.width, h = this.height;
-		
-		if (w == null || h == null) return;
-		
-		var tn = this.transform,
-			tt = tn.translate,
-			ts = tn.scale,
-			tr = tn.rotate;
-
-		var cw = w, ch = h,
-		    cl = l, ct = t,
-		    pl = tt[0], pt = tt[1],
-		    rotation = tr[0],
-		    rx = tr[1], ry = tr[2];
-		
-		// rotation offset
-		var theta = rotation / 180 * Math.PI,
-		    sin = Math.sin(theta), cos = Math.cos(theta);
-		
-		var dx = w / 2 - rx,
-		    dy = h / 2 - ry;
-				
-		pl -= cos * -(dx + l) + sin * (dy + t) + dx;
-		pt -= cos * -(dy + t) - sin * (dx + l) + dy;
- 
-		// scale
-		cw /= ts[0];
-		ch /= ts[1];
-		cl /= ts[0];
-		ct /= ts[1];
- 
-		// transform into multiplied precision space		
-		cw *= precision;
-		ch *= precision;
-		cl *= precision;
-		ct *= precision;
-
-		pl *= precision;
-		pt *= precision;
-		w *= precision;
-		h *= precision;
-		
-		var element = this.element;
-		element.coordorigin = cl + ',' + ct;
-		element.coordsize = cw + ',' + ch;
-		element.style.left = pl;
-		element.style.top = pt;
-		element.style.width = w;
-		element.style.height = h;
-		element.style.rotation = rotation;
-	},
-	
-	// transformations
-	
-	translate: function(x, y){
-		this.transform.translate = [x, y];
-		this._transform();
-		return this;
-	},
-	
-	scale: function(x, y){
-		if (y == null) y = x;
-		this.transform.scale = [x, y];
-		this._transform();
-		return this;
-	},
-	
-	rotate: function(deg, x, y){
-		if (x == null || y == null){
-			var box = this.measure(precision);
-			x = box.left + box.width / 2; y = box.top + box.height / 2;
-		}
-		this.transform.rotate = [deg, x, y];
-		this._transform();
-		return this;
-	},
-	
 	// visibility
 	
 	hide: function(){
@@ -4347,8 +4304,16 @@ ART.VML.Element = new Class({
 	show: function(){
 		this.element.style.display = '';
 		return this;
-	}
+	},
 	
+	// interaction
+	
+	indicate: function(cursor, tooltip){
+		if (cursor) this.element.style.cursor = cursor;
+		if (tooltip) this.element.title = tooltip;
+		return this;
+	}
+
 });
 
 // VML Group Class
@@ -4358,8 +4323,10 @@ ART.VML.Group = new Class({
 	Extends: ART.VML.Element,
 	Implements: ART.Container,
 	
-	initialize: function(){
+	initialize: function(width, height){
 		this.parent('group');
+		this.width = width;
+		this.height = height;
 		this.children = [];
 	},
 	
@@ -4367,16 +4334,30 @@ ART.VML.Group = new Class({
 	
 	inject: function(container){
 		this.parent(container);
-		this.width = container.width;
-		this.height = container.height;
 		this._transform();
 		return this;
 	},
 	
 	eject: function(){
 		this.parent();
-		this.width = this.height = null;
 		return this;
+	},
+	
+	_transform: function(){
+		var element = this.element;
+		element.coordorigin = '0,0';
+		element.coordsize = '1000,1000';
+		element.style.left = 0;
+		element.style.top = 0;
+		element.style.width = 1000;
+		element.style.height = 1000;
+		element.style.rotation = 0;
+		
+		var container = this.container;
+		this._activeTransform = container ? new ART.Transform(container._activeTransform).transform(this) : this;
+		var children = this.children;
+		for (var i = 0, l = children.length; i < l; i++)
+			children[i]._transform();
 	}
 
 });
@@ -4390,6 +4371,10 @@ ART.VML.Base = new Class({
 	initialize: function(tag){
 		this.parent(tag);
 		var element = this.element;
+		
+		var skew = this.skewElement = document.createElement('av:skew');
+		skew.on = true;
+		element.appendChild(skew);
 
 		var fill = this.fillElement = document.createElement('av:fill');
 		fill.on = false;
@@ -4398,6 +4383,124 @@ ART.VML.Base = new Class({
 		var stroke = this.strokeElement = document.createElement('av:stroke');
 		stroke.on = false;
 		element.appendChild(stroke);
+	},
+	
+	/* transform */
+	
+	_transform: function(){
+		var container = this.container;
+		
+		// Active Transformation Matrix
+		var m = container ? new ART.Transform(container._activeTransform).transform(this) : this;
+		
+		// Box in shape user space
+		
+		var box = this._boxCoords || this._size || defaultBox;
+		
+		var originX = box.left || 0,
+			originY = box.top || 0,
+			width = box.width || 1,
+			height = box.height || 1;
+				
+		// Flipped
+	    var flip = m.yx / m.xx > m.yy / m.xy;
+		if (m.xx < 0 ? m.xy >= 0 : m.xy < 0) flip = !flip;
+		flip = flip ? -1 : 1;
+		
+		m = new ART.Transform().scale(flip, 1).transform(m);
+		
+		// Rotation is approximated based on the transform
+		var rotation = Math.atan2(-m.xy, m.yy) * 180 / Math.PI;
+		
+		// Reverse the rotation, leaving the final transform in box space
+		var rad = rotation * Math.PI / 180, sin = Math.sin(rad), cos = Math.cos(rad);
+		
+		var transform = new ART.Transform(
+			(m.xx * cos - m.xy * sin),
+			(m.yx * cos - m.yy * sin) * flip,
+			(m.xy * cos + m.xx * sin) * flip,
+			(m.yy * cos + m.yx * sin)
+		);
+
+		var rotationTransform = new ART.Transform().rotate(rotation, 0, 0);
+
+		var shapeToBox = new ART.Transform().rotate(-rotation, 0, 0).transform(m).moveTo(0,0);
+
+		// Scale box after reversing rotation
+		width *= Math.abs(shapeToBox.xx);
+		height *= Math.abs(shapeToBox.yy);
+		
+		// Place box
+		var left = m.x, top = m.y;
+		
+		// Compensate for offset by center origin rotation
+		var vx = -width / 2, vy = -height / 2;
+		var point = rotationTransform.point(vx, vy);
+		left -= point.x - vx;
+		top -= point.y - vy;
+		
+		// Adjust box position based on offset
+		var rsm = new ART.Transform(m).moveTo(0,0);
+		point = rsm.point(originX, originY);
+		left += point.x;
+		top += point.y;
+		
+		if (flip < 0) left = -left - width;
+		
+		// Place transformation origin
+		var point0 = rsm.point(-originX, -originY);
+		var point1 = rotationTransform.point(width, height);
+		var point2 = rotationTransform.point(width, 0);
+		var point3 = rotationTransform.point(0, height);
+		
+		var minX = Math.min(0, point1.x, point2.x, point3.x),
+		    maxX = Math.max(0, point1.x, point2.x, point3.x),
+		    minY = Math.min(0, point1.y, point2.y, point3.y),
+		    maxY = Math.max(0, point1.y, point2.y, point3.y);
+		
+		var transformOriginX = (point0.x - point1.x / 2) / (maxX - minX) * flip,
+		    transformOriginY = (point0.y - point1.y / 2) / (maxY - minY);
+		
+		// Adjust the origin
+		point = shapeToBox.point(originX, originY);
+		originX = point.x;
+		originY = point.y;
+		
+		// Scale stroke
+		var strokeWidth = this._strokeWidth;
+		if (strokeWidth){
+			// Scale is the hypothenus between the two vectors
+			// TODO: Use area calculation instead
+			var vx = m.xx + m.xy, vy = m.yy + m.yx;
+			strokeWidth *= Math.sqrt(vx * vx + vy * vy) / Math.sqrt(2);
+		}
+		
+		// convert to multiplied precision space
+		originX *= precision;
+		originY *= precision;
+		left *= precision;
+		top *= precision;
+		width *= precision;
+		height *= precision;
+		
+		// Set box
+		var element = this.element;
+		element.coordorigin = originX + ',' + originY;
+		element.coordsize = width + ',' + height;
+		element.style.left = left + 'px';
+		element.style.top = top + 'px';
+		element.style.width = width;
+		element.style.height = height;
+		element.style.rotation = rotation.toFixed(8);
+		element.style.flip = flip < 0 ? 'x' : '';
+		
+		// Set transform
+		var skew = this.skewElement;
+		skew.matrix = [transform.xx.toFixed(4), transform.xy.toFixed(4), transform.yx.toFixed(4), transform.yy.toFixed(4), 0, 0];
+		skew.origin = transformOriginX + ',' + transformOriginY;
+
+		// Set stroke
+		this.strokeElement.weight = strokeWidth + 'px';
 	},
 	
 	/* styles */
@@ -4416,7 +4519,7 @@ ART.VML.Base = new Class({
 
 		var addColor = function(offset, color){
 			color = Color.detach(color);
-			if (color1 == null) color1 = color;
+			if (color1 == null) color1 = color2 = color;
 			else color2 = color;
 			colors.push(offset + ' ' + color[0]);
 		};
@@ -4456,6 +4559,7 @@ ART.VML.Base = new Class({
 		if (arguments.length > 1){
 			this.fillLinear(arguments);
 		} else {
+			this._boxCoords = defaultBox;
 			var fill = this.fillElement;
 			fill.type = 'solid';
 			fill.color2 = '';
@@ -4466,19 +4570,89 @@ ART.VML.Base = new Class({
 		return this;
 	},
 
-	fillRadial: function(stops, focusX, focusY, radius){
+	fillRadial: function(stops, focusX, focusY, radiusX, radiusY, centerX, centerY){
 		var fill = this._createGradient('gradientradial', stops);
-		fill.focus = 50;
+		if (focusX == null) focusX = this.left + this.width * 0.5;
+		if (focusY == null) focusY = this.top + this.height * 0.5;
+		if (radiusY == null) radiusY = radiusX || (this.height * 0.5);
+		if (radiusX == null) radiusX = this.width * 0.5;
+		if (centerX == null) centerX = focusX;
+		if (centerY == null) centerY = focusY;
+		
+		centerX += centerX - focusX;
+		centerY += centerY - focusY;
+		
+		var box = this._boxCoords = {
+			left: centerX - radiusX * 2,
+			top: centerY - radiusY * 2,
+			width: radiusX * 4,
+			height: radiusY * 4
+		};
+		focusX -= box.left;
+		focusY -= box.top;
+		focusX /= box.width;
+		focusY /= box.height;
+
 		fill.focussize = '0 0';
-		fill.focusposition = (focusX == null ? 0.5 : focusX) + ',' + (focusY == null ? 0.5 : focusY);
-		fill.focus = (radius == null || radius > 0.5) ? '100%' : (Math.round(radius * 200) + '%');
+		fill.focusposition = focusX + ',' + focusY;
+		fill.focus = '50%';
+		
+		this._transform();
+		
 		return this;
 	},
 
-	fillLinear: function(stops, angle){
+	fillLinear: function(stops, x1, y1, x2, y2){
 		var fill = this._createGradient('gradient', stops);
 		fill.focus = '100%';
-		fill.angle = (angle == null) ? 0 : (90 + angle) % 360;
+		if (arguments.length == 5){
+			var w = Math.abs(x2 - x1), h = Math.abs(y2 - y1);
+			this._boxCoords = {
+				left: Math.min(x1, x2),
+				top: Math.min(y1, y2),
+				width: w < 1 ? h : w,
+				height: h < 1 ? w : h
+			};
+			fill.angle = (360 + Math.atan2((x2 - x1) / h, (y2 - y1) / w) * 180 / Math.PI) % 360;
+		} else {
+			this._boxCoords = null;
+			fill.angle = (x1 == null) ? 0 : (90 + x1) % 360;
+		}
+		this._transform();
+		return this;
+	},
+
+	fillImage: function(url, width, height, left, top, color1, color2){
+		var fill = this.fillElement;
+		if (color1 != null){
+			color1 = Color.detach(color1);
+			if (color2 != null) color2 = Color.detach(color2);
+			fill.type = 'pattern';
+			fill.color = color1[0];
+			fill.color2 = color2 == null ? color1[0] : color2[0];
+			fill.opacity = color2 == null ? 0 : color2[1];
+			fill['ao:opacity2'] = color1[1];
+		} else {
+			fill.type = 'tile';
+			fill.color = '';
+			fill.color2 = '';
+			fill.opacity = 1;
+			fill['ao:opacity2'] = 1;
+		}
+		if (fill.colors) fill.colors.value = '';
+		fill.rotate = true;
+		fill.src = url;
+		
+		fill.size = '1,1';
+		fill.position = '0,0';
+		fill.origin = '0,0';
+		fill.aspect = 'ignore'; // ignore, atleast, atmost
+		fill.on = true;
+
+		if (!left) left = 0;
+		if (!top) top = 0;
+		this._boxCoords = width ? { left: left + 0.5, top: top + 0.5, width: width, height: height } : null;
+		this._transform();
 		return this;
 	},
 
@@ -4486,7 +4660,8 @@ ART.VML.Base = new Class({
 	
 	stroke: function(color, width, cap, join){
 		var stroke = this.strokeElement;
-		stroke.weight = (width != null) ? (width / 2) + 'pt' : 1;
+		this._strokeWidth = (width != null) ? width : 1;
+		stroke.weight = (width != null) ? width + 'px' : 1;
 		stroke.endcap = (cap != null) ? ((cap == 'butt') ? 'flat' : cap) : 'round';
 		stroke.joinstyle = (join != null) ? join : 'round';
 
@@ -4502,75 +4677,48 @@ ART.VML.Shape = new Class({
 
 	Extends: ART.VML.Base,
 	
-	initialize: function(path){
+	initialize: function(path, width, height){
 		this.parent('shape');
 
 		var p = this.pathElement = document.createElement('av:path');
 		p.gradientshapeok = true;
 		this.element.appendChild(p);
 		
+		this.width = width;
+		this.height = height;
+		
 		if (path != null) this.draw(path);
-	},
-	
-	getPath: function(){
-		return this.currentPath;
 	},
 	
 	// SVG to VML
 	
-	draw: function(path){
+	draw: function(path, width, height){
 		
-		this.currentPath = (path instanceof ART.Path) ? path : new ART.Path(path);
-		this.currentVML = this.currentPath.toVML(precision);
-		var size = this.currentPath.measure(precision);
+		if (!(path instanceof ART.Path)) path = new ART.Path(path);
+		this._vml = path.toVML(precision);
+		this._size = path.measure();
 		
-		this.right = size.right;
-		this.bottom = size.bottom;
-		this.top = size.top;
-		this.left = size.left;
-		this.height = size.height;
-		this.width = size.width;
+		if (width != null) this.width = width;
+		if (height != null) this.height = height;
 		
-		this._transform();
-		this._redraw(this._radial);
+		if (!this._boxCoords) this._transform();
+		this._redraw(this._prefix, this._suffix);
 		
 		return this;
 	},
 	
-	measure: function(){
-		return this.getPath().measure();
-	},
-	
 	// radial gradient workaround
 
-	_redraw: function(radial){
-		var vml = this.currentVML || '';
+	_redraw: function(prefix, suffix){
+		var vml = this._vml || '';
 
-		this._radial = radial;
-		if (radial){
-			var cx = Math.round((this.left + this.width * radial.x) * precision),
-				cy = Math.round((this.top + this.height * radial.y) * precision),
-
-				rx = Math.round(this.width * radial.r * precision),
-				ry = Math.round(this.height * radial.r * precision),
-
-				arc = ['wa', cx - rx, cy - ry, cx + rx, cy + ry].join(' ');
-
+		this._prefix = prefix;
+		this._suffix = suffix
+		if (prefix){
 			vml = [
-				// Resolve rendering bug
-				'm', cx, cy - ry, 'l', cx, cy - ry,
-
-				// Merge existing path
-				vml,
-
-				// Draw an ellipse around the path to force an elliptical gradient on any shape
-				'm', cx, cy - ry,
-				arc, cx, cy - ry, cx, cy + ry, arc, cx, cy + ry, cx, cy - ry,
-				arc, cx, cy - ry, cx, cy + ry, arc, cx, cy + ry, cx, cy - ry,
-
+				prefix, vml, suffix,
 				// Don't stroke the path with the extra ellipse, redraw the stroked path separately
 				'ns e', vml, 'nf'
-			
 			].join(' ');
 		}
 
@@ -4587,27 +4735,50 @@ ART.VML.Shape = new Class({
 		return this.parent.apply(this, arguments);
 	},
 
-	fillRadial: function(stops, focusX, focusY, radius, centerX, centerY){
-		this.parent.apply(this, arguments);
+	fillImage: function(){
+		this._redraw();
+		return this.parent.apply(this, arguments);
+	},
 
-		if (focusX == null) focusX = 0.5;
-		if (focusY == null) focusY = 0.5;
-		if (radius == null) radius = 0.5;
+	fillRadial: function(stops, focusX, focusY, radiusX, radiusY, centerX, centerY){
+		var fill = this._createGradient('gradientradial', stops);
+		if (focusX == null) focusX = (this.left || 0) + (this.width || 0) * 0.5;
+		if (focusY == null) focusY = (this.top || 0) + (this.height || 0) * 0.5;
+		if (radiusY == null) radiusY = radiusX || (this.height * 0.5) || 0;
+		if (radiusX == null) radiusX = (this.width || 0) * 0.5;
 		if (centerX == null) centerX = focusX;
 		if (centerY == null) centerY = focusY;
-		
+
 		centerX += centerX - focusX;
 		centerY += centerY - focusY;
 		
-		// Compensation not needed when focusposition is applied out of document
-		//focusX = (focusX - centerX) / (radius * 4) + 0.5;
-		//focusY = (focusY - centerY) / (radius * 4) + 0.5;
+		var cx = Math.round(centerX * precision),
+			cy = Math.round(centerY * precision),
 
-		this.fillElement.focus = '50%';
-		//this.fillElement.focusposition = focusX + ',' + focusY;
+			rx = Math.round(radiusX * 2 * precision),
+			ry = Math.round(radiusY * 2 * precision),
 
-		this._redraw({x: centerX, y: centerY, r: radius * 2});
+			arc = ['wa', cx - rx, cy - ry, cx + rx, cy + ry].join(' ');
 
+		this._redraw(
+			// Resolve rendering bug
+			['m', cx, cy - ry, 'l', cx, cy - ry].join(' '),
+			// Draw an ellipse around the path to force an elliptical gradient on any shape
+			[
+				'm', cx, cy - ry,
+				arc, cx, cy - ry, cx, cy + ry, arc, cx, cy + ry, cx, cy - ry,
+				arc, cx, cy - ry, cx, cy + ry, arc, cx, cy + ry, cx, cy - ry
+			].join(' ')
+		);
+
+		this._boxCoords = { left: focusX - 2, top: focusY - 2, width: 4, height: 4 };
+		
+		fill.focusposition = '0.5,0.5';
+		fill.focussize = '0 0';
+		fill.focus = '50%';
+		
+		this._transform();
+		
 		return this;
 	}
 
@@ -4683,6 +4854,7 @@ ART.VML.Text = new Class({
 		style.width = '10000px';
 		style.height = '10000px';
 		style.rotation = 0;
+		element.removeChild(element.firstChild); // Remove skew
 		
 		// Inject the clone into the document
 		
@@ -4707,16 +4879,64 @@ ART.VML.Text = new Class({
 		this.bottom = ebb.bottom - cbb.top;
 		
 		this._transform();
-	},
-	
-	measure: function(){
-		return { left: this.left, top: this.top, width: this.width, height: this.height, right: this.right, bottom: this.bottom };
+
+		this._size = { left: this.left, top: this.top, width: this.width, height: this.height};
+		return this;
 	}
-	
+
+});
+
+// VML Path Extensions
+
+var path, p, round = Math.round;
+
+function moveTo(sx, sy, x, y){
+	path.push('m', round(x * p), round(y * p));
+};
+
+function lineTo(sx, sy, x, y){
+	path.push('l', round(x * p), round(y * p));
+};
+
+function curveTo(sx, sy, p1x, p1y, p2x, p2y, x, y){
+	path.push('c',
+		round(p1x * p), round(p1y * p),
+		round(p2x * p), round(p2y * p),
+		round(x * p), round(y * p)
+	);
+};
+
+function arcTo(sx, sy, ex, ey, cx, cy, r, sa, ea, ccw){
+	cx *= p;
+	cy *= p;
+	r *= p;
+	path.push(ccw ? 'at' : 'wa',
+		round(cx - r), round(cy - r),
+		round(cx + r), round(cy + r),
+		round(sx * p), round(sy * p),
+		round(ex * p), round(ey * p)
+	);
+};
+
+function close(){
+	path.push('x');
+};
+
+ART.Path.implement({
+
+	toVML: function(precision){
+		if (this.cache.vml == null){
+			path = [];
+			p = precision;
+			this.visit(lineTo, curveTo, arcTo, moveTo, close);
+			this.cache.vml = path.join(' ');
+		}
+		return this.cache.vml;
+	}
+
 });
 
 })();
-
 /*
 ---
 name: ART.Base
@@ -4913,6 +5133,39 @@ String.implement({
 
 });
 
+/*
+---
+
+script: String.js
+
+name: String
+
+description: Normalized query string methods with array empty index support
+
+license: MIT-style license
+
+extends: More/String.QueryString
+
+...
+*/
+
+String.implement({
+	parseQueryString: function(decodeKeys, decodeValues){
+		var object = {};
+		for (var pair, bits, pairs = this.split('&'), i = 0, j = pairs.length; i < j; i++) {
+			pair = pairs[i].split('=');
+			var name = pair[0], value = pair[1];
+			if (decodeValues !== false && value != null) value = decodeURIComponent(value);
+			if (decodeKeys !== false) name = decodeURIComponent(name);
+			var keys = name.match(/([^\]\[]+|(\B)(?=\]))/g);
+			for (var key, bit, path = object, k = 0, l = keys.length; (key = keys[k]) || k < l; k++) {
+				if (k == l - 1) key ? (path[key] = value) : path.push(value);
+				else path = (path[key] || (path[key] = path[key] = (keys[k + 1] == "") ? [] : {}))
+			}
+		}
+  	return object;
+	}
+});
 /*
 ---
 
@@ -5125,6 +5378,40 @@ Hash.alias({indexOf: 'keyOf', contains: 'hasValue'});
 
 /*
 ---
+
+name: Object
+
+description: Object with normalized query string serialization
+
+license: MIT-style license.
+
+extends: Core/Object
+
+...
+*/
+
+Object.extend({
+	toQueryString: function(object, base){
+		var queryString = [];
+		var serialize = function(value, key, multiple){
+			if (base) key = base + '[' + key + ']';
+			if (multiple == true) key += '[]';
+			var result;
+			switch (typeOf(value)){
+				case 'object': result = Object.toQueryString(value, key); break;
+				case 'array':
+					for (var i = 0, j = value.length; i < j; i++) serialize(value[i], key, true);
+				break;
+				default: result = key + '=' + encodeURIComponent(value);
+			}
+			if (value != null && result != null) queryString.push(result);
+		};
+		Object.each(object, serialize);
+		return queryString.join('&');
+	}
+});
+/*
+---
  
 script: Base.js
  
@@ -5195,7 +5482,7 @@ var LSD = Object.append(new Events, {
   Events: {},
   Attributes: {
     Numeric: Array.fast('tabindex', 'width', 'height'),
-    Boolean: Array.fast('readonly', 'disabled', 'hidden')
+    Boolean: Array.fast('readonly', 'disabled', 'hidden', 'checked')
   },
   Styles: {},
   States: {
@@ -5203,16 +5490,18 @@ var LSD = Object.append(new Events, {
       built:    {enabler: 'build',      disabler: 'destroy',   reflect: false},
       attached: {enabler: 'attach',     disabler: 'detach',    reflect: false},
       hidden:   {enabler: 'hide',       disabler: 'show'},
-      disabled: {enabler: 'disable',    disabler: 'enable'},   
+      disabled: {enabler: 'disable',    disabler: 'enable'},
+      active:   {enabler: 'activate',   disabler: 'deactivate'},
       focused:  {enabler: 'focus',      disabler: 'blur'},     
       selected: {enabler: 'select',     disabler: 'unselect'}, 
       checked:  {enabler: 'check',      disabler: 'uncheck',   toggler: 'toggle'},
-      expanded: {enabler: 'expand',     disabler: 'collapse',  toggler: 'toggle'},
+      collapsed:{enabler: 'collapse',   disabler: 'expand',  toggler: 'toggle'},
       working:  {enabler: 'busy',       disabler: 'idle'},
       chosen:   {enabler: 'choose',     disabler: 'forget'},
       empty:    {enabler: 'empty',      disabler: 'fill',      property: 'unfilled', initial: true},
       invalid:  {enabler: 'invalidate', disabler: 'validate',   events: {enabler: 'invalid', disabler: 'valid'}},
-      valid:    {enabler: 'validate',   disabler: 'invalidate', events: {enabler: 'valid', disabler: 'invalid'}}
+      valid:    {enabler: 'validate',   disabler: 'invalidate', events: {enabler: 'valid', disabler: 'invalid'}},
+      editing:  {enabler: 'edit',       disabler: 'finish'}
     },
     Positive: {
       disabled: 'disabled',
@@ -5228,7 +5517,10 @@ var LSD = Object.append(new Events, {
     },
     Classes: {
       selected: 'selected',
-      empty: 'empty'
+      empty: 'empty',
+      working: 'working',
+      focused: 'focused',
+      editing: 'editing'
     }
   },
   Options: {},
@@ -5289,7 +5581,23 @@ Object.append(LSD, {
     return ary;
   } : function(list, start) {
     return Array.prototype.slice.call(list, start || 0);
-  })
+  }),
+  
+  log: function() {
+    console.log.apply(console, arguments);
+  },
+  
+  error: function() {
+    (console.error || console.log).apply(console, arguments);
+  },
+  
+  warn: function() {
+    (console.warn || console.log).apply(console, arguments);
+  },
+  
+  info: function() {
+    (console.info || console.log).apply(console, arguments);
+  }
 });
 
 States.get = function(name) { 
@@ -5298,186 +5606,10 @@ States.get = function(name) {
 
 (function(toString) {
   Type.isEnumerable = function(item){
-  	return (item != null && typeof item.length == 'number' && toString.call(item) != '[object Function]' && !item.localName && !item.nodeType);
+    return (item != null && typeof item.length == 'number' && toString.call(item) != '[object Function]' && !item.localName && !item.nodeType);
   };
 })(Object.prototype.toString);
-/*
----
- 
-script: Checkbox.js
- 
-description: Abstract command
- 
-license: Public domain (http://unlicense.org).
 
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD
- 
-provides: 
-  - LSD.Command
-  - LSD.Command.Command
- 
-...
-*/
-
-LSD.Command = new Class({
-  options: {
-    id: null,
-    action: null
-  },
-  
-  Implements: [Options, Events, States],
-  
-  initialize: function(document, options) {
-    this.setOptions(options);
-    if (document) {
-      this.document = document;
-      if (!this.document.commands) this.document.commands = {};
-      this.document.commands[this.options.id] = this;
-    }
-  },
-  
-  click: function() {
-    this.fireEvent('click', arguments);
-  },
-  
-  attach: function(widget) {
-    var states = this.$states;
-    var events = widget.events._command = {}, self = this;
-    Object.each(states, function(state, name) {
-      events[state.enabler] = function() {
-        self[state.enabler].apply(widget, arguments)
-      }
-      events[state.disabler] = function() {
-        self[state.disabler].apply(widget, arguments)
-      }
-    });
-    if (widget.options.events.command) this.addEvents(widget.options.events.command);
-    this.addEvents(events);
-  },
-  
-  detach: function(widget) {
-    if (widget.options.events.command) this.removeEvents(widget.options.events.command);
-		var events = widget.events._command;
-		if (events) this.removeEvents(events);
-  }
-});
-
-LSD.Command.prototype.addState('disabled');
-
-LSD.Command.Command = LSD.Command;
-/*
----
- 
-script: Checkbox.js
- 
-description: Two-state command (can be on and off)
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Command
- 
-provides: 
-  - LSD.Command.Checkbox
- 
-...
-*/
-
-/*
-  Checkbox commands are useful when you need to track and toggle
-  state of some linked object. 
-  
-  Provide your custom logic hooking on *check* and *uncheck*
-  state transitions. Use *checked* property to get the current state.
-  
-  Examples:
-    - Button that toggles visibility of a sidebar
-    - Context menu item that shows or hides line numbers in editor
-*/
-
-LSD.Command.Checkbox = new Class({
-  Extends: LSD.Command,
-  
-  options: {
-    states: Array.fast('checked')
-  },
-
-  click: function() {
-    this.parent.apply(this, arguments);
-    this.toggle();
-  }
-});
-/*
----
- 
-script: Radio.js
- 
-description: A command that is linked with others by name (one of many)
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Command
- 
-provides: 
-  - LSD.Command.Radio
- 
-...
-*/
-
-/*
-  Radio groupping is a way to links commands together to allow
-  only one in the group be active at the moment of time.
-  
-  Activation (*check*ing) of the commands deactivates all 
-  other commands in a radiogroup.
-  
-  Examples: 
-    - Tabs on top of a content window
-    - List of currently open documents in a context menu that
-      shows which of them is the one you edit now and an 
-      ability to switch between documents
-*/
-
-LSD.Command.Radio = new Class({
-  Extends: LSD.Command,
-  
-  options: {
-    radiogroup: false
-  },
-  
-  initialize: function() {
-    this.parent.apply(this, arguments);
-    var name = this.options.radiogroup || this.options.name;
-    if (name) {
-      var groups = this.document.radiogroups;
-      if (!groups) groups = this.document.radiogroups = {};
-      var group = groups[name];
-      if (!group) group = groups[name] = [];
-      group.push(this);
-      this.group = group;
-    }
-    this.addEvent('check', function() {
-      group.each(function(command) {
-        if (command != this) command.uncheck();
-      }, this);
-    })
-  },
-  
-  click: function() {
-    this.parent.apply(this, arguments);
-    this.check();
-  }
-});
-
-LSD.Command.prototype.addState('checked');
 /*
 ---
  
@@ -5500,123 +5632,152 @@ provides:
 
 
 LSD.Action = function(options, name) {
-  var target, state;
-  var self = {
-    options: options,
-    
-    enable: function() {
-      if (self.enabled) return false;
-      self.commit(target, state, arguments, target);
-      if (options.events) target.addEvents(target.events[options.events]);
-      if (self.enabled == null) target.addEvents(events);
-      self.enabled = true;
-      return true;
-    },
-
-    disable: function() {
-      if (!self.enabled) return false;
-      self.revert(target, state, arguments, target);
-      if (options.events) target.removeEvents(target.events[options.events]);
-      if (self.enabled != null) target.removeEvents(events);
-      self.enabled = false;
-      return true;
-    },
-    
-    commit: function(target, state, args, bind) {
-      if (state) target[state.enabler]();
-      var result = options.enable.apply(bind || this, [target].concat(args));
-      return result;
-    },
-    
-    revert: function(target, state, args, bind) {
-      if (state) target[state.disabler]();
-      return options.disable.apply(bind || this, [target].concat(args));
-    },
-    
-    perform: function(target, state, args) {
-      var method = (!options.getState || !options.getState.apply(this, [target].concat(args))) ? 'commit' : 'revert';
-      return this[method].apply(this, arguments);
-    },
-
-    use: function(widget, state) {
-      var widgets = Array.prototype.slice.call(arguments, 0);
-      var state = widgets.pop();
-      self[state ? 'enable' : 'disable'].apply(self, widgets);
-    },
-
-    watch: function(widget, state) {
-      if (!self[state ? 'enable' : 'disable'](widget)) //try enable the action
-        options[state ? 'enable' : 'disable'].call(target, widget); //just fire the callback 
-    },
-    
-    inject: function() {
-      self.enable();
-      if (state) self[state.enabler]();
-    },
-
-    attach: function(widget) {
-      target = widget;
-      state = name && widget.$states && widget.$states[name];
-      if (state) {
-        events[state.enabler] = options.enable.bind(target);
-        events[state.disabler] = options.disabler.bind(target);
-      }
-      target.addEvents(events);
-      if (options.uses) {
-        target.use(options.uses, self.use);
-      } else if (options.watches) {
-        target.watch(options.watches, self.watch);
-      } else if (!state || (name && target[name])) {
-        if (target.onDOMInject) target.onDOMInject(self.inject);
-        else self.inject()
-      }
-    },
-
-    detach: function(widget) {
-      target.removeEvents(events);
-      if (options.watches) target.unwatch(options.watches, self.watch);
-      if (self.enabled) self.disable();
-      if (state) {
-        self[state.disabler]();
-        delete events[state.enabler], events[state.disabler];
-      }
-      target = state = null;
-    },
-    
-    store: function(key, value) {
-      if (!this.storage) this.storage = {};
-      if (!key.indexOf && (typeof key !== 'number')) key = LSD.uid(key);
-      this.storage[key] = value;
-     },
-    
-    retrieve: function(key) {
-      if (!this.storage) return;
-      if (!key.indexOf && (typeof key !== 'number')) key = LSD.uid(key);
-      return this.storage[key];
-    }
-  };
-  for (var methods = ['enable', 'disable'], i, method; method = methods[i++];) {
-    var fn = options[method];
-    if (fn && !fn.call) {
-      var types = fn;
-      options[method] = function(target) {
-        var callback = types[typeOf(target)];
-        if (callback) return callback.apply(this, arguments);
-      }
-    }
+  this.options = this.options ? Object.append(options || {}, this.options) : options || {};
+  this.name = name;
+  this.events = {
+    enable:  this.enable.bind(this),
+    disable: this.disable.bind(this),
+    detach:  this.disable.bind(this)
   }
-  var events = {
-    enable:  self.enable,
-    disable: self.disable,
-    detach:  self.disable
-  };  
-  return self;
+  return this;
 };
 
+LSD.Action.initialize = function(options) {
+  if (options.enabler) LSD.Action[LSD.toClassName(options.enabler)] = LSD.Action.build({
+    enable: options.enable,
+    disable: options.disable,
+    getState: options.getState
+  })
+  if (options.disabler) LSD.Action[LSD.toClassName(options.disabler)] = LSD.Action.build({
+    enable: options.disable,
+    disable: options.enable,
+    getState: options.getState && function() {
+      return !options.getState.apply(this, arguments)
+    }.bind(this)
+  })
+};
+
+LSD.Action.prototype = {
+  
+  enable: function() {
+    if (this.enabled) return false;
+    this.commit(this.target, arguments, this.target);
+    if (this.options.events) this.target.addEvents(this.target.events[this.options.events]);
+    if (this.enabled == null) this.target.addEvents(this.events);
+    this.enabled = true;
+    return true;
+  },
+
+  disable: function() {
+    if (!this.enabled) return false;
+    this.revert(this.target, arguments, this.target);
+    if (this.options.events) this.target.removeEvents(this.target.events[this.options.events]);
+    if (this.enabled != null) this.target.removeEvents(this.events);
+    this.enabled = false;
+    return true;
+  },
+  
+  commit: function(target, args, bind) {
+    if (this.state) this.target[this.state.enabler]();
+    return this.options.enable && this.options.enable.apply(bind || this, [target].concat(args));
+  },
+  
+  revert: function(target, args, bind) {
+    if (this.state) this.target[this.state.disabler]();
+    return this.options.disable && this.options.disable.apply(bind || this, [target].concat(args));
+  },
+  
+  perform: function(target, args) {
+    var method = (!this.options.getState || this.options.getState.apply(this, [target].concat(args))) ? 'commit' : 'revert';
+    return this[method].apply(this, arguments);
+  },
+
+  use: function(widget, state) {
+    var widgets = Array.prototype.slice.call(arguments, 0);
+    var state = widgets.pop();
+    this[state ? 'enable' : 'disable'].apply(this, widgets);
+  },
+
+  watch: function(widget, state) {
+    if (!this[state ? 'enable' : 'disable'](widget)) //try enable the action
+      this.options[state ? 'enable' : 'disable'].call(this.target, widget); //just fire the callback 
+  },
+  
+  inject: function() {
+    this.enable();
+    if (this.state) this[state.enabler]();
+  },
+
+  attach: function(widget) {
+    this.target = widget;
+    this.state = this.name && widget.$states && widget.$states[this.name];
+    if (this.state) {
+      this.events[this.state.enabler] = this.options.enable.bind(this.target);
+      this.events[this.state.disabler] = this.options.disabler.bind(this.target);
+    }
+    this.target.addEvents(this.events);
+    if (this.options.uses) {
+      this.target.use(this.options.uses, this.use.bind(this));
+    } else if (this.options.watches) {
+      this.target.watch(this.options.watches, this.watch.bind(this));
+    } else if (!this.state || (name && this.target[name])) {
+      if (this.target.lsd) {
+        this.target.addEvent('setDocument', this.injection || ((this.injection = this.inject.bind(this))));
+        if (this.target.document) this.inject();
+      } else this.inject();
+    }
+  },
+
+  detach: function(widget) {
+    this.target.removeEvents(this.events);
+    if (this.options.watches) this.target.unwatch(this.options.watches, this.watch);
+    else if (this.options.uses) {
+      
+    } else {
+      this.target.removeEvent('setDocument', this.injection);
+    }
+    if (this.enabled) this.disable();
+    if (this.state) {
+      this[this.state.disabler]();
+      delete this.events[this.state.enabler], this.events[this.state.disabler];
+    }
+    this.target = this.state = null;
+  },
+  
+  store: function(key, value) {
+    if (!this.storage) this.storage = {};
+    if (!key.indexOf && (typeof key !== 'number')) key = LSD.uid(key);
+    this.storage[key] = value;
+   },
+  
+  retrieve: function(key) {
+    if (!this.storage) return;
+    if (!key.indexOf && (typeof key !== 'number')) key = LSD.uid(key);
+    return this.storage[key];
+  },
+  
+  eliminate: function(key) {
+    if (!this.storage) return;
+    if (!key.indexOf && (typeof key !== 'number')) key = LSD.uid(key);
+    delete this.storage[key];
+  },
+  
+  getInvoker: function() {
+    return this.invoker;
+  },
+  
+  getDocument: function() {
+    return this.invoker && this.invoker.document;
+  }
+}
+
 LSD.Action.build = function(curry) {
-  return function(options, name) {
-    return new LSD.Action(Object.append({}, options, curry), name);
+  var action = function(options) {
+    LSD.Action.apply(this, arguments);
   };
+  action.prototype = Object.merge({options: curry}, LSD.Action.prototype);
+  LSD.Action.initialize(action.prototype.options)
+  return action;
 };
 /*
 ---
@@ -5660,17 +5821,67 @@ requires:
 
 provides:
   - LSD.Action.Update
+  - LSD.Action.Append
+  - LSD.Action.Replace
+  - LSD.Action.Before
+  - LSD.Action.After
 
 ...
 */
 
 LSD.Action.Update = LSD.Action.build({
+  container: true,
+  
   enable: function(target, content) {
+    if (!content) return LSD.warn('Update action did not recieve content');
     var widget = LSD.Module.DOM.find(target);
     var fragment = document.createFragment(content);
-    var children = Array.prototype.slice.call(fragment.childNodes, 0);
+    var children = LSD.slice(fragment.childNodes);
+    var element = target.lsd ? target.toElement() : target;
+    var container = (target.lsd || (widget.element == target && widget)) ? widget[this.options.container ? 'getWrapper' : 'toElement']() : element;
+    var args = [container, (widget.element == element ? widget.parentNode : widget), fragment, children, content];
+    this.options.update.apply(this, args);
+  },
+  
+  update: function(target, parent, fragment, children) {
     document.id(target).empty().appendChild(fragment);
-    widget.fireEvent('DOMNodeInserted', children);
+    parent.fireEvent('DOMNodeInserted', [children]);
+  }
+});
+
+LSD.Action.Append = LSD.Action.build({
+  enable: LSD.Action.Update.prototype.options.enable,
+  
+  update: function(target, parent, fragment, children) {
+    target.appendChild(fragment);
+    parent.fireEvent('DOMNodeInserted', [children]);
+  }
+});
+
+LSD.Action.Replace = LSD.Action.build({
+  enable: LSD.Action.Update.prototype.options.enable,
+
+  update: function(target, parent, fragment, children) {
+    target.parentNode.replaceChild(fragment, target);
+    parent.fireEvent('DOMNodeInserted', [children, target]);
+  }
+});
+
+LSD.Action.Before = LSD.Action.build({
+  enable: LSD.Action.Update.prototype.options.enable,
+
+  update: function(target, parent, fragment, children) {
+    target.parentNode.insertBefore(fragment, target);
+    parent.fireEvent('DOMNodeInsertedBefore', [children, target]);
+  }
+});
+
+LSD.Action.After = LSD.Action.build({
+  enable: LSD.Action.Update.prototype.options.enable,
+
+  update: function(target, widget, fragment, children) {
+    target.parentNode.insertBefore(fragment, target.nextSibling);
+    parent.fireEvent('DOMNodeInsertedBefore', [children, target.nextSibling]);
   }
 });
 /*
@@ -5701,65 +5912,14 @@ LSD.Action.Delete = LSD.Action.build({
       LSD.Module.DOM.walk(target, function(node) {
         widget.dispatchEvent('nodeRemoved', node);
       });
-    }
-    target.dispose();
-    if (target.getModel) return target.getModel()['delete']()
+      return Element.dispose(target);
+    } else return (target['delete'] || target.dispose).call(target);
   }
 });
 /*
 ---
  
-script: Value.js
- 
-description: Changes or synchronizes values
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Action
-
-provides:
-  - LSD.Action.Value
- 
-...
-*/
-/*
----
- 
-script: Replace.js
- 
-description: Replaces one widget with another
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Action
- 
-provides:
-  - LSD.Action.Replace
- 
-...
-*/
-
-
-LSD.Action.Replace = LSD.Action.build({
-  enable: function(target, content) {
-    var widget = LSD.Module.DOM.find(target);
-    if (widget == target) widget = widget.parentNode;
-		var fragment = document.createFragment(content);
-    var children = Array.prototype.slice.call(fragment.childNodes, 0);
-    if (content) target.parentNode.replaceChild(fragment, target);
-    widget.fireEvent('DOMNodeInserted', children);
-  }
-});
-/*
----
- 
-script: Send.js
+script: Submit.js
  
 description: Does a request or navigates url to the link
  
@@ -5771,15 +5931,49 @@ requires:
   - LSD.Action
  
 provides:
-  - LSD.Action.Send
+  - LSD.Action.Submit
  
 ...
 */
 
 
-LSD.Action.Send = LSD.Action.build({
-  enable: function(target, data, callback) {
-    return (target.submit || target.send).apply(target, Array.prototype.slice.call(arguments, 1));
+LSD.Action.Submit = LSD.Action.build({
+  fork: true,
+  
+  enable: function(target, event) {
+    if (this.retrieve(target)) return;
+    var args = Array.prototype.slice.call(arguments, 1);
+    if (target.lsd && !target.submit && this.invoker != target && (!event || event.type != 'click')) {
+      if (target.chainPhase == -1 || (target.getCommandAction && target.getCommandAction() == 'submit')) 
+        return target.callChain.apply(target, args);
+    }
+    var method = (target.submit || target.send || target.click);
+    var submission = method.apply(target, args);
+    if (submission && submission != target) {
+      this.store(target, submission);
+      var self = this, callback = function() {
+        this.removeEvents(events);
+        self.eliminate(target);
+      };
+      var events = { complete: callback, cancel: callback };
+      submission.addEvents(events);
+    }
+    return submission
+  },
+  
+  disable: function(target) {
+    var submission = this.retrieve(target);
+    if (submission) {
+      if (submission !== true && submission.running) submission.cancel();
+      this.eliminate(target);
+    } else {
+      if (target.cancel) return target.cancel.apply(target, Array.prototype.slice.call(arguments, 1));
+    }
+  },
+  
+  getState: function(target) {
+    var submission = this.retrieve(target);
+    return !submission || !(submission !== true || submission.running);
   }
 });
 /*
@@ -5812,7 +6006,7 @@ LSD.Action.State = LSD.Action.build({
   },
   
   getState: function(target, name, state) {
-    return (state !== true && state !== false) ? target.hasClass(name) : state;
+    return !((state !== true && state !== false) ? target.hasClass(name) : state);
   }
 });
 /*
@@ -5837,14 +6031,59 @@ provides:
 
 LSD.Action.Set = LSD.Action.build({
   enable: function(target, value) {
-    switch (Element.get(target, 'tag')) {
+    var widget = LSD.Module.DOM.find(target, true);
+    switch (LSD.toLowerCase(target.tagName)) {
       case 'input': case 'textarea':
         if (target.applyValue) target.applyValue(value);
         else target.value = value; break;
-      default: 
-        if (!target.lsd) target.set('html', value); break;
+      default:
+        if (widget && widget.findItemByValue) {
+          var item = widget.findItemByValue(value);
+          if (item) item.check();
+        } else if (!target.lsd) target.set('html', value);
+        break;
     }
   }
+});
+/*
+---
+ 
+script: List.js
+ 
+description: Shows or hides things
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Action
+ 
+provides:
+  - LSD.Action.List
+  - LSD.Action.Next
+  - LSD.Action.Previous
+ 
+...
+*/
+
+LSD.Action.List = LSD.Action.build({
+  enable: function(target) {
+    var widget = LSD.Module.DOM.find(target, true);
+    if (widget && widget.pseudos.list) widget.next();
+  },
+  
+  disable: function(target) {
+    var widget = LSD.Module.DOM.find(target, true);
+    if (widget && widget.pseudos.list) widget.previous();
+  },
+  
+  getState: function(target, state) {
+    return state == 'true';
+  },
+  
+  enabler: 'next',
+  disabler: 'previous'
 });
 /*
 ---
@@ -5862,13 +6101,16 @@ requires:
  
 provides:
   - LSD.Action.Display
+  - LSD.Action.Show
+  - LSD.Action.Hide
  
 ...
 */
 
 LSD.Action.Display = LSD.Action.build({
   enable: function(target) {
-    if (target.show) target.show();
+    var widget = LSD.Module.DOM.find(target, true);
+    if (widget && widget.show) widget.show();
     else if (target.setStyle) {
       target.setStyle('display', target.retrieve('style:display') || 'inherit');
       target.removeAttribute('hidden');
@@ -5876,7 +6118,8 @@ LSD.Action.Display = LSD.Action.build({
   },
   
   disable: function(target) {
-    if (target.hide) target.hide();
+    var widget = LSD.Module.DOM.find(target, true);
+    if (widget && widget.hide) widget.hide();
     else if (target.setStyle) {
       target.store('style:display', target.getStyle('display'));
       target.setStyle('display', 'none');
@@ -5886,102 +6129,18 @@ LSD.Action.Display = LSD.Action.build({
   
   getState: function(target) {
     var element = (target.element || target);
-    return !(target.hidden || (target.getAttribute && target.getAttribute('hidden')) || (element.getStyle && (element.getStyle('display') == 'none')));
-  }
-});
-/*
----
- 
-script: Dialog.js
- 
-description: Shows a dialog
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Action
- 
-provides:
-  - LSD.Action.Dialog
- 
-...
-*/
-
-
-LSD.Action.Dialog = LSD.Action.build({
-  enable: function(target, data) {
-    if (data && !data.event) {
-      if (data.charAt) {
-        var content = data;
-        delete data;
-      }
-    } else delete data;
-    if (target.element) {
-      var dialog = target;
-      target = target.element;
-    } else var dialog = this.retrieve(target);
-    if (dialog && dialog.layout.interpolated) {
-      dialog.destroy();
-      dialog = null;
-    }
-    if (!dialog) {
-      var source = this.caller.element || this.caller;
-      var caller = this.caller;
-      var options = {
-        layout: {
-          options: {
-            method: 'clone', 
-            interpolate: function(string) {
-              if (data) {
-                var substitution = data[string];
-                if (!substitution && substitutions.callback) substitution = substitutions.callback.call(this, string)
-                if (substitution) {
-                  if (substitution.call) substitution = substitution.call(source, string, this);
-                  if (substitution) return substitution;
-                }
-              }
-              return source.getProperty('data-' + string.dasherize())
-            }
-          }
-        },
-        caller: function() {
-          return caller;
-        }
-      };
-      var args = [options];
-      if (!target.indexOf) {
-        if (target.hasClass('singlethon')) options.layout.options.method = 'augment';
-        args.unshift('body-dialog', target);
-      } else args.unshift('body-dialog-' + target)
-      dialog = LSD.Element.create.apply(LSD.Element, args);
-      dialog.addEvents({
-        'submit': function() {
-          if (caller.callChain) caller.callChain(dialog.getData())
-        }.bind(this),
-        'cancel': function() {
-          if (caller.clearChain) caller.clearChain(dialog.getData())
-        }.bind(this)
-      })
-    }
-    if (content) dialog.write(content);
-    dialog.show();
-    this.store(target, dialog);
-    return false;
+    return target.hidden || (target.getAttribute && (target.getAttribute('hidden') == 'hidden')) || (element.getStyle && (element.getStyle('display') == 'none'));
   },
   
-  disable: function(target) {
-    var dialog = this.retrieve(target);
-    if (dialog) dialog.hide();
-  }
+  enabler: 'show',
+  disabler: 'hide'
 });
 /*
 ---
  
-script: Check.js
+script: Toggle.js
  
-description: Changes the state of a widget
+description: Changes the checkedness state of a checkbox
  
 license: Public domain (http://unlicense.org).
 
@@ -5991,26 +6150,31 @@ requires:
   - LSD.Action
  
 provides:
+  - LSD.Action.Toggle
   - LSD.Action.Check
+  - LSD.Action.Uncheck
  
 ...
 */
 
 
-LSD.Action.Check = LSD.Action.build({
+LSD.Action.Toggle = LSD.Action.build({
   enable: function(target) {
-    if (!target || target == this.caller || target.element == this.caller) return;
+    if (!target || target == this.invoker || target.element == this.invoker) return;
     if (!target.checked) (target.check || target.click).apply(target, Array.prototype.slice.call(arguments, 1));
   },
   
   disable: function(target) {
-    if (!target || target == this.caller || target.element == this.caller) return;
+    if (!target || target == this.invoker || target.element == this.invoker) return;
     if (target.checked) (target.uncheck || target.click).apply(target, Array.prototype.slice.call(arguments, 1));
   },
   
   getState: function(target, name, state) {
-    return (state !== true && state !== false) ? !this.caller.checked : state;
-  }
+    return (state !== true && state !== false) ? this.invoker.checked : !state;
+  },
+
+  enabler: 'check',
+  disabler: 'uncheck'
 });
 /*
 ---
@@ -6034,20 +6198,26 @@ provides:
 
 
 LSD.Action.Clone = LSD.Action.build({
-  enable: function(target) {
+  enable: function(target, where) {
     var widget = LSD.Module.DOM.find(target);
     if (widget == target) var element = widget.element, parent = widget.parentNode;
     else var element = target, parent = widget;
-    var clone = this.document.layout.render(element, parent, 'clone');
-    (clone.toElement ? clone.toElement() : clone).inject(target, 'after');
+    var clone = widget.layout.render(element, parent, {clone: true});
+    switch(where) {
+      case "before": case "after": case "top": case "bottom":
+        break;
+      default:
+        where = 'after'
+    };
+    document.id(clone).inject(target, where);
   }
 });
 /*
 ---
  
-script: Append.js
+script: Focus.js
  
-description: Append some content to widget
+description: Brings attention to element
  
 license: Public domain (http://unlicense.org).
 
@@ -6055,22 +6225,289 @@ authors: Yaroslaff Fedin
  
 requires:
   - LSD.Action
-
+ 
 provides:
-  - LSD.Action.Append
-
+  - LSD.Action.Focus
+ 
 ...
 */
 
-LSD.Action.Append = LSD.Action.build({
-  enable: function(target, content) {
+LSD.Action.Focus = LSD.Action.build({
+  enable: function(target) {
+    return (target.focus || target.click).apply(target, Array.prototype.slice(arguments, 1));
+  },
+  
+  disable: function(target) {
+    if (target.blur) return target.blur();
+  }
+})
+/*
+---
+ 
+script: Counter.js
+ 
+description: Increments the number and the label in html element
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Action
+  - String.Inflections/String.camelize
+ 
+provides:
+  - LSD.Action.Counter
+  - LSD.Action.Increment
+  - LSD.Action.Decrement
+ 
+...
+*/
+
+
+!function() {
+
+LSD.Action.Counter = LSD.Action.build({
+  enable: function(target, number) {
+    var counter = this.retrieve(target)
+    if (!counter) this.store(target, (counter = new Counter(target.innerHTML)));
+    target.innerHTML = counter.increment(number).toString();
+  },
+  
+  disable: function(target, number) {
+    var counter = this.retrieve(target)
+    if (!counter) this.store(target, (counter = new Counter(target.innerHTML)));
+    target.innerHTML = counter.decrement(number).toString();
+  },
+
+  enabler: 'increment',
+  disabler: 'decrement'
+});
+
+var Counter = String.Counter = function(string) {
+  this.parsed = this.parse(string);
+  if (this.parsed) {
+    this.parsed.shift();
+    if (this.parsed[3].toLowerCase() == 'one') this.parsed[3] = 1;
+    this.parsed[3] = parseInt(this.parsed[3]);
+    var singular = (this.parsed[3] == 1);
+    this[singular ? 'singular' : 'plural'] = this.parsed[9];
+    this[singular ? 'plural' : 'singular'] = this.parsed[9][singular ? 'pluralize' : 'singularize']()
+  }
+};
+
+Counter.prototype = {
+  parse: function(string) {
+    return (this.parsed = string.match(Counter.regexp));
+  },
+  
+  increment: function(arg) {
+    this.parsed[3] += (arg || 1)
+    return this;
+  },
+  
+  decrement: function(arg) {
+    this.parsed[3] -= (arg || 1)
+    return this;
+  },
+  
+  toString: function() {
+    var clone = this.parsed.slice(0);
+    if (this.parsed[3]) {
+      delete this.parsed[1];
+      delete this.parsed[13];
+    }
+    this.parsed[9] = this[this.parsed[3] == 1 ? 'singular' : 'plural'];
+    return this.parsed.join('');
+  }
+}
+
+Counter.regexp = new RegExp('^(.*?\\s*)' + 
+                            '((?:just|only)\\s*?)?' + 
+                            '(<[^\\s\>]+?[^>]*?>\\s*)?' + 
+                            '(\\d+|no|one)' + 
+                            '(\\s*)' +
+                            '(<\\/[^\\s]+?[^>]+?>)?' + 
+                            '(\\s*)' +
+                            '(<[^\\s]+?[^>]+?>)?' + 
+                            '(\\s*)' +
+                            '(.+?)' +
+                            '(\\s*?)' + 
+                            '(<\\/[^\\s]+?[^>]+?>)?' + 
+                            '(\\s*?)' +
+                            '(\\s*yet)?' +
+                            '($|(?:\\s(?:now|on|if|under|at|in|for|by|so|and|to)\\s|[\\.\\!\\?\\;\\,]))(.*?)$', 'mi');
+                            
+}();
+/*
+---
+ 
+script: Invoke.js
+ 
+description: Invokes a widget and breaks execution chain
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Action
+ 
+provides:
+  - LSD.Action.p
+ 
+...
+*/
+
+
+LSD.Action.Invoke = LSD.Action.build({
+  enable: function(target) {
     var widget = LSD.Module.DOM.find(target);
-    var fragment = document.createFragment(content);
-    var children = Array.prototype.slice.call(fragment.childNodes, 0);
-    document.id(target).appendChild(fragment);
-    widget.fireEvent('DOMNodeInserted', children);
+    this.store(target, widget);
+    var result = widget.invoke(this.invoker);
+    return (result == true || result == widget) ? false : result;
+  },
+  
+  disable: function(target) {
+    var invokee = this.retrieve(target);
+    if (invokee) invokee.revoke();
   }
 });
+/*
+---
+ 
+script: Checkbox.js
+ 
+description: Abstract command
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD
+ 
+provides: 
+  - LSD.Command
+ 
+...
+*/
+
+LSD.Command = function(document, options) {
+  this.setOptions(options);
+  this.widgets = [];
+  this.$events = Object.clone(this.$events);
+  if (document) {
+    this.document = document;
+    if (!this.document.commands) this.document.commands = {};
+    this.document.commands[this.options.id] = this;
+  }
+  if (this.options.type) this.setType(this.options.type);
+};
+
+LSD.Command.prototype = Object.append(new Options, new Events, new States, {
+  options: {
+    id: null,
+    action: null
+  },
+  
+  click: function() {
+    this.fireEvent('click', arguments);
+  },
+  
+  attach: function(widget) {
+    for (var name in this.$states) {
+      if (!widget.$states[name]) {
+        widget.addState(name);
+        widget.$states[name].origin = this;
+      }
+      this.linkState(widget, name, name, true);
+      widget.linkState(this, name, name, true);
+    }
+    widget.fireEvent('register', ['command', this]);
+    this.widgets.push(widget);
+    return this;
+  },
+  
+  detach: function(widget) {
+    widget.fireEvent('unregister', ['command', this]);
+    for (var name in this.$states) {
+      this.linkState(widget, name, name, false);
+      if (widget.$states[name].origin == this); widget.removeState(name);
+    }
+    this.widgets.erase(widget);
+    return this;
+  },
+  
+  setType: function(type, unset) {
+    if (this.type == type) return;
+    if (this.type) this.unsetType(type);
+    switch (type) {
+      case "checkbox":
+        /*
+          Checkbox commands are useful when you need to track and toggle
+          state of some linked object. 
+
+          Provide your custom logic hooking on *check* and *uncheck*
+          state transitions. Use *checked* property to get the current state.
+
+          Examples:
+            - Button that toggles visibility of a sidebar
+            - Context menu item that shows or hides line numbers in editor
+        */
+        this.events = {
+          click: function() {
+            this.toggle();
+          }
+        }
+        break;
+        
+
+      /*
+        Radio groupping is a way to links commands together to allow
+        only one in the group be active at the moment of time.
+
+        Activation (*check*ing) of the commands deactivates all 
+        other commands in a radiogroup.
+
+        Examples: 
+          - Tabs on top of a content window
+          - Select box with a dropdown menu
+      */
+      case "radio":
+        var name = this.options.radiogroup;
+        if (name) {
+          var groups = this.document.radiogroups;
+          if (!groups) groups = this.document.radiogroups = {};
+          var group = groups[name];
+          if (!group) group = groups[name] = [];
+          group.push(this);
+          this.group = group;
+          this.events = {
+            click: function() {
+              this.check.apply(this, arguments);
+            },
+            check: function() {
+              group.each(function(sibling) {
+                if (sibling != this) sibling.uncheck();
+              }, this);
+            }
+          };
+        }
+    }
+    if (this.events) this.addEvents(this.events);
+  },
+  
+  unsetType: function() {
+    if (this.events) {
+      this.removeEvents(this.events);
+      delete this.events;
+    }
+    delete this.type;
+  }
+});
+
+LSD.Command.prototype.addStates('disabled', 'checked');
 /*
 ---
 
@@ -6274,1541 +6711,6 @@ Object.extend({
 
 })();
 
-/*
----
- 
-script: Type.js
- 
-description: A base class for all class pools
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD
-  - More/Object.Extras
-  
-provides:
-  - LSD.Type
-  - LSD.Module
-  - LSD.Trait
-  - LSD.Mixin
-  - LSD.Element
-  
-...
-*/
-
-LSD.Type = function(name, namespace) {
-  this.name = name;
-  this.count = 0;
-  this.namespace = namespace || 'LSD';
-  var holder = Object.getFromPath(window, this.namespace);
-  if (this.storage = holder[name]) {
-    for (var key in this) this.storage[key] = (this[key].call) ? this[key].bind(this) : this[key];
-  }
-  else this.storage = (holder[name] = this);
-  this.pool = [this.storage];
-  this.queries = {};
-};
-
-LSD.Type.prototype = {
-  each: function(callback, bind) {
-    for (var name in this.storage) {
-      var value = this.storage[name];
-      if (value && value.$family && value.$family() == 'class') callback.call(bind || this, value, name)
-    }
-  },
-  find: function(name) {
-    if (!this.queries) this.queries = {};
-    else if (this.queries[name] != null) return this.queries[name];
-    name = LSD.toClassName(name);
-    for (var i = 0, storage; storage = this.pool[i++];) {
-      var result = Object.getFromPath(storage, name);
-      if (result) return (this.queries[name] = result);
-    }
-    return (this.queries[name] = false);
-  },
-  create: function(name, a, b, c, d) {
-    var widget = this.find(name);
-    if (!widget) throw 'Class named LSD.' + LSD.toClassName(this.name) + '.' + LSD.toClassName(name) + ' was not found';
-    this.count++;
-    return new widget(a, b, c, d);
-  }
-}
-// must-have stuff for all widgets 
-new LSD.Type('Module');
-// some widgets may use those
-new LSD.Type('Trait');
-// these may be applied in runtime
-new LSD.Type('Mixin');
-// these may be applied in runtime
-new LSD.Type('Element');
-/*
----
- 
-script: Shape.js
- 
-description: Draw a widget with any SVG path you want
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires: 
-  - LSD.Trait
-  - ART/ART.Shape
-  
-provides: 
-  - LSD.Module.Shape
- 
-...
-*/
-
-LSD.Module.Shape = new Class({
-  options: {
-    shape: 'rectangle'
-  },
-  
-  initializers: {
-    shape: function() {
-      return {
-        events: {
-          shaped: {
-            'render': function() {
-              if (this.setSize()) this.resized = true;
-            },
-            'update': function() {
-              delete this.resized;
-            }
-          }
-        }
-      }
-    }
-  },
-  
-  getShape: Macro.getter('shape', function(name) {
-    return this.setShape(name);
-  }),
-  
-  setShape: function(name) {    
-    if (!name) name = this.options.shape;
-    var shape = new ART.Shape[name.camelCase().capitalize()];
-    shape.name = name;
-    shape.widget = this;
-    if (!this.shape) this.addEvents(this.options.events.shaped);
-    this.shape = shape;
-    return shape;
-  },
-  
-  getCanvas: Macro.getter('canvas', function() {
-    var art = new ART;
-    art.toElement().inject(this.toElement(), 'top');
-    return art;
-  })
-  
-});
-/*
----
- 
-script: Target.js
- 
-description: Functions to fetch and parse targets
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Module
-
-provides: 
-  - LSD.Module.Target
-
-...
-*/
-
-!function() {
-  var cache = {};
-  LSD.Module.Target = new Class({
-    options: {
-      chain: {
-        target: function() {
-          if (!this.attributes.target) return;
-          var action;
-          return this.parseTargetSelector(this.attributes.target).map(function(chain) {
-            if (!chain.action) chain.action = this.getTargetAction();
-            if (!chain.action) return;
-            if (chain.selector) chain.target = function() {
-              return this.getTarget(chain.selector);
-            }
-            return chain;
-          }.bind(this));
-        }
-      }
-    },
-    
-    getTarget: function(selector) {
-      if (!selector && !(selector = this.attributes.target)) return false;
-      var results = this.getElements(selector)
-      return results.length > 0 && results.map(function(result) {
-        if (result.localName) {
-          var widget = Element.retrieve(result, 'widget');
-          if (widget && widget.element == result) return widget
-        }
-        return result;
-      });
-    },
-  
-    parseTargetSelector: function(selector) {
-      if (cache[selector]) return cache[selector]
-      return cache[selector] = Parser.exec.apply(Parser, arguments)
-    },
-
-    getTargetAction: function() {
-      return this.attributes.interaction || this.captureEvent('getTargetAction', arguments);
-    }
-  });
-  
-  
-  var Parser = LSD.Module.Target.Parser = {
-    build: function(expression, start, end) {      
-      var last = expression[end - start - 1];
-      if (!last.classes && !last.attributes && last.tag == '*' && !last.id && last.pseudos[0].type == 'class') {
-        var actions = last.pseudos
-        end--;
-      };
-      var built = (start < end) ? {selector: Parser.slice(expression, start, end)} : {}
-      if (actions) return actions.map(function(pseudo, i) {
-          var object = Object.append({action: pseudo.key}, built);
-          if (pseudo.value) object.arguments = pseudo.value;
-          return object;
-      }); else return built;
-    },
-    
-    slice: function(expressions, start, end) {
-      return {
-        Slick: true,
-        expressions: [expressions.slice(start, end)]
-      };
-    },
-    
-    exec: function(selector) {
-      var parsed = selector.Slick ? selector : Slick.parse(selector), expressions = [];
-      for (var i = 0, expression; expression = parsed.expressions[i]; i++) {
-        var started = 0;
-        for (var j = 0, k = expression.length - 1, selector; selector = expression[j]; j++) {
-          var joiner = Joiners[selector.combinator];
-          if (joiner || j == k) {
-            var exp = Parser.build(expression, started, (joiner ? j : j + 1));
-            expressions.push[exp.push ? 'apply' : 'call'](expressions, exp);
-          }
-        }
-      }
-      return expressions;
-    }
-  };
-  
-  var Joiners = Parser.Joiners = {
-    '&': function(a, b) {
-      return a() && b()
-    },
-    '|': function(a, b) {
-      return a() || b()
-    }
-  };
-}();
-/*
----
-
-name: Target.js
-
-description: Monkey patch for Module Target.
-
-license: MIT-style license.
-
-extends: LSD/LSD.Module.Target
-
-...
-*/
-
-!function(parseTargetSelector, getTargetAction) {
-  LSD.Module.Target.implement({
-    parseTargetSelector: function(selector) {
-      if (selector == 'lightbox') return [{target: selector}];
-      return parseTargetSelector.apply(this, arguments);
-    },
-
-    getTargetAction: function() {
-      if (this.attributes.target == 'lightbox') return 'dialog';
-      return getTargetAction.apply(this, arguments);
-    }
-  });
-}(LSD.Module.Target.prototype.parseTargetSelector, LSD.Module.Target.prototype.getTargetAction);
-/*
----
- 
-script: Actions.js
- 
-description: Assign functions asyncronously to any widget
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
-
-requires:
-  - LSD.Module
-  - LSD.Action
-
-provides: 
-  - LSD.Module.Actions
- 
-...
-*/
-
-LSD.Module.Actions = new Class({
-  options: {
-    actions: {}
-  },
-  
-  initializers: {
-    actions: function() {
-      this.actions = {}
-    }
-  },
-  
-  addAction: function() {
-    this.getAction.apply(this, arguments).attach(this);
-  },
-  
-  removeAction: function() {
-    this.getAction.apply(this, arguments).detach(this);
-  },
-  
-  getAction: function(name, action) {
-    if (this.actions[name]) return this.actions[name];
-    if (!action) {
-      action = {name: name};
-      var actions = this.options.actions;
-      if (actions && actions[name]) Object.append(action, actions[name]);
-    }
-    return (this.actions[name] = new (LSD.Action[LSD.capitalize(name)] || LSD.Action)(action, name))
-  },
-  
-  execute: function(command, args) {
-    if (command.call && (!(command = command.apply(this, args))));
-    else if (command.indexOf) command = {action: command}
-    if (command.arguments) {
-      var cargs = command.arguments.call ? command.arguments.call(this) : command.arguments;
-      args = [].concat(cargs || [], args || []);
-    }
-    var action = this.getAction(command.action);
-    var targets = command.target;
-    if (targets && targets.call && (!(targets = targets.call(this)) || (targets.length === 0))) return true;
-    var state = command.state;
-    var promise, self = this;
-    var perform = function(target) {
-      var method = (state == null) ? 'perform' : ((state.call ? state(target, targets) : state) ? 'commit' : 'revert');
-      var result = action[method](target, target.$states && target.$states[action.name], args);
-      if (result && result.callChain && (command.promise !== false)) {
-        if (!promise) promise = [];
-        promise.push(result);
-        result.chain(function() {
-          promise.erase(result);
-          if (promise.length == 0) self.callChain.apply(self, arguments);  
-        });
-      } else if (result !== false) return;
-      return false;
-    };
-    var probe = targets ? (targets.map ? targets[0] : targets) : this;
-    if (probe.nodeType) action.document =  LSD.Module.DOM.findDocument(probe);
-    action.caller = this;
-    var ret = (targets) ? (targets.map ? targets.map(perform) : perform(targets)) : perform(this);
-    delete action.caller, delete action.document;
-    return (ret ? ret[0] : ret) !== false;
-  },
-  
-  mixin: function(mixin, light) {
-    if (typeof mixin == 'string') mixin = LSD.Mixin[LSD.capitalize(mixin)];
-    var options = mixin.prototype.options;
-    Class.mixin(this, mixin, light);
-    if (options) {
-      Object.merge(this.options, options); //merge!
-      this.setOptions(options);
-    }
-    var initializers = mixin.prototype.initializers;
-    if (initializers) for (var name in initializers) initializers[name].call(this);
-  },
-
-  unmix: function(mixin, light) {
-    if (typeof mixin == 'string') mixin = LSD.Mixin[LSD.capitalize(mixin)];
-    this.unsetOptions(mixin.prototype.options);
-    Class.unmix(this, mixin, light);
-  }
-});
-
-LSD.Module.Actions.attach = function(doc) {
-  LSD.Mixin.each(function(mixin, name) {
-    var selector = mixin.prototype.behaviour;
-    if (!selector) return;
-    var attached = {};
-    var watcher = function (widget, state) {
-      if (state) {
-        if (attached[widget.lsd]) return;
-        else attached[widget.lsd] = true;
-        widget.mixin(mixin, true);
-      } else if (attached[widget.lsd]) {
-        delete attached[widget.lsd];
-        widget.unmix(mixin, true);
-      }
-    };
-    selector.split(/\s*,\s*/).each(function(bit) {
-      doc.watch(bit, watcher)
-    })
-  });
-};
-
-LSD.Options.actions = {
-  add: 'addAction',
-  remove: 'removeAction',
-  iterate: true
-};
-/*
----
- 
-script: Chain.js
- 
-description: A dynamic state machine with a trigger
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
-
-requires:
-  - LSD.Module.Actions
-
-provides: 
-  - LSD.Module.Chain
- 
-...
-*/
-
-LSD.Module.Chain = new Class({
-  initializers: {
-    chain: function() {
-      this.chains = [];
-      this.chainPhase = -1;
-    }
-  },
-  
-  addChain: function(name, chain) {
-    if (!chain.name) chain.name = name;
-    this.chains.push(chain);
-  },
-  
-  removeChain: function(name, chain) {
-    this.chains.erase(chain);
-  },
-  
-  getActionChain: function() {
-    var actions = [];
-    for (var i = 0, chain; chain = this.chains[i++];) {
-      var action = (chain.indexOf ? this[chain] : chain).apply(this, arguments);
-      if (action) actions.push[action.push ? 'apply' : 'call'](actions, action);
-    }
-    return actions.sort(function(a, b) {
-      return (b.priority || 0) - (a.priority || 0);
-    });
-  },
-  
-  callChain: function() {
-    return this.eachChainAction(function(action, i) {
-      return true;
-    }, Array.prototype.slice.call(arguments, 0), this.chainPhase).actions
-  },
-  
-  callOptionalChain: function() {
-    return this.eachChainAction(function(action, i, priority) {
-      if (priority > 0) return false;
-    }, Array.prototype.slice.call(arguments, 0)).actions
-  },
-  
-  eachChainAction: function(callback, args, index) {
-    if (index == null) index = -1;
-    var chain = this.getActionChain.apply(this, args), action, actions;
-    for (var link; link = chain[++index];) {
-      action = link.perform ? link : link.action ? this.getAction(link.action) : null;
-      if (action) {
-        if (callback.call(this, action, index, link.priority || 0) === false) continue;
-        var result = this.execute(link, args);
-        args = null;
-      } else {
-        if (link.arguments) args = link.arguments;
-        if (link.callback) link.callback.apply(this, args);
-      }
-      if (!action || result === true) continue;
-      if (!actions) actions = [];
-      actions.push(action.options.name);
-      if (result === false) break;//action is asynchronous, stop chain
-    }  
-    this.chainPhase = index;
-    if (this.chainPhase == chain.length) this.chainPhase = -1;
-    return {chain: chain, executed: actions};
-  },
-  
-  clearChain: function() {
-    this.chainPhase = -1;
-  }
-});
-
-LSD.Options.chain = {
-  add: 'addChain',
-  remove: 'removeChain',
-  iterate: true
-}
-/*
----
- 
-script: Relations.js
- 
-description: Define a widget associations
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Module
-
-provides: 
-  - LSD.Module.Relations
-
-...
-*/
-
-LSD.Module.Relations = new Class({
-  addRelation: function(name, relation, callback) {
-    if (!this.relations) this.relations = {};
-    this.relations[name] = relation = Object.append({name: name}, relation.indexOf ? {selector: relation} : relation);
-    var origin = relation.origin || this, collection = relation.collection, events;
-    var callbacks = relation.callbacks ? origin.bindEvents(relation.callbacks) : {}
-    if (!relation.layout) relation.layout = relation.selector || name;
-    if (name && relation.multiple) origin[name] = [];
-    this.options.layout[name] = relation.layout;
-    if (relation.proxy) this.addProxy(name, {
-      container: function(object) {
-        (relation.proxied || (relation.proxied = [])).push(object)
-      },
-      condition: relation.proxy
-    });
-    if (relation.relay) for (var type in relation.relay) {
-      (relation.relayed || (relation.relayed = {}))[type] = function(event) {
-        for (var widget = Element.get(event.target, 'widget'); widget; widget = widget.parentNode) {
-          if (origin[name].indexOf(widget) > -1) {
-            this.apply(widget, arguments);
-            break;
-          }
-        }
-      }.bind(relation.relay[type])
-    }
-    if (relation.mutation) this.addMutation(relation.mutation, relation.layout);
-    relation.watcher = function(widget, state) {
-      if (widget == origin) return;
-      if (relation.has) {
-        widget.setOption('has', relation.has, !state);
-      }
-      if (relation.events) {
-        if (!events) events = origin.bindEvents(relation.events);
-        widget[state ? 'addEvents' : 'removeEvents'](events);
-      }
-      if (callback) callback.call(origin, widget, state);
-      if (!state && callbacks.remove) callbacks.remove.call(origin, widget);
-      
-      if (relation.multiple) {
-        if (state)
-          if (callbacks.fill && origin[name].push(widget) == 1) callbacks.fill.call(origin, widget)
-        else {
-          if (callbacks.empty && !origin[name].erase(widget).length) callbacks.empty.call(origin, widget)
-        }
-        if (relation.relayed && (origin[name].length == +state)) 
-          origin.element[state ? 'addEvents' : 'removeEvents'](relation.relayed);
-        origin[name][state ? 'push' : 'erase'](widget);
-      } else {
-        if (state) origin[name] = widget;
-        else delete origin[name];
-      }
-      
-      if (collection) (widget[collection] || (widget[collection] = []))[state ? 'include' : 'erase'](origin);
-        
-      if (relation.alias) widget[relation.alias] = origin;
-      if (relation.proxied) relation.proxied.invoke('call', this, widget)
-      if (state && callbacks.add) callbacks.add.call(origin, widget);
-      if (relation.states) {
-        var states = relation.states, get = states.get, set = states.set, add = states.add;
-        var method = state ? 'linkState' : 'unlinkState'
-        if (get) for (var from in get) widget[method](origin, from, (get[from] === true) ? from : get[from]);
-        if (set) for (var to in set) origin[method](widget, to, (set[to] === true) ? to : set[to]);
-        if (add) for (var index in add) widget.addState(index, add[index]);
-      }
-      if (relation.chain) {
-        for (var label in relation.chain) widget[state ? 'addChain' : 'removeChain'](label, relation.chain[label]);
-      }
-      origin.fireEvent(state ? 'relate' : 'unrelate', [widget, name]);
-    };
-    var watch = function(widget, state) {
-      if (relation.selector) {
-        widget.watch(relation.selector, relation.watcher);
-      } else if (relation.expectation) {
-        var expectation = relation.expectation;
-        if (expectation.call) expectation = expectation.call(origin);
-        if (expectation) widget.expect(expectation, relation.watcher)
-      } else {
-        relation.watcher.apply(this, arguments)
-      }
-    }
-    var through = relation.through;
-    if (through) {
-      var from = relation.from || name;
-      if (!relation.updaters) relation.updaters = {
-        relate: function(object, type) {
-          if (type == from) watch(object, true);
-        },
-        unrelate: function(object, type) {
-          if (type == from) watch(object, false);
-        }
-      }
-      if (!relation.relators) relation.relators = {
-        relate: function(object, type) {
-          if (type != through) return;
-          object.addEvents(relation.updaters);
-          if (object[type]) object[type].each(function(widget) {
-            watch(widget, true)
-          });
-        },
-        unrelate: function(object, type) {
-          if (type != through) return
-          object.removeEvents(relation.updaters);
-          object[type].each(function(widget) {
-            watch(widget, false)
-          });
-        }
-      };
-      this.addEvents(relation.relators);
-    } else {
-      var target = relation.target || this;
-      if (target.call) target = target.call(this);
-      else if (target.indexOf) target = LSD.Module.Events.Targets[target];
-      if (target) {
-        if (!target.addEvent && !(target.call && (target = target.call(this)))) {
-          if (target.events && !events) Object.each(target.events, function(value, event) {
-            this.addEvent(event, function(object) {
-              watch(object, value);
-            });
-          }, this);
-        } else {
-          watch(target, true);
-        }
-      }
-    }
-  },
-  
-  removeRelation: function(relation) {
-    
-  }
-});
-
-LSD.Options.relations = {
-  add: 'addRelation',
-  remove: 'removeRelation',
-  iterate: true
-};
-
-LSD.Options.has = Object.append({
-  process: function(has) {
-    var one = has.one, many = has.many, relations = {};
-    if (one) for (var name in one) relations[name] = one[name];
-    if (many) for (var name in many) relations[name] = Object.append(many[name], {multiple: true});
-    return relations;
-  }
-}, LSD.Options.relations);
-
-/*
----
- 
-script: Element.js
- 
-description: Attach and detach a widget to/from element
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Module
-
-provides: 
-  - LSD.Module.Element
- 
-...
-*/
-
-LSD.Module.Element = new Class({
-  options: {
-    key: 'node',
-    reusable: true,
-    inline: null
-  },
-  
-  initializers: {
-    element: function() {
-      LSD.uid(this);
-      return {
-        events: {
-          'initialize': function(options, element) {
-            if (element) this.attach(element);
-          },
-          'build': 'attach',
-          'destroy': 'detach'
-        }
-      }
-    }
-  },
-  
-  /*
-    Attaches widget to a DOM element. If a widget was
-    attached to some other element, it deattaches that first
-  */
-  
-  attach: function(element) {
-    if (element) {
-      if (this.element) {
-        if (this.built && this.element != element) this[this.options.reusable ? 'detach' : 'destroy']();
-      } else this.element = document.id(element);
-    }
-    if (!this.built) this.build();
-    if (this.options.key) this.element.store(this.options.key, this).fireEvent('attach', this);
-    return this.element;
-  },
-
-  detach: function(element) {
-    if (this.options.key) this.element.eliminate(this.options.key, this).fireEvent('detach', this)
-    delete this.element;
-  },
-  
-  toElement: function(){
-    if (!this.built && this.build) this.build();
-    return this.element;
-  },
-  
-  build: function() {
-    var options = this.options, attrs = Object.append({element: this.element}, options.element);
-    if (!attrs.tag)
-      attrs.tag = ((this.options.inline == null) && options.tag) || (options.inline ? 'span' : 'div'); 
-    this.fireEvent('beforeBuild', attrs);
-    var stop = (attrs.convert === false), tag = attrs.tag;
-    delete attrs.convert, delete attrs.tag, delete attrs.element;
-    if (!this.element || stop) this.element = new Element(tag, attrs);
-    else var element = this.element.set(attrs);
-    var classes = new FastArray;
-    if (options.tag != tag) classes.push('lsd', options.tag || this.tagName);
-    classes.concat(this.classes);
-    if (Object.getLength(classes)) this.element.className = classes.join(' ');
-    if (this.attributes) 
-      for (var name in this.attributes) 
-        if (name != 'width' && name != 'height') {
-          var value = this.attributes[name];
-          if (!element || element[name] != value) this.element.setAttribute(name, value);
-        }
-
-    if (this.style) for (var property in this.style.element) this.element.setStyle(property, this.style.element[property]);
-    return this.element;
-  },
-  
-  destroy: function() {
-    this.fireEvent('beforeDestroy');
-    this.element.destroy();
-    return this;
-  },
-  
-  $family: Function.from('object')
-});
-/*
----
- 
-script: Shortcuts.js
- 
-description: Add command key listeners to the widget
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - Ext/Shortcuts
-  - LSD.Module
-  
-provides: 
-  - LSD.Module.Shortcuts
-
-...
-*/
-LSD.Module.Shortcuts = new Class({
-  Implements: Shortcuts,
-  
-  initializers: {
-    shortcuts: function() {
-      return {
-        events: {
-          shortcuts: {
-            focus: 'enableShortcuts',
-            blur: 'disableShortcuts'
-          }
-        }
-      }
-    }
-  },
-  
-  addShortcut: function() {
-    LSD.Module.Events.setEventsByRegister.call(this, 'shortcuts', true);
-    return Shortcuts.prototype.addShortcut.apply(this, arguments);
-  },
-  
-  removeShortcut: function() {
-    LSD.Module.Events.setEventsByRegister.call(this, 'shortcuts', false);
-    return Shortcuts.prototype.removeShortcut.apply(this, arguments);
-  }
-});
-
-LSD.Options.shortcuts = {
-  add: 'addShortcut',
-  remove: 'removeShortcut',
-  process: 'bindEvents',
-  iterate: true
-};
-/*
----
- 
-script: Dimensions.js
- 
-description: Get and set dimensions of widget
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Module
-
-provides: 
-  - LSD.Module.Dimensions
- 
-...
-*/
-
-
-LSD.Module.Dimensions = new Class({
-  initializers: {
-    dimensions: function() {
-      this.size = {}
-    }
-  },
-  
-  setSize: function(size) {
-    if (this.size) var old = Object.append({}, this.size)
-    if (!size || !(size.height || size.width)) size = {height: this.getStyle('height'), width: this.getStyle('width')}
-    if (!(this.setHeight(size.height, true) + this.setWidth(size.width, true))) return false;
-    this.fireEvent('resize', [this.size, old]);
-    var element = this.element, padding = this.offset.padding;
-    if (size.height && this.style.expressed.height) element.style.height = size.height - padding.top - padding.bottom + 'px'
-    if (size.width && this.style.expressed.width) element.style.width = size.width - padding.left - padding.right + 'px';
-    return true;
-  },
-  
-  setHeight: function(value, light) {
-    value = Math.min(this.style.current.maxHeight || 1500, Math.max(this.style.current.minHeight || 0, value));
-    if (this.size.height == value) return false;
-    this.size.height = value;
-    if (!light) this.setStyle('height', value);
-    return value;
-  },
-    
-  setWidth: function(value, light) {
-    value = Math.min(this.style.current.maxWidth || 3500, Math.max(this.style.current.minWidth || 0, value));
-    if (this.size.width == value) return false;
-    this.size.width = value;
-    if (!light) this.setStyle('width', value);
-    return value;
-  },
-  
-  getClientHeight: function() {
-    var style = this.style.current, height = style.height, offset = this.offset, padding = offset.padding;
-    if (!height || (height == "auto")) {
-      height = this.element.clientHeight;
-      var inner = offset.inner || padding;
-      if (height > 0 && inner) height -= inner.top + inner.bottom;
-    }
-    if (height != 'auto' && padding) height += padding.top + padding.bottom;
-    return height;
-  },
-  
-  getClientWidth: function() {
-    var style = this.style.current, offset = this.offset, padding = offset.padding, width = style.width;
-    if (typeof width != 'number') { //auto, inherit, undefined
-      var inside = offset.inside, outside = offset.outside, shape = offset.shape;
-      width = this.element.clientWidth;
-      if (width > 0) {
-        if (shape) width -= shape.left + shape.right;
-        if (inside) width -= inside.left + inside.right;
-        if (outside) width -= outside.left + outside.right;
-      }
-    }
-    if (style.display != 'block' && padding && inside) width += padding.left + padding.right;
-    return width;
-  },
-  
-  getOffsetHeight: function(height) {
-    var style = this.style.current, inside = this.offset.inside, bottom = style.borderBottomWidth, top = style.borderTopWidth;
-    if (!height) height =  this.getClientHeight();
-    if (inside)  height += inside.top + inside.bottom;
-    if (top)     height += top;
-    if (bottom)  height += bottom;
-    return height;
-  },
-  
-  getOffsetWidth: function(width) {
-    var style = this.style.current, inside = this.offset.inside, left = style.borderLeftWidth, right = style.borderRightWidth;
-    if (!width) width =  this.getClientWidth();
-    if (inside) width += inside.left + inside.right;
-    if (left)   width += left;
-    if (right)  width += right
-    return width;
-  },
-  
-  getLayoutHeight: function(height) {
-    height = this.getOffsetHeight(height);
-    if (this.offset.margin)  height += this.offset.margin.top + this.offset.margin.bottom;
-    if (this.offset.outside) height += this.offset.outside.top + this.offset.outside.bottom;
-    return height;
-  },
-
-  getLayoutWidth: function(width) {
-    var width = this.getOffsetWidth(width), offset = this.offset, margin = offset.margin, outside = offset.outside
-    if (margin)  width += margin.right + margin.left;
-    if (outside) width += outside.right + outside.left;
-    return width;
-  }
-  
-});
-/*
----
- 
-script: States.js
- 
-description: Define class states and methods metaprogrammatically
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - Ext/States
-  - LSD.Module
-  
-provides: 
-  - LSD.Module.States
-
-...
-*/
-
-LSD.Module.States = new Class({
-  Implements: States,
-  
-  onStateChange: function(state, value, args) {
-    var args = Array.prototype.slice.call(arguments, 0);
-    args.slice(1, 2); //state + args
-    this[value ? 'setState' : 'unsetState'][args && ("length" in args) ? 'apply' : 'call'](this, args);
-    this.fireEvent('stateChange', [state, args]);
-    return true;
-  }
-});
-
-LSD.Options.states = {
-  add: 'addState',
-  remove: 'removeState',
-  iterate: true
-};
-/*
----
- 
-script: Options.js
- 
-description: A module that sets and unsets various options stuff
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Module
-  
-provides:
-  - LSD.Module.Options
-
-...
-*/
-
-LSD.Module.Options = new Class({
-  Implements: [Options],
-  
-  setOptions: function(options) {
-    for (var name in options) this.setOption(name, options[name]);
-    return this;
-  },
-  
-  setOption: function(name, value, unset) {
-    setter = LSD.Options[name];
-    if (!setter) return;
-    if (setter.process) {
-      value = (setter.process.charAt ? this[setter.process] : setter.process).call(this, value);
-    }
-    if (setter.events) LSD.Module.Events.setEventsByRegister.call(this, name, !unset, setter.events);
-    var mode = unset ? 'remove' : 'add', method = setter[mode];
-    if (method.charAt) method = this[method];
-    if (setter.iterate) {
-      if (value.each) for (var i = 0, j = value.length; i < j; i++) method.call(this, value[i]);
-      else for (var i in value) method.call(this, i, value[i])
-    } else method.call(this, value);
-    return this;
-  },
-  
-  unsetOptions: function(options) {
-    for (var name in options) this.setOption(name, options[name], true);
-    return this;
-  }
-});
-
-LSD.Module.Options.initialize = function(element, options) {
-  /* 
-    Rearrange arguments if they are in the wrong order
-  */
-  if ((element && !element.tagName) || (options && options.tagName)) {
-    var el = options;
-    options = element, element = el;
-  }
-  /*
-    Merge given options object into this.options
-  */
-  options = options ? Object.merge(this.options, options) : this.options;
-  var initialized = [];
-  /*
-    Run module initializers and keep return values
-  */
-  for (var name in this.initializers) {
-    var initializer = this.initializers[name];
-    if (initializer) {
-      var result = initializer.call(this, options, element);
-      if (result) initialized.push(result);
-    }
-  }
-  /*
-    Set options returned from initializers
-  */
-  for (var i = 0, value; value = initialized[i++];) this.setOptions(value);
-  /*
-    Call parent class initializer (if set)
-  */
-  if (Class.hasParent(this)) this.parent(element, options);
-  /* 
-    Run callbacks for all the options set
-  */
-  this.setOptions(options);
-  /*
-    Attach to a given element
-  */
-  this.fireEvent('initialize', [options, element])
-};
-/*
----
- 
-script: Value.js
- 
-description: Add your widget have a real form value.
- 
-license: Public domain (http://unlicense.org).
- 
-requires:
-  - LSD.Trait
- 
-provides: 
-  - LSD.Mixin.Value
- 
-...
-*/
-
-LSD.Mixin.Value = new Class({
-  behaviour: ':read-write, :valued',
-  
-  options: {
-    events: {
-      _value: {
-        dominject: function() {
-        },
-        change: 'callChain'
-      }
-    },
-    multiple: false,
-    actions: {
-      value: {
-        enable: function() {
-          if (this.attributes.multiple) this.values = []
-          if (this.getValue() != null) return;
-          var raw = this.getRawValue();
-          if (raw != null) this.setValue(raw);
-        },
-        disable: function() {
-          
-        }
-      }
-    }
-  },
-  
-  setValue: function(item, unset) {
-    if (item == null || (item.event && item.type)) item = this.getRawValue();
-    var value = this.processValue(item), result = false;
-    if (this.isValueDifferent(value) ^ (!!unset)) {
-      result = this.writeValue(value, unset);
-      this.onChange(value, this.getPreviousValue());
-    }
-    return result
-  },
-  
-  isValueDifferent: function(value) {
-    if (this.attributes.multiple) {
-      return this.values.indexOf == -1
-    } else {
-      return this.value != value;
-    }
-  },
-  
-  getValueInput: function() {
-    if (!this.attributes.multiple && this.attributes.type != 'file' 
-      && LSD.toLowerCase(this.element.tagName) == 'input') return this.element;
-
-    var name = this.attributes.name;
-    if (this.attributes.miltiple) name += '[]';
-    return new Element('input[type=hidden]', {name: name}).inject(this.element);
-  },
-  
-  writeValue: function(value, unset) {
-    if (this.attributes.multiple) {
-      if (unset) {
-        var index = this.values.indexOf(value);
-        if (index > -1) {
-          this.values.splice(index, 1);
-          this.valueInputs.splice(index, 1)[0].dispose();
-        }
-      } else {  
-        this.previousValue = this.values.clone();
-        this.values.push(value);
-        (this.valueInputs || (this.valueInputs = [])).push(this.getValueInput());
-        this.applyValue(this.values);
-      }
-    } else {
-      var input = this.valueInput || (this.valueInput = this.getValueInput());
-      this.previousValue = this.value;
-      if (unset) delete this.value;
-      else this.value = value;
-      input.set('value', unset ? '' : value);
-      this.applyValue(this.value);
-    }
-  },
-  
-  getPreviousValue: function() {
-    return this.previousValue
-  },
-  
-  applyValue: function(value) {
-    return this;
-  },
-  
-  getRawValue: function() {
-    return this.attributes.value || LSD.Module.DOM.getID(this) || this.innerText;
-  },
-
-  getValue: function() {
-    if (this.attributes.multiple) {
-      return this.values.map(this.formatValue, this)
-    } else {
-      return this.formatValue(this.value);
-    }
-  },
-
-  formatValue: function(value) {
-    return value;
-  },
-  
-  processValue: function(value) {
-    return value;
-  },
-  
-  onChange: function() {
-    this.fireEvent('change', arguments)
-    return true;
-  }
-});
-/*
----
- 
-script: Placeholder.js
- 
-description: Placeholder for form fileds.
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Mixin
-
- 
-provides:   
-  - LSD.Mixin.Placeholder
- 
-...
-*/
-
-
-LSD.Mixin.Placeholder = new Class({
-  behaviour: '[placeholder]',
-  
-  options: {
-    actions: {
-      placeholder: {
-        enable: function(){
-          this.element.set('autocomplete', 'off');
-          this.onPlacehold();
-        },
-        disable: function(){
-          this.onUnplacehold();
-        }
-      }
-    },
-    events: {
-      enabled: {
-        element: {
-          'focus': 'onUnplacehold',
-          'blur': 'onPlacehold',
-          'keypress': 'onUnplacehold'
-        }
-      }
-    },
-    states: {
-      placeheld: {
-        enabler: 'placehold',
-        disabler: 'unplacehold'
-      }
-    }
-  },
-  
-  getPlaceholder: Macro.getter('placeholder', function(){
-    return this.attributes.placeholder;
-  }),
-  
-  onUnplacehold: function(){
-    if(this.placeheld){
-      this.applyValue('');
-      this.unplacehold();
-      return true;
-    };
-  },
-  
-  onPlacehold: function(){
-    var value = this.getRawValue();
-    if(!value || value.match(/^\s*$/) || value == this.getPlaceholder()){
-      this.applyValue(this.getPlaceholder());
-      this.placehold();
-      return true;
-    };
-  }
-  
-});
-/*
----
- 
-script: Dialog.js
- 
-description: Work with dialog
- 
-license: Public domain (http://unlicense.org).
- 
-requires:
-  - LSD.Mixin
- 
-provides: 
-  - LSD.Mixin.Dialog
- 
-...
-*/
-
-LSD.Mixin.Dialog = new Class({
-  behaviour: '[dialog]',
-  
-  options: {
-    layout: {
-      dialog: "body[type=dialog]"
-    },
-    chain: {
-      dialog: function() {
-        var target = this.getDialogTarget();
-        if (target) return {action: 'dialog', target: target, priority: 50};
-      }
-    },
-    events: {
-      dialogs: {}
-    }
-  },
-  
-  getDialog: function(name) {
-    if (!this.dialogs) this.dialogs = {};
-    if (!this.dialogs[name]) {
-      this.dialogs[name] = this.options.layout[name] ? this.buildDialog.apply(this, arguments) : LSD.Element.create('body-dialog-' + name);
-    }
-    return this.dialogs[name];
-  },
-  
-  buildDialog: function(name) {
-    var layout = {}
-    layout[this.options.layout.dialog] = this.options.layout[name];
-    var dialog = this.buildLayout(layout)[0];
-    var events = this.options.events.dialogs;
-    if (events[name]) dialog.addEvents(events[name]);
-    return dialog;
-  },
-  
-  getDialogTarget: function() {
-    return this.attributes.dialog && this.getTarget(this.attributes.dialog);
-  }
-})
-/*
----
- 
-script: Fieldset.js
- 
-description: Wrapper around set of form fields
- 
-license: Public domain (http://unlicense.org).
- 
-requires:
-  - LSD.Trait
- 
-provides: 
-  - LSD.Trait.Fieldset
- 
-...
-*/
-
-LSD.Trait.Fieldset = new Class({
-  options: {
-    events :{
-      request: {
-        request: 'validateFields',
-        badRequest: 'parseFieldErrors'
-      },
-      _fieldset: {
-        mutateLayout: function(query) {
-          var element = query.element, name = element.name, id = element.id, mutation;
-          var widget = Element.retrieve(element, 'widget');
-          if (!widget) return;
-          if (name && this.names[name]) {
-            var bumped = LSD.Trait.Fieldset.bumpName(name);
-            if (bumped) (mutation || (mutation = {attributes: {}})).attributes.name = bumped;
-          }
-          // bump id index
-          if (id) {
-            bumped = LSD.Trait.Fieldset.bumpId(id);
-            if (bumped != id) (mutation || (mutation = {attributes: {}})).attributes.id = bumped;
-          }
-          // bump name index
-          if (LSD.toLowerCase(element.tagName) == 'label') {
-            var four = element.htmlFor
-            if (four) {
-              bumped = LSD.Trait.Fieldset.bumpId(four);
-              if (bumped != four) (mutation || (mutation = {attributes: {}})).attributes['for'] = bumped;
-            }
-          }
-          if (query.mutation) Object.append(query.mutation, mutation);
-          else query.mutation = mutation;
-        }
-      }
-    },
-    has: {
-      many: {
-        elements: {
-          selector: ':read-write',
-          callbacks: {
-            'add': 'addField',
-            'remove': 'removeField'
-          }
-        }
-      }
-    }
-  },
-  
-  initialize: function() {
-    this.names = {};
-    this.params = {};
-    this.parent.apply(this, arguments)
-  },
-  
-  checkValidity: function() {
-    var valid = true;
-    for (var i = 0, element; element = this.elements[i++];) if (!element.checkValidity()) valid = false;
-    return valid;
-  },
-  
-  getData: function() {
-    var data = {}
-    for (var name in this.names) {
-      var memo = this.names[name];
-      if (memo.push) {
-        for (var i = 0, radio; radio = memo[i++];) if (radio.checked) data[name] = radio.getValue(); break;
-      } else if (memo.options.command.type != 'checkbox' || memo.checked) data[name] = memo.getValue();
-    }
-    return data;
-  },
-
-  getRequestData: function() {
-    return this.getData();
-  },
-  
-  reset: function() {
-    
-  },
-  
-  addFieldErrors: function(errors) {
-    for (var name in errors) {
-      var field = this.names[name];
-      console.log(name, field, errors[name])
-      if (!field) continue;
-      field.invalidate(errors[name]);
-      this.invalid = true;
-    }
-  },
-
-  parseFieldErrors: function(response) {
-    var result = {}, errors = response.errors;
-    if (errors) { //rootless response ({errors: {}), old rails
-      for (var i = 0, error; error = errors[i++];)
-        result[LSD.Trait.Fieldset.getName(this.getModelName(error[0]), error[0])] = error[1];
-    } else { //rooted response (publication: {errors: {}}), new rails
-      var regex = LSD.Trait.Fieldset.rPrefixAppender;
-      for (var model in response) {
-        var value = response[model], errors = value.errors;
-        if (!errors) continue;
-        for (var i = 0, error; error = errors[i++];)
-          result[LSD.Trait.Fieldset.getName(model, error[0])] = error[1];
-      }
-    }
-    if (Object.getLength(result) > 0) this.addFieldErrors(result);
-  },
-  
-  addField: function(widget) {
-    var name = widget.attributes.name, radio = (widget.options.command.type == 'radio');
-    if (!name) return;
-    if (radio) {
-      if (!this.names[name]) this.names[name] = [];
-      this.names[name].push(widget);
-    } else this.names[name] = widget;
-    for (var regex = LSD.Trait.Fieldset.rNameParser, object = this.params, match, bit;;) {
-      match = regex.exec(name)
-      if (bit != null) {
-        if (!match) {
-          if (!object[bit] && radio) object[bit] = [];
-          if (object[bit] && object[bit].push) object[bit].push(widget);
-          else object[bit] = widget;
-        } else object = object[bit] || (object[bit] = (bit ? {} : []));
-      }
-      if (!match) break;
-      else bit = match[1] ||match[2];
-    }
-    return object
-  },
-  
-  getParams: function(object) {
-    if (!object) object = this.params;
-    var result = {};
-    for (var name in object) {
-      var value = object[name];
-      if (value && !value.indexOf) value = value.nodeType ? value.getValue() : this.getParams(value);
-      result[name] = value;
-    }
-    return result;
-  },
-  
-  removeField: function(widget) {
-    var name = widget.attributes.name, radio = (widget.options.command.type == 'radio');
-    if (!name) return;
-    if (radio) this.names[name].erase(widget);
-    else delete this.names[name];
-    for (var regex = LSD.Trait.Fieldset.rNameParser, object = this.params, match, bit;;) {
-      match = regex.exec(name)
-      if (bit != null) {
-        if (!match) {
-          if (radio) object[bit].erase(widget)
-          else delete object[bit];
-        } else object = object[bit];
-      }
-      if (!match) break;
-      else bit = match[1] ||match[2];
-    }
-    return object
-  },
-
-  invalidateFields: function(errors) {
-    this.getFields(errors, function(field, error) {
-      field.invalidate(error);
-    });
-  },
-  
-  getFieldsByName: function(fields, callback, root) {
-    if (fields.call && (callback = fields)) fields = null;
-    if (!fields) fields = this.elements;
-    if (!callback && fields.indexOf) return root[fields]
-    if (fields.map && fields.each && (!callback || !root)) return fields.map(function(field) {
-      return this.getFieldsByName(field, callback, root)
-    }.bind(this));
-  },
-  
-  validateFields: function(fields) {
-    if (!this.invalid) return;
-    this.getElements(':read-write:invalid').each(function(field) {
-      field.validate(true);
-    })
-  },
-
-  getModelName: Macro.getter('modelName', function() {
-    for (var name in this.params) if (!this.params[name].nodeType) return name;
-  })
-});
-Object.append(LSD.Trait.Fieldset, {
-  rNameIndexBumper: /(\[)(\d+?)(\])/,
-  rIdIndexBumper: /(_)(\d+?)(_|$)/,
-  rNameParser:      /(^[^\[]+)|\[([^\]]*)\]/ig,
-  rPrefixAppender:  /^[^\[]+/i,
-  getName: function(model, name) {
-    return model + name.replace(LSD.Trait.Fieldset.rPrefixAppender, function(match) {return '[' + match + ']'});
-  },
-  bumpName: function(string) {
-    return string.replace(LSD.Trait.Fieldset.rNameIndexBumper, function(m, a, index, b) { 
-      return a + (parseInt(index) + 1) + b;
-    })
-  },
-  bumpId: function(string) {
-    return string.replace(LSD.Trait.Fieldset.rIdIndexBumper, function(m, a, index, b) { 
-      return a + (parseInt(index) + 1) + b;
-    })
-  }
-});
 /*
 ---
 
@@ -8279,16 +7181,15 @@ Date.implement({
 		return !isNaN((date || this).valueOf());
 	},
 
-	format: function(f){
+	format: function(format){
 		if (!this.isValid()) return 'invalid date';
-		if (!f) f = '%x %X';
 
-		var formatLower = f.toLowerCase();
-		if (formatters[formatLower]) return formatters[formatLower](this); // it's a formatter!
-		f = formats[formatLower] || f; // replace short-hand with actual format
+		if (!format) format = '%x %X';
+		if (typeof format == 'string') format = formats[format.toLowerCase()] || format;
+		if (typeof format == 'function') return format(this);
 
 		var d = this;
-		return f.replace(/%([a-z%])/gi,
+		return format.replace(/%([a-z%])/gi,
 			function($0, $1){
 				switch ($1){
 					case 'a': return Date.getMsg('days_abbr')[d.get('day')];
@@ -8335,18 +7236,15 @@ Date.implement({
 	strftime: 'format'
 });
 
-var formats = {
-	db: '%Y-%m-%d %H:%M:%S',
-	compact: '%Y%m%dT%H%M%S',
-	'short': '%d %b %H:%M',
-	'long': '%B %d, %Y %H:%M'
-};
-
 // The day and month abbreviations are standardized, so we cannot use simply %a and %b because they will get localized
 var rfcDayAbbr = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
 	rfcMonthAbbr = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-var formatters = {
+var formats = {
+	db: '%Y-%m-%d %H:%M:%S',
+	compact: '%Y%m%dT%H%M%S',
+	'short': '%d %b %H:%M',
+	'long': '%B %d, %Y %H:%M',
 	rfc822: function(date){
 		return rfcDayAbbr[date.get('day')] + date.format(', %d ') + rfcMonthAbbr[date.get('month')] + date.format(' %Y %H:%M:%S %Z');
 	},
@@ -8365,7 +7263,6 @@ var formatters = {
 		);
 	}
 };
-
 
 var parsePatterns = [],
 	nativeParse = Date.parse;
@@ -8478,11 +7375,6 @@ Date.extend({
 		return this;
 	},
 
-	defineFormats: function(formats){
-		for (var name in formats) Date.defineFormat(name, formats[name]);
-		return this;
-	},
-
 	//<1.2compat>
 	parsePatterns: parsePatterns,
 	//</1.2compat>
@@ -8503,6 +7395,8 @@ Date.extend({
 		return this;
 	}
 
+}).extend({
+	defineFormats: Date.defineFormat.overloadSetter()
 });
 
 var regexOf = function(type){
@@ -8639,71 +7533,6 @@ Locale.addEvent('change', function(language){
 
 /*
 ---
- 
-script: Date.js
- 
-description: Work with dates like a boss
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Trait
-  - More/Date
-
-provides:
-  - LSD.Trait.Date
- 
-...
-*/
-
-LSD.Trait.Date = new Class({
-  options: {
-    date: {
-      interval: 'month',
-      format: '%b-%d-%Y'
-    }
-  },
-  
-  setDate: function(date) {
-    this.date = date;
-  },
-  
-  formatDate: function(date) {
-    return date.format(this.options.date.format)
-  },
-  
-  getDate: function() {
-    if (this.date) return this.date;
-    if (this.getRawDate) {
-      var raw = this.getRawDate();
-      if (raw) return this.parseDate(raw);
-    }
-    return this.getDefaultDate();
-  },
-  
-  getDefaultDate: function() {
-    return new Date;
-  },
-  
-  parseDate: function(date) {
-    return Date.parse(date);
-  },
-  
-  increment: function(number) {
-    number = number.toInt ? number.toInt() : 1;
-    this.setDate(this.getDate().increment(this.options.date.interval, number))
-  },
-
-  decrement: function(number) {
-    number = number.toInt ? number.toInt() : 1;
-    this.setDate(this.getDate().decrement(this.options.date.interval, number))
-  }
-  
-});
-/*
----
 
 name: Locale.ru-RU-unicode.Date
 
@@ -8803,1344 +7632,10 @@ Locale.define('ru-RU-unicode').inherit('ru-RU', 'Date');
 
 /*
 ---
-name : sg-regex-tools
-description : A few super-handy tools for messing around with RegExp
-
-authors   : Thomas Aylott
-copyright : © 2010 Thomas Aylott
-license   : MIT
-
-provides : [combineRegExp]
-...
-*/
-;(function(exports){
-
-exports.combineRegExp = function(regex, group){
-	if (regex.source) regex = [regex]
-	
-	var names = [], i, source = '', this_source
-	
-	for (i = 0; i < regex.length; ++i){ if (!regex[i]) continue
-		this_source = regex[i].source || ''+regex[i]
-		if (this_source == '|') source += '|'
-		else {
-			source += (group?'(':'') + this_source.replace(/\s/g,'') + (group?')':'')
-			if (group) names.push(group)
-		}
-		if (regex[i].names)	names = names.concat(regex[i].names)
-	}
-	try {
-		regex = new RegExp(source,'gm')
-	}
-	catch (e){
-		throw new SyntaxError('Invalid Syntax: ' + source +'; '+ e)
-	}
-	// [key] → 1
-	for (i = -1; i < names.length; ++i) names[names[i]] = i + 1
-	// [1] → key
-	regex.names = names
-	return regex
-}
-
-}(typeof exports != 'undefined' ? exports : this))
-
-/*
----
-name    : SheetParser.CSS
-
-authors   : Thomas Aylott
-copyright : © 2010 Thomas Aylott
-license   : MIT
-
-provides : SheetParser.CSS
-requires : combineRegExp
-...
-*/
-;(function(exports){
-	
-
-/*<depend>*/
-var UNDEF = {undefined:1}
-if (!exports.SheetParser) exports.SheetParser = {}
-
-/*<CommonJS>*/
-var combineRegExp = UNDEF[typeof require]
-	?	exports.combineRegExp
-	:	require('./sg-regex-tools').combineRegExp
-var SheetParser = exports.SheetParser
-/*</CommonJS>*/
-
-/*<debug>*/;if (UNDEF[typeof combineRegExp]) throw new Error('Missing required function: "combineRegExp"');/*</debug>*/
-/*</depend>*/
-
-
-var CSS = SheetParser.CSS = {version: '1.0.2 dev'}
-
-CSS.trim = trim
-function trim(str){
-	// http://blog.stevenlevithan.com/archives/faster-trim-javascript
-	var	str = (''+str).replace(/^\s\s*/, ''),
-		ws = /\s/,
-		i = str.length;
-	while (ws.test(str.charAt(--i)));
-	return str.slice(0, i + 1);
-}
-
-CSS.camelCase = function(string){
-	return ('' + string).replace(camelCaseSearch, camelCaseReplace)
-}
-var camelCaseSearch = /-\D/g
-function camelCaseReplace(match){
-	return match.charAt(1).toUpperCase()
-}
-
-CSS.parse = function(cssText){
-	var	found
-	,	rule
-	,	rules = {length:0}
-	,	keyIndex = -1
-	,	regex = this.parser
-	,	names = CSS.parser.names
-	,	i,r,l
-	,	ruleCount
-	
-	rules.cssText = cssText = trim(cssText)
-	
-	// strip comments
-	cssText = cssText.replace(CSS.comment, '');
-	
-	regex.lastIndex = 0
-	while ((found = regex.exec(cssText))){
-		// avoid an infinite loop on zero-length keys
-		if (regex.lastIndex == found.index) ++ regex.lastIndex
-		
-		// key:value
-		if (found[names._key]){
-			rules[rules.length ++] = found[names._key]
-			rules[found[names._key]] = found[names._value]
-			rules[CSS.camelCase(found[names._key])] = found[names._value]
-			continue
-		}
-		
-		rules[rules.length++] = rule = {}
-		for (i = 0, l = names.length; i < l; ++i){
-			if (!(names[i-1] && found[i])) continue
-			rule[names[i-1]] = trim(found[i])
-		}
-	}
-	
-	var atKey, atRule, atList, atI
-	for (i = 0, l = rules.length; i < l; ++i){
-		if (!rules[i]) continue
-		
-		if (rules[i]._style_cssText){
-			rules[i].style = CSS.parse(rules[i]._style_cssText)
-			delete rules[i]._style_cssText
-		}
-		
-		// _atKey/_atValue
-		if (atKey = rules[i]._atKey){
-			atKey = CSS.camelCase(atKey)
-			atRule = {length:0}
-			rules[i][atKey] = atRule
-			atRule["_source"] =
-			atRule[atKey + "Text"] = rules[i]._atValue
-			atList = ('' + rules[i]._atValue).split(/,\s*/)
-			for (atI = 0; atI < atList.length; ++atI){
-				atRule[atRule.length ++] = atList[atI]
-			}
-			rules[i].length = 1
-			rules[i][0] = atKey
-			delete rules[i]._atKey
-			delete rules[i]._atValue
-		}
-		
-		if (rules[i].style)
-		for (ruleCount = -1, r = -1, rule; rule = rules[i].style[++r];){
-			if (typeof rule == 'string') continue
-			rules[i][r] = (rules[i].cssRules || (rules[i].cssRules = {}))[++ ruleCount]  = rule
-			rules[i].cssRules.length = ruleCount + 1
-			rules[i].rules = rules[i].cssRules
-		}
-	}
-	
-	return rules
-}
-
-var x = combineRegExp
-var OR = '|'
-
-;(CSS.at = x(/\s*@([-a-zA-Z0-9]+)\s+(([\w-]+)?[^;{]*)/))
-.names=[         '_atKey',           '_atValue', 'name']
-
-CSS.atRule = x([CSS.at, ';'])
-
-;(CSS.keyValue_key = x(/([-a-zA-Z0-9]+)/))
-.names=[                '_key']
-
-;(CSS.keyValue_value_end = x(/(?:;|(?=\})|$)/))
-
-;(CSS.notString = x(/[^"']+/))
-;(CSS.stringSingle = x(/"(?:[^"]|\\")*"/))
-;(CSS.stringDouble = x(/'(?:[^']|\\')*'/))
-;(CSS.string = x(['(?:',CSS.stringSingle ,OR, CSS.stringDouble,')']))
-;(CSS.propertyValue = x([/[^;}]+/, CSS.keyValue_value_end]))
-
-var rRound = "(?:[^()]|\\((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*\\))"
-
-;(CSS.keyValue_value = x(
-[
-	x(['((?:'
-	,	CSS.stringSingle
-	,	OR
-	,	CSS.stringDouble
-	,	OR
-	,	"\\("+rRound+"*\\)"
-	,	OR
-	,	/[^;}()]/ // not a keyValue_value terminator
-	,	')*)'
-	])
-,	CSS.keyValue_value_end
-])).names = ['_value']
-
-;(CSS.keyValue = x([CSS.keyValue_key ,/\s*:\s*/, CSS.keyValue_value]))
-
-;(CSS.comment = x(/\/\*\s*((?:[^*]|\*(?!\/))*)\s*\*\//))
-.names=[                   'comment']
-
-;(CSS.selector = x(['(',/\s*(\d+%)\s*/,OR,'(?:',/[^{}'"()]|\([^)]*\)|\[[^\]]*\]/,')+',')']))
-.names=[    'selectorText','keyText']
-
-var rCurly = "(?:[^{}]|\\{(?:[^{}]|\\{(?:[^{}]|\\{(?:[^{}]|\\{[^{}]*\\})*\\})*\\})*\\})"
-var rCurlyRound = "(?:[^{}()]+|\\{(?:[^{}()]+|\\{(?:[^{}()]+|\\{(?:[^{}()]+|\\{[^{}()]*\\})*\\})*\\})*\\})"
-
-;(CSS.block = x("\\{\\s*((?:"+"\\("+rRound+"*\\)|"+rCurly+")*)\\s*\\}"))
-.names=[              '_style_cssText']
-
-CSS.selectorBlock = x([CSS.selector, CSS.block])
-
-CSS.atBlock = x([CSS.at, CSS.block])
-
-CSS.parser = x
-(
-	[	x(CSS.comment)
-	,	OR
-	,	x(CSS.atBlock)
-	,	OR
-	,	x(CSS.atRule)
-	,	OR
-	,	x(CSS.selectorBlock)
-	,	OR
-	,	x(CSS.keyValue)
-	]
-,	'cssText'
-);
-
-
-})(typeof exports != 'undefined' ? exports : this);
-
-/*
----
-name    : SheetParser.Value
-
-authors   : Yaroslaff Fedin
-
-license   : MIT
-
-requires : SheetParser.CSS
-
-provides : SheetParser.Value
-...
-*/
-
-
-(function(exports) {
-  /*<CommonJS>*/
-  var combineRegExp = (typeof require == 'undefined')
-    ?  exports.combineRegExp
-    :  require('./sg-regex-tools').combineRegExp
-  var SheetParser = exports.SheetParser
-  /*</CommonJS>*/
-  
-  var Value = SheetParser.Value = {version: '1.0.2 dev'};
-  
-  Value.translate = function(value) {
-    var found, result = [], matched = [], scope = result, func, text;
-    var regex = Value.tokenize;
-    var names = regex.names;
-    while (found = regex.exec(value)) matched.push(found);
-    for (var i = 0; found = matched[i++];) {
-      if (func = found[names['function']]) {
-        var obj = {};
-        var translated = obj[found[names['function']]] = Value.translate(found[names._arguments]);
-        for (var j = 0, bit; bit = translated[j]; j++) if (bit && bit.length == 1) translated[j] = bit[0];
-        scope.push(obj);
-      } else if (found[names.comma]) {
-        if (!result[0].push) result = [result];
-        result.push(scope = []);
-      } else if (found[names.whitespace]) {
-        var length = scope.length;
-        if (length && (scope == result) && !scope[length - 1].push) scope = scope[length - 1] = [scope[length - 1]];
-        
-      } else if (text = (found[names.dstring] || found[names.sstring])) {
-        scope.push(text)
-      } else if (text = found[names.token]) {
-        if (!text.match(Value.hex)) {
-          var match = Value.length.exec(text);
-          Value.length.lastIndex = 0;
-          if (match) {
-            var number = parseFloat(match[1]);
-            text = match[2] ? {number: number, unit: match[2]} : number;
-          } else if (!text.match(Value.keyword)) return false;
-        }
-        scope.push(text);
-      }
-    }
-    return result.length == 1 ? result[0] : result;
-  }
-  
-  var x = combineRegExp
-  var OR = '|'
-  var rRound = "(?:[^()]|\\((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*\\))";
-
-  ;(Value.stringDouble = x(/"((?:[^"]|\\")*)"/)).names = ['dstring']
-  ;(Value.stringSingle = x(/'((?:[^']|\\')*)'/)).names = ['sstring']
-  ;(Value.string = x([Value.stringSingle, OR, Value.stringDouble]))
-  ;(Value.keyword = x(/[-a-zA-Z0-9]+/, "keyword"))
-  ;(Value.token = x(/[^$,\s\/)]+/, "token"))
-  
-  ;(Value['function'] = x("([-_a-zA-Z0-9]+)\\((" + rRound + "*)\\)"))
-  .names = [               'function',       '_arguments']
-  
-  ;(Value.integer = x(/-?\d+/))
-  ;(Value.float = x(/-?\d+\.\d*/))
-  ;(Value.number = x(['(', Value.float,  OR, Value.integer, ')']))
-  .names = [           'number']
-
-  ;(Value.unit = x(/em|px|pt|%|fr|deg/, 'unit'))
-  ;(Value.length = x(['^', Value.number, Value.unit, "?$"]))
-  ;(Value.direction = x(/top|left|bottom|right|center/, 'direction'))
-  ;(Value.position = x([Value.length, OR, Value.direction]))
-
-  ;(Value.hex = x(/#[0-9a-z]+/, 'hex'))
-
-  ;(Value.comma = x(/\s*,\s*/, 'comma'))
-  ;(Value.whitespace = x(/\s+/, 'whitespace'))
-  ;(Value.slash = x(/\//, 'slash'))
-
-
-  Value.tokenize = x
-  (
-    [ x(Value['function']),
-    , OR
-    , x(Value.comma)
-    , OR
-    , x(Value.whitespace)
-    , OR
-    , x(Value.slash)
-    , OR
-    , x(Value.string)
-    , OR
-    , x(Value.token)
-    ]
-  )
-  
-})(typeof exports != 'undefined' ? exports : this);
-/*
----
- 
-script: Interpolation.js
- 
-description: A logic to render (and nest) widgets out of the key-value hash or dom tree
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD
-  - Sheet/SheetParser.Value
-  - String.Inflections/String.pluralize
-
-provides: 
-  - LSD.Interpolation
- 
-...
-*/
-
-
-!function() {
-  LSD.Interpolation = {}
-  var helpers = LSD.Interpolation.helpers = {
-    pluralize: function(count, singular, plural) {
-      var value = (count == 1) ? singular : (plural || (singular.pluralize()));
-      return value.replace("%", count);
-    },
-    auto_pluralize: function(count, singular, plural) {
-      return count + " " + helpers.pluralize(count, singular, plural);
-    }
-  }
-  
-  var regex = SheetParser.Value.tokenize;
-  var parsed = {};
-  
-  var interpolate = LSD.Interpolation.interpolate = function(name, callback, simple) {
-    if (!simple || (name.indexOf('(') > -1)) return execute(translate(name), callback);
-    return callback(name);
-  }
-  
-  var translate = LSD.Interpolation.translate = function(value) {
-    var cached = parsed[name];
-    if (cached) return cached;
-    var found, result = [], matched = [], scope = result, func, text;
-    var names = regex.names;
-    while (found = regex.exec(value)) matched.push(found);
-    for (var i = 0; found = matched[i++];) {
-      if (func = found[names['function']]) {
-        var translated = translate(found[names._arguments]);
-        for (var j = 0, bit; bit = translated[j]; j++) if (bit && bit.length == 1) translated[j] = bit[0];
-        scope.push({fn: func, arguments: translated});
-      } else if (text = (found[names.dstring] || found[names.sstring])) {
-        scope.push(text)
-      } else if (text = found[names.token]) {
-        scope.push({fn: interpolate, arguments: [text, true], callback: true})
-      }
-    }
-    return (parsed[value] = (result.length == 1 ? result[0] : result));
-  }
-  
-  var execute = LSD.Interpolation.execute = function(command, callback) {
-    var fn = command.fn;
-    if (fn) {
-      var func = fn.indexOf ? (helpers[fn] || (callback(fn))) : fn;
-      if (!func) {
-        console.error(fn, ' interpoaltion function is not found');
-        return "";
-      }
-      var args = Array.prototype.slice.call(command.arguments, 0);
-      for (var i = 0, j = args.length; i < j; i++) args[i] = execute(args[i], callback);
-      if (command.callback) args.splice(1, 0, callback);
-      return func.apply(this, args);
-    }
-    return command;
-  }
-  
-}();
-/*
----
- 
-script: Layout.js
- 
-description: A logic to render (and nest) widgets out of the key-value hash or dom tree
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD
-  - More/Object.Extras
-  - LSD.Interpolation
-
-provides: 
-  - LSD.Layout
- 
-...
-*/
-
-!function() {
-  
-/* 
-  Layout takes any tree-like structure and tries
-  to build layout that representats that structure.
-  
-  The structure can be an objects with keys as selectors
-  and values with other objects, arrays and strings.
-  
-  You can also build a widget tree from DOM. Layout will
-  extract attributes and classes from elements. There are
-  three methods of conversion element to widget:
-  
-  * Augment - Tries to use element in widget with minimal
-              changes. (default)
-  * Modify  - Builds widget with new element and replaces 
-              the original element (fallback, destructive)
-  * Clone   - Builds new element, original element untouched
-*/
-
-LSD.Layout = function(widget, layout, options) {
-  this.setOptions(options);
-  this.context = LSD[this.options.context.capitalize()];
-  if (widget) if (!layout && !widget.lsd) {
-    layout = widget;
-    widget = null;
-  } else if (!widget.lsd) widget = this.convert(widget);
-  if (layout) this.result = this.render(layout, widget);
-};
-
-LSD.Layout.prototype = Object.append(new Options, {
-  
-  options: {
-    method: 'augment',
-    fallback: 'modify',
-    context: 'element',
-    interpolate: null
-  },
-  
-  render: function(layout, parent, method, opts) {
-    if (!layout.lsd) {
-      var type = layout.push ? 'array' : layout.nodeType ? LSD.Layout.NodeTypes[layout.nodeType] : layout.indexOf ? 'string' : 'object';
-      if (type) return this[type](layout, parent, method, opts);
-    } else if (parent) return this.appendChild(layout, parent);
-  },
-  
-  materialize: function(selector, layout, parent, opts) {
-    var widget = this.build(Object.append({}, opts, this.parse(selector, parent)), parent);
-    //debugger
-    if (parent) this.appendChild(widget, parent)
-    if (layout) if (layout.charAt) widget.write(layout);
-    else this.render(layout, widget, null, opts);
-    return widget;
-  },
-  
-  /* 
-    Parsers selector and generates options for layout 
-  */
-  
-  interpolate: function(string, object) {
-    if (!object) object = this.options.interpolate;
-    var self = this;
-    return string.replace(/\\?\{([^{}]+)\}/g, function(match, name){
-      if (match.charAt(0) == '\\') return match.slice(1);
-      var value = object.call ? LSD.Interpolation.interpolate(name, object) : object[string];
-      self.interpolated = true;
-      return (value != null) ? value : '';
-    });
-  },
-  
-  parse: function(selector, parent) {
-    if (!this.parsed) this.parsed = {};
-    else if (this.parsed[selector]) return this.parsed[selector];
-    var options = {};
-    var parsed = Slick.parse(selector).expressions[0][0]
-    if (parsed.tag != '*') options.source = parsed.tag;
-    if (parsed.id) (options.attributes || (options.attributes = {})).id = parsed.id
-    if (parsed.attributes) parsed.attributes.each(function(attribute) {
-      var value = attribute.value || LSD.Attributes.Boolean[attribute.key] || "";
-      (options.attributes || (options.attributes = {}))[attribute.key] = value;
-    });
-    if (parsed.classes) options.classes = parsed.classes.map(Macro.map('value'));
-    if (parsed.pseudos) {
-      options.pseudos = [];
-      parsed.pseudos.each(function(pseudo) {
-        if (pseudo.type == 'element') {
-          var relation = (parent[0] || parent).relations[pseudo.key];
-          if (!relation) throw "Unknown pseudo element ::" + pseudo.key
-          Object.append(options, this.parse(relation.layout, parent))
-        } else return options.pseudos.push(pseudo.key);
-      }, this);
-    }
-    switch (parsed.combinator) {
-      case '^':
-        options.inherit = 'full';
-        break;
-      case '>':
-        options.inherit = 'partial';
-    }
-    return (this.parsed[selector] = options);
-  },
-  
-  convert: function(element, parent, mutated, opts) {
-    if (mutated == null) mutated = this.mutate(element, parent);
-    if (mutated || this.isConvertable(element, parent)) return this.make(element, parent, mutated, opts);
-  },
-  
-  patch: function(element, parent, mutated, opts) {
-    if (this.isAugmentable(element, parent, mutated)) return this.make(element, parent, mutated, opts, true);
-  },
-  
-  make: function(element, parent, mutated, opts, reuse) {
-    var extracted = mutated || (LSD.Layout.extract(element));
-    return this.build(Object.append({}, opts, extracted), parent && parent.call ? parent(element) : parent, reuse ? element : null)
-  },
-  
-  build: function(options, parent) {
-    var tag = options.source || options.tag, attributes = options.attributes;
-    if (attributes) {
-      if ('type' in attributes) tag += "-" + attributes.type;
-      if ('kind' in attributes) tag += "-" + attributes.kind;
-      var interpolate = this.options.interpolate;
-      for (var name in attributes) if (interpolate) attributes[name] = this.interpolate(attributes[name]);
-    }
-    Object.merge(options, {layout: {render: false}});
-    if (options.inherit && parent) {
-      if (parent.options) {
-        var source = parent.options.source;
-        if (!source) {
-          var bits = [parent.tagName, parent.getAttribute('type')];
-          if (options.inherit == 'full') bits.push(parent.getAttribute('kind'));
-          source = bits.filter(function(bit) { return bit }).join('-');
-        }
-      } else if (parent.indexOf) var source = parent;
-      if (source) tag = source + '-' + tag;
-    }
-    var args = Array.prototype.slice.call(arguments, 0);
-    args.splice(1, 1); //remove parent
-    LSD.Layout.current = this;
-    return this.context.create.apply(this.context, [tag].concat(args));
-  },
-  
-  /*
-    Tries given method. Retries with fallback.
-  */
-  
-  translate: function(method) {
-    var args = Array.prototype.slice.call(arguments, 1);
-    return this[method].apply(this, args) || (this.options.fallback && this[this.options.fallback].apply(this, args));
-  },
-  
-  // methods
-  
-  /* 
-    Replaces an element with a widget. Also replaces
-    all children widgets when possible. 
-  */
-  modify: function(element, parent, mutated) {
-    var converted = this.convert(element, parent, mutated);
-    if (converted) {
-      var replacement = converted.toElement();
-      replacement.replaces(element);
-      var node, next = element.firstChild;
-      while (node = next) {
-        next = next.nextSibling;
-        replacement.appendChild(node);
-      }
-    }
-    return converted;
-  },
-  
-  /*
-    Augment tries to avoid making changes to element
-    at all costs and tries to use the whole tree. Used
-    as a primary method in regular HTML applications.
-  */
-  augment: function(element, parent, mutated, opts) {
-    return this.patch(element, parent, mutated, opts);
-  },
-  
-  /*
-    Creates an independent widget tree and replaces
-    the original DOM leaving it unchanged. Useful
-    to keep an element as a template and clone it
-    many times after. Textnodes are cloned too.
-  */
-  
-  clone: function(element, parent, mutated, opts) {
-    var converted = this.convert(element, parent, mutated, opts)
-    if (parent && parent.call) parent = parent(element);
-    if (parent) {
-      if (converted) {
-        converted.inject(parent[0] || parent);
-      } else {
-        (parent.toElement ? parent.toElement() : parent).appendChild(element.cloneNode(false));
-      }
-    }
-    return converted;
-  },
-  
-  // type handlers
-  
-  string: function(string, parent, method, opts) {
-    return this.materialize(string, {}, parent, opts);
-  },
-  
-  array: function(array, parent, method, opts) {
-    return array.map(function(widget) { return this.render(widget, parent, method, opts)}.bind(this));
-  },
-  
-  elements: function(elements, parent, method, opts) {
-    return elements.map(function(widget) { return this.render(widget, parent, method, opts)}.bind(this));
-  },
-  
-  element: function(element, parent, method, opts) {
-    var converted = element.uid && Element.retrieve(element, 'widget');
-    var skip = (method === false);
-    if (!method) method = this.options.method;
-    var augmenting = (method == 'augment'), cloning = (method == 'clone');
-    var children = LSD.slice(element.childNodes);
-    if (!converted || !augmenting) {
-      var ascendant = (parent && parent[1]) || parent;
-      var mutated = this.mutate(element, ascendant);
-      if (mutated || this.isConvertable(element, ascendant)) {
-        var widget = this.translate(method, element, ascendant, mutated, opts);
-      } else if (cloning) {  
-        var clone = element.cloneNode(false);
-      }
-    } else var widget = converted;
-    var child = widget || clone;
-    if (cloning) {
-      var textnode = LSD.Layout.TextNodes[LSD.toLowerCase(element.tagName)];
-      if (textnode) this.render(children, clone ? [clone, parent] : widget || parent, method)
-    }
-    if (parent && child) this.appendChild(child, parent[0] || parent);
-    if (!textnode) this.render(children, clone ? [clone, parent] : widget || parent, method, opts);
-    return clone || widget || element;
-  },
-  
-  textnode: function(element, parent, method) {
-    if (!method) method = this.options.method;
-    if (method != 'augment') {
-      var value = element.textContent;
-      if (this.options.interpolate) var interpolated = this.interpolate(value);
-      var textnode = element.ownerDocument.createTextNode(interpolated || value);
-      if (method != 'clone') {
-        if (interpolated != null && interpolated != value) element.parentNode.replaceChild(textnode)
-      } else this.appendChild(textnode, parent[0] || parent)
-    }
-    return textnode || element;
-  },
-  
-  fragment: function(element, parent, method, opts) {
-    return this.walk(element, parent, method, opts);
-  },
-  
-  object: function(object, parent, method, opts) {
-    var widgets = [];
-    for (var selector in object) {
-      widgets.push(this.materialize(selector, object[selector] === true ? null : object[selector], parent, opts));
-    }
-    return widgets;
-  },
-  
-  walk: function(element, parent, method, opts) {
-    for (var nodes = LSD.slice.call(element.childNodes, 0), i = 0, node; node = nodes[i++];) {
-      if (node.nodeType && node.nodeType != 8) this.render(node, parent, method, opts);
-    }
-  },
-  
-  find: function(element, root, opts) {
-    var selected = element.getElementsByTagName("*");
-    for (var children = [], i = 0, j = selected.length; i < j; i++) children[i] = selected[i];
-    var found = {};
-    var getParent = function(node) {
-      var parent = null;
-      while (node = node.parentNode) if (node == element || node.uid && (parent = found[node.uid])) break;
-      return parent || root;
-    };
-    for (var i = 0, child; child = children[i++];) {
-      var widget = this.render(child, getParent, false, opts);
-      if (widget && widget.element) found[widget.element.uid] = widget;
-    }
-  },
-  
-  appendChild: function(child, parent) {
-    if (child.nodeType && (!parent.call || (child.element && (parent = parent(child.element))))) {
-      if (!child.parentNode || (child.parentNode != parent && child.parentNode != parent.element)) { 
-        if (child.toElement) child.toElement();
-        if (parent.toElement) parent.toElement();
-        if (child.element && parent.element) {
-          child.inject(parent, child.element.parentNode ? false : 'bottom')
-        } else (parent.element || parent).appendChild(child.element || child);
-      }
-    }
-  },
-  
-  // mutations
-  
-  merge: function(first, second) {
-    var result = {layout: first.layout}, id, combinator;
-    result.source = second.source || first.source;
-    if (combinator = (second.combinator || first.combinator)) result.combinator = combinator;
-    if (second.attributes || first.attributes) result.attributes = Object.append({}, first.attributes, second.attributes);
-    if (second.classes || first.classes) result.classes = Array.concat([], first.classes || [], second.classees || []);
-    if (second.pseudos || first.pseudos) result.pseudos = Array.concat([], first.pseudos || [], second.pseudos || []);
-    return result;
-  },
-  
-  mutate: function(element, parent) {
-    if (!(parent && (parent = parent[1] || parent) && parent.mutateLayout)) return false;
-    var mutation = parent.mutateLayout(element, this);
-    if (mutation) return this.merge(LSD.Layout.extract(element), mutation.indexOf ? this.parse(mutation, parent) : mutation);
-  },
-  
-  // redefinable predicates
-  
-  isConvertable: function(element, parent) {
-    return !!this.context.find(LSD.toLowerCase(element.tagName));
-  },
-  
-  isAugmentable: function(element, parent, mutated) {
-    if (element.nodeType != 1) return true;
-    var tag = LSD.toLowerCase(element.tagName);
-    if (!mutated) {
-      var type = element.getAttribute('type');
-      var source = (type && type != tag) ? tag + '-' + type : tag;
-    } else var source = mutated.source;
-    var klass = this.context.find(LSD.toLowerCase(source));
-    if (!klass) return;
-    var opts = klass.prototype.options;
-    return !opts || !opts.element || !opts.element.tag || (opts.element.tag == tag);
-  }
-  
-});
-
-LSD.Layout.NodeTypes = {1: 'element', 3: 'textnode', 11: 'fragment'};
-LSD.Layout.TextNodes = Array.fast('script', 'button', 'textarea', 'option', 'input');
-
-/* 
-  Extracts options from a DOM element.
-  
-  Following selectors considered equal:
-  
-  footer#bottom.left
-  div.lsd.footer.id-bottom.left
-  div.tag-footer.id-bottom.left
-  div.tag-footer[id=bottom][class=left]
-*/
-
-LSD.Layout.extract = function(element) {
-  var options = {
-    attributes: {},
-    origin: element
-  };
-  var tag = LSD.toLowerCase(element.tagName);
-  if (tag != 'div') options.source = tag;
-  
-  for (var i = 0, attribute, name; (attribute = element.attributes[i++]) && (name = attribute.name);)
-    options.attributes[name] = attribute.value || LSD.Attributes.Boolean[name] || "";
-    
-  if (options.attributes && options.attributes.inherit) {
-    options.inherit = options.attributes.inherit;
-    delete options.attributes.inherit;
-  }
-  
-  if (element.id) options.attributes.id = element.id;
-  
-  var klass = options.attributes['class'];
-  if (klass) {
-    klass = klass.replace(/^lsd\s+(?:tag-)?([a-zA-Z0-9-_]+)\s?/, function(m, tag) {
-      options.source = tag;
-      return '';
-    })
-    options.classes = klass.split(/\s+/).filter(function(name) {
-      switch (name.substr(0, 3)) {
-        case "is-":
-          if (!options.pseudos) options.pseudos = [];
-          options.pseudos.push(name.substr(3, name.length - 3));
-          break;
-        case "id-":
-          options.attributes.id = name.substr(3, name.length - 3);
-          break;
-        default:
-          return true;
-      }
-    })
-    delete options.attributes['class'];
-  }
-  return options;
-};
-
-['modify', 'augment', 'clone'].each(function(method) {
-  LSD.Layout[method] = function(element, layout, options) {
-    return new LSD.Layout(element, layout, Object.append({method: method}, options)).result;
-  }
-});
-
-
-}();
-
-/*
----
- 
-script: Expression.js
- 
-description: Adds layout capabilities to widget (parse and render widget trees from objects)
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Module
-  - LSD.Layout
-
-provides: 
-  - LSD.Module.Layout
- 
-...
-*/
-  
-LSD.Module.Layout = new Class({
-  options: {
-    layout: {
-      render: true,
-      extract: false,
-      options: {}
-    }
-  },
-  
-  initializers: {
-    layout: function(options) {
-      return {
-        events: {
-          self: {
-            /*
-              Extracts and sets layout options from attach element
-            */
-            attach: function(element) {
-              if (this.extracted || !options.layout.extract) return;
-              this.extracted = LSD.Layout.extract(element);
-              this.setOptions(this.extracted)
-            },
-            /*
-              Unsets options previously extracted from the detached element
-            */
-            detach: function() {
-              if (!this.extracted) return;
-              this.unsetOptions(this.extracted)
-              delete this.extracted;
-            },
-            /*
-              Mutate element when layout is set to clone.
-            */
-            beforeBuild: function(options) {
-              var layout = this.options.layout, clone = layout.options.method == 'clone';
-              if (!options.element || !(clone || layout.extract)) return;
-              this.extracted = LSD.Layout.extract(options.element);
-              this.setOptions(this.extracted);
-              this.origin = options.element;
-              if (clone) options.convert = false;
-            },
-            /*
-              Builds more dependent layout when element is built
-            */
-            build: function() {
-              var layout = this.options.layout;
-              if (this.origin || layout.render) 
-                this.buildLayout(Array.prototype.slice.call((this.origin || this.element).childNodes, 0));
-              if (layout.children) this.buildLayout(layout.children);
-            },
-            /*
-              Augments all parsed HTML that goes through standart .write() interface
-            */
-            write: 'augmentLayout',
-            /*
-              Augments all inserted nodes that come from partial html updates
-            */
-            DOMNodeInserted: 'augmentLayout'
-          },
-          
-          //applied only when mutations are set
-          mutations: {
-            mutateLayout: 'onMutateLayout'
-          }
-        }
-      }
-    }
-  },
-  
-  mutateLayout: function(element, layout) {
-    var query = {element: element, layout: layout, parent: this};
-    this.dispatchEvent('mutateLayout', query);
-    if (query.mutation) return query.mutation;
-  },
-  
-  onMutateLayout: function(query) {
-    var element = query.element;
-    var mutations = (this.mutations[LSD.toLowerCase(element.tagName)] || []).concat(this.mutations['*'] || []);
-    for (var i = 0, mutation; mutation = mutations[i++];) {
-      if (Slick.match(element, mutation[0], this.element)) query.mutation = mutation[1];
-    }
-  },
-  
-  addMutation: function(selector, mutation) {
-    LSD.Module.Events.setEventsByRegister.call(this, 'mutations', true);
-    if (!this.mutations) this.mutations = {};
-    selector.split(/\s*,\s*/).each(function(bit) {
-      var parsed = Slick.parse(bit);
-      var tag = parsed.expressions[0].getLast().tag;
-      var group = this.mutations[tag];
-      if (!group) group = this.mutations[tag] = [];
-      group.push([parsed, mutation]);
-    }, this)
-  },
-  
-  removeMutation: function(selector, mutation) {
-    LSD.Module.Events.setEventsByRegister.call(this, 'mutations', false);
-    selector.split(/\s*,\s*/).each(function(bit) {
-      var parsed = Slick.parse(bit);
-      var tag = parsed.expressions[0].getLast().tag;
-      var group = this.mutations[tag];
-      for (var i = 0, mutation; mutation = group[i]; i++)
-        if (group[0] == parsed && parsed[1] == mutation) group.splice(i--, 1);
-    }, this)
-  },
-  
-  getLayout: Macro.getter('layout', function() {
-    return new LSD.Layout(this, null, this.options.layout.options);
-  }),
-  
-  buildLayout: function(layout, parent, options) {
-    return this.getLayout().render(layout, parent || this, null, options);
-  },
-  
-  augmentLayout: function(layout, parent, options) {
-    return this.getLayout().render(layout, parent || this, 'augment', options);
-  }
-});
-
-LSD.Options.mutations = {
-  add: 'addMutation',
-  remove: 'removeMutation',
-  iterate: true
-};
-/*
----
-name    : SheetParser.Property
-
-authors   : Yaroslaff Fedin
-
-license   : MIT
-
-requires : SheetParser.CSS
-
-provides : SheetParser.Property
-...
-*/
-
-
-(function(exports) {
-  /*<CommonJS>*/
-  var combineRegExp = (typeof require == 'undefined')
-    ?  exports.combineRegExp
-    :  require('./sg-regex-tools').combineRegExp
-  var SheetParser = exports.SheetParser
-  /*</CommonJS>*/
-  
-  var Property = SheetParser.Property = {version: '0.2 dev'};
-  
-  /*
-    Finds optional groups in expressions and builds keyword
-    indecies for them. Keyword index is an object that has
-    keywords as keys and values as property names.
-    
-    Index only holds keywords that can be uniquely identified
-    as one of the properties in group.
-  */
-  
-  Property.index = function(properties, context) {
-    var index = {};
-    for (var i = 0, property; property = properties[i]; i++) {
-      if (property.push) {
-        var group = index[i] = {};
-        for (var j = 0, prop; prop = property[j]; j++) {
-          var keys = context[prop].keywords;
-          if (keys) for (var key in keys) {
-            if (group[key] == null) group[key] = prop;
-            else group[key] = false;
-          }
-        }
-        for (var keyword in group) if (!group[keyword]) delete group[keyword];
-      }
-    }
-    return index;
-  };
-  
-  /*
-    Simple value 
-  */
-
-  Property.simple = function(types, keywords) {
-    return function(value) {
-      if (keywords && keywords[value]) return true;
-      if (types) for (var i = 0, type; type = types[i++];) if (Type[type](value)) return true;
-      return false;
-    }
-  };
-  
-  /*
-    Links list of inambigous arguments with corresponding properties keeping
-    the order.
-  */
-  
-  Property.shorthand = function(properties, keywords, context) {
-    var index, r = 0;
-    for (var i = 0, property; property = properties[i++];) if (!property.push) r++;
-    return function() {
-      var result = [], used = {}, start = 0, group, k = 0, l = arguments.length;
-      for (var i = 0, argument; argument = arguments[i]; i++) {
-        var property = properties[k];
-        if (!property) return false;
-        if ((group = (property.push && property))) property = properties[k + 1];
-        if (property) {
-          if (context[property](argument)) k++
-          else property = false
-        }
-        if (group) {
-          if (!property) {
-            if (!index) index = Property.index(properties, context)
-            if (property = index[k][argument])
-              if (used[property]) return false;
-              else used[property] = 1;
-          }
-          if ((property && !used[property]) || (i == l - 1)) {
-            if (i - start > group.length) return false;
-            for (var j = start; j < (i + +!property); j++) 
-              if (!result[j])
-                for (var m = 0, optional; optional = group[m++];) {
-                  if (!used[optional] && context[optional](arguments[j])) {
-                    result[j] = optional;
-                    used[optional] = true
-                    break;
-                  }
-                }
-            start = i;
-            k++;
-          }
-        }
-        if (result[i] == null) result[i] = property;
-      }
-      if (i < r) return false
-      for (var i = 0, j = arguments.length, object = {}; i < j; i++) {
-        var value = result[i];
-        if (!value) return false;
-        object[value] = arguments[i];
-      }
-      return object;
-    };
-  }
-
-  /*
-    A shorthand that operates on collection of properties. When given values
-    are not enough (less than properties in collection), the value sequence
-    is repeated until all properties are filled.     
-  */
-
-  Property.collection = function(properties, keywords, context) {
-    var first = context[properties[0]];
-    if (first.type != 'simple') 
-      return function(arg) {
-        var args = (!arg || !arg.push) ? [Array.prototype.slice.call(arguments)] : arguments;
-        var length = args.length;
-        var result = {};
-        for (var i = 0, property; property = properties[i]; i++) {
-          var values = context[property].apply(1, args[i] || args[i % 2] || args[0]);
-          if (!values) return false;
-          for (var prop in values) result[prop] = values[prop];
-        }
-        return result;
-      }
-    else
-      return function() {
-        var length = arguments.length;
-        var result = {};
-        for (var i = 0, property; property = properties[i]; i++) {
-          var values = arguments[i] || arguments[i % 2] || arguments[0];
-          if (!context[property].call(1, values)) return false;
-          result[property] = values;
-        }
-        return result;
-      }
-  };
-  
-  /* 
-    Multiple value property accepts arrays as arguments
-    as well as regular stuff
-  */
-  
-  Property.multiple = function(arg) {
-    //if (arg.push)
-  }
-  
-  Property.compile = function(definition, context) {
-    var properties, keywords, types;
-    for (var i = 0, bit; bit = definition[i++];) {
-      if (bit.push) properties = bit;
-      else if (bit.indexOf) {
-        if (!Type[bit]) {
-          if (!keywords) keywords = {};
-          keywords[bit] = 1;
-        } else types ? types.push(bit) : (types = [bit]);
-      } else options = bit;
-    }
-    var type = properties ? (keywords && keywords.collection ? "collection" : "shorthand") : 'simple'
-    var property = Property[type](properties || types, keywords, context);
-    if (keywords) property.keywords = keywords;
-    if (properties) {
-      var props = [];
-      for (var i = 0, prop; prop = properties[i++];) prop.push ? props.push.apply(props, prop) : props.push(prop);
-      property.properties = props;
-    }
-    property.type = type;
-    return property;
-  };
-  
-  
-  var Type = Property.Type = {
-    length: function(obj) {
-      return typeof obj == 'number' || (!obj.indexOf && ('number' in obj) && obj.unit && (obj.unit != '%'))
-    },
-  
-    color: function(obj) {
-      return obj.indexOf ? obj.match(/^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/) : (obj.isColor || obj.rgba || obj.rgb || obj.hsb)
-    },
-    
-    number: function(obj) {
-      return typeof obj == 'number'
-    },
-    
-    integer: function(obj) {
-      return obj % 1 == 0 && ((0 + obj).toString() == obj)
-    },
-  
-    keyword: function(keywords) {
-      var storage;
-      for (var i = 0, keyword; keyword = keywords[i++];) storage[keyword] = 1;
-      return function(keyword) {
-        return !!storage[keyword]
-      }
-    },
-    
-    strings: function(obj) {
-      return !!obj.indexOf
-    },
-    
-    url: function(obj) {
-      return !obj.indexOf && ("url" in obj);
-    },
-    
-    position: function(obj) {        
-      var positions = Type.position.positions;
-      if (!positions) positions = Type.position.positions = {left: 1, top: 1, bottom: 1, right: 1, center: 1}
-      return positions[obj]
-    },
-    
-    percentage: function(obj) {
-      return obj.unit == '%'
-    }
-  };
-  
-})(typeof exports != 'undefined' ? exports : this);
-/*
----
-name    : SheetParser.Styles
-
-authors   : Yaroslaff Fedin
-
-license   : MIT
-
-requires : SheetParser.Property
-
-provides : SheetParser.Styles
-...
-*/
-
-(function() {
-   
-var SheetParser = (typeof exports == 'undefined') ? window.SheetParser : exports.SheetParser;
-var CSS = SheetParser.Properties = {
-  background:           [[['backgroundColor', 'backgroundImage', 'backgroundRepeat', 
-                          'backgroundAttachment', 'backgroundPositionX', 'backgroundPositionY']], 'multiple'],
-  backgroundColor:      ['color', 'transparent', 'inherit'],
-  backgroundImage:      ['url', 'none', 'inherit'],
-  backgroundRepeat:     ['repeat', 'no-repeat', 'repeat-x', 'repeat-y', 'inherit', 'space', 'round'],
-  backgroundAttachment: ['fixed', 'scroll', 'inherit', 'local', 'fixed'],
-  backgroundPosition:   [['backgroundPositionX', 'backgroundPositionY']],
-  backgroundPositionX:  ['percentage', 'center', 'left', 'right', 'length', 'inherit'],
-  backgroundPositionY:  ['percentage', 'center', 'top', 'bottom', 'length', 'inherit'],
-   
-  textShadow:           [['textShadowBlur', 'textShadowOffsetX', 'textShadowOffsetY', 'textShadowColor'], 'multiple'],
-  textShadowBlur:       ['length'],
-  textShadowOffsetX:    ['length'],
-  textShadowOffsetY:    ['length'],
-  textShadowColor:      ['color'],
-                        
-  boxShadow:            [['boxShadowBlur', 'boxShadowOffsetX', 'boxShadowOffsetY', 'boxShadowColor'], 'multiple'],
-  boxShadowBlur:        ['length'],
-  boxShadowOffsetX:     ['length'],
-  boxShadowOffsetY:     ['length'],
-  boxShadowColor:       ['color'], 
-  
-  outline:              ['outlineWidth', 'outlineStyle', 'outlineColor'],
-  outlineWidth:         ['length'],
-  outlineStyle:         ['dotted', 'dashed', 'solid', 'double', 'groove', 'reidge', 'inset', 'outset'],
-  outlineColor:         ['color'],
-                        
-  font:                 [[
-                          ['fontStyle', 'fontVariant', 'fontWeight'], 
-                          'fontSize', 
-                          ['lineHeight'], 
-                          'fontFamily'
-                        ]],
-  fontStyle:            ['normal', 'italic', 'oblique', 'inherit'],
-  fontVariant:          ['normal', 'small-caps', 'inherit'],
-  fontWeight:           ['normal', 'number', 'bold', 'inherit'],
-  fontFamily:           ['strings', 'inherit'],
-  fontSize:             ['length', 'percentage', 'inherit', 
-                         'xx-small', 'x-small', 'small', 'medium', 'large', 'x-large', 'xx-large', 'smaller', 'larger'],
-                        
-  color:                ['color'],
-  letterSpacing:        ['normal', 'length', 'inherit'],
-  textDecoration:       ['none', 'capitalize', 'uppercase', 'lowercase'],
-  textAlign:            ['left', 'right', 'center', 'justify'],
-  textIdent:            ['length', 'percentage'],                 
-  lineHeight:           ['normal', 'length', 'number', 'percentage'],
-  
-  height:               ['length', 'auto'],
-  maxHeight:            ['length', 'auto'],
-  minHeight:            ['length', 'auto'],
-  width:                ['length', 'auto'],
-  maxWidth:             ['length', 'auto'],
-  minWidth:             ['length', 'auto'],
-                        
-  display:              ['inline', 'block', 'list-item', 'run-in', 'inline-block', 'table', 'inline-table', 'none', 
-                         'table-row-group', 'table-header-group', 'table-footer-group', 'table-row', 
-                         'table-column-group', 'table-column', 'table-cell', 'table-caption'],
-  visibility:           ['visible', 'hidden'],
-  'float':              ['none', 'left', 'right'],
-  clear:                ['none', 'left', 'right', 'both', 'inherit'],
-  overflow:             ['visible', 'hidden', 'scroll', 'auto'],
-  position:             ['static', 'relative', 'absolute', 'fixed'],
-  top:                  ['length', 'auto'],
-  left:                 ['length', 'auto'],
-  right:                ['length', 'auto'],
-  bottom:               ['length', 'auto'],
-  zIndex:               ['integer'],
-  cursor:               ['auto', 'crosshair', 'default', 'hand', 'move', 'e-resize', 'ne-resize', 'nw-resize', 
-                         'n-resize', 'se-resize', 'sw-resize', 's-resize', 'w-resize', 'text', 'wait', 'help']
-};
-
-var expanded = ['borderWidth', 'borderColor', 'borderStyle', 'padding', 'margin', 'border'];
-for (var side, sides = ['Top', 'Right', 'Bottom', 'Left'], i = 0; side = sides[i++];) {
-  CSS['border' + side]           = [['border' + side + 'Width', 'border' + side + 'Style', 'border' + side + 'Color']];
-  
-  CSS['border' + side + 'Width'] = ['length', 'thin', 'thick', 'medium'];
-  CSS['border' + side + 'Style'] = ['none', 'dotted', 'dashed', 'solid', 'double', 'groove', 'ridge', 'inset', 'outset', 'inherit', 'none'];
-  CSS['border' + side + 'Color'] = ['color'];
-  
-  CSS['margin' + side]           = ['length', 'percentage', 'auto'];
-  CSS['padding' + side]          = ['length', 'percentage', 'auto'];
-
-  for (var j = 0, prop; prop = expanded[j++];) {
-    if (!CSS[prop]) CSS[prop] = [[]];
-    CSS[prop][0].push(prop.replace(/^([a-z]*)/, '$1' + side));
-    if (i == 4) CSS[prop].push('collection')
-  }
-
-  if (i % 2 == 0) 
-    for (var j = 1, adj; adj = sides[j+=2];) 
-      CSS['borderRadius' + side + adj] = ['length', 'none'];
-};
-
-var Styles = SheetParser.Styles = {}
-for (var property in CSS) Styles[property] = SheetParser.Property.compile(CSS[property], Styles);
-
-})();
-/*
----
 name: Slick.Parser
 description: Standalone CSS3 Selector parser
 provides: Slick.Parser
+replaces: Core/Slick.Parser
 ...
 */
 
@@ -10186,7 +7681,7 @@ var reverse = function(expression){
 	var expressions = expression.expressions;
 	for (var i = 0; i < expressions.length; i++){
 		var exp = expressions[i];
-		var last = {parts: [], tag: '*', combinator: reverseCombinator(exp[0].combinator)};
+		var last = {tag: '*', combinator: reverseCombinator(exp[0].combinator)};
 
 		for (var j = 0; j < exp.length; j++){
 			var cexp = exp[j];
@@ -10235,8 +7730,8 @@ __END__
 	)?\
 	)"
 */
-	"^(?:\\s*(,)\\s*|\\s*(<combinator>+)\\s*|(\\s+)|(<unicode>+|\\*)|\\#(<unicode>+)|\\.(<unicode>+)|\\[\\s*(<unicode1>+)(?:\\s*([*^$!~|]?=)(?:\\s*(?:([\"']?)(.*?)\\9)))?\\s*\\](?!\\])|(:+)(<unicode>+)(?:\\((?:(?:([\"'])([^\\13]*)\\13)|((?:\\([^)]+\\)|[^()]*)+))\\))?)"
-	.replace(/<combinator>/, '[' + escapeRegExp(">+~`!@$%^&={}\\;</") + ']')
+	"^(?:\\s*(,)\\s*|\\s*(<combinator>+)\\s*|(\\s+)|(<unicode>+|\\*)|\\#(<unicode>+)|\\.(<unicode>+)|\\[\\s*(<unicode1>+)(?:\\s*([*^$!~|]?=)(?:\\s*(?:([\"']?)(.*?)\\9)))?\\s*\\](?!\\])|(:)(<unicode>+)(?:\\((?:(?:([\"'])([^\\13]*)\\13)|((?:\\([^)]+\\)|[^()]*)+))\\))?)"
+	.replace(/<combinator>/, '(?:\\:\\:|[' + escapeRegExp(">+~`!@$%^&={}\\;</") + '])')
 	.replace(/<unicode>/g, '(?:[\\w\\u00a1-\\uFFFF-]|\\\\[^\\s0-9a-f])')
 	.replace(/<unicode1>/g, '(?:[:\\w\\u00a1-\\uFFFF-]|\\\\[^\\s0-9a-f])')
 );
@@ -10369,6 +7864,2031 @@ if (!this.Slick) this.Slick = Slick;
 
 /*
 ---
+ 
+script: Behavior.js
+ 
+description: Defines global selectors that mix the mixins in
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD
+  - Slick/Slick.Parser
+  
+provides:
+  - LSD.Behavior
+  
+...
+*/
+
+LSD.Behavior = function() {
+  this.attached = [];
+  this.expectations = {};
+  this.parsed = {};
+}
+
+LSD.Behavior.prototype = {
+  define: function(selector, behavior) {
+    selector.split(/\s*,\s*/).each(function(bit) {
+      var group = this.expectations[bit];
+      if (!group) group = this.expectations[bit] = [];
+      group.push(behavior);
+      this.attached.each(function(object) {
+        this.expect(object, bit, behavior)
+      }, this);
+    }, this);
+  },
+  
+  expect: function(object, selector, behavior) {
+    var proto = object.prototype, type = typeOf(behavior);
+    var watcher = function(widget, state) {
+      if (type == 'object') widget[state ? 'setOptions' : 'unsetOptions'](behavior);
+      else widget[state ? 'mixin' : 'unmix'](behavior, true);
+    }
+    if (proto.expect) {
+      //var parsed// = this.parsed[selector];
+      //if (!parsed) {
+        var parsed = this.parsed[selector] = Object.clone(Slick.parse(selector).expressions[0][0]);
+        delete parsed.combinator;
+      //}
+      proto.expect(parsed, watcher);
+    } else {
+      //var options = proto.options, expectations = options.expectations;
+      //if (!expectations) expectations = options.expecations = {};
+      //expectations[selector] = watcher;
+    }
+  },
+  
+  attach: function(object) {
+    this.attached.push(object);
+    for (var expectation in this.expectations) 
+      for (var exps = this.expectations[expectation], i = 0, exp; exp = exps[i++];)
+        this.expect(object, expectation, exp);
+  }
+};
+
+LSD.Behavior = new LSD.Behavior;
+/*
+---
+ 
+script: Type.js
+ 
+description: A base class for all class pools
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Behavior
+  - More/Object.Extras
+  
+provides:
+  - LSD.Type
+  - LSD.Module
+  - LSD.Trait
+  - LSD.Mixin
+  - LSD.Element
+  - LSD.Native
+  
+...
+*/
+
+LSD.Type = function(name, namespace) {
+  this.name = name;
+  this.namespace = namespace || 'LSD';
+  var holder = Object.getFromPath(window, this.namespace);
+  if (this.storage = holder[name]) {
+    
+    for (var key in this) {
+      this.storage[key] = (this[key].call) ? this[key].bind(this) : this[key];
+    }
+  }
+  else this.storage = (holder[name] = this);
+  if (typeOf(this.storage) == 'class') this.klass = this.storage;
+  this.pool = [this.storage];
+  this.queries = {};
+};
+
+LSD.Type.prototype = {
+  each: function(callback, bind) {
+    for (var name in this.storage) {
+      var value = this.storage[name];
+      if (value && value.$family && value.$family() == 'class') callback.call(bind || this, value, name)
+    }
+  },
+  
+  find: function(name) {
+    if (name.push) {
+      for (; name.length; name.pop()) {
+        var found = this.find(name.join('-'));
+        if (found) return found;
+      }
+      return false;
+    }
+    if (!this.queries) this.queries = {};
+    else if (this.queries[name] != null) return this.queries[name];
+    name = LSD.toClassName(name);
+    for (var i = 0, storage; storage = this.pool[i++];) {
+      var result = Object.getFromPath(storage, name);
+      if (result) return (this.queries[name] = result);
+    }
+    return (this.queries[name] = false);
+  },
+  
+  create: function(element, options) {
+    return new LSD.Widget(element, options)
+  },
+  
+  convert: function(element, options) {
+    var source = options.source || (options.tag && LSD.Layout.getSource(options.attributes, options.tag)) || LSD.Layout.getSource(element);
+    if (!this.find(source)) return;
+    var klass = this.klass || LSD.Widget;
+    return new LSD.Widget(element, options);
+  }
+}
+// must-have stuff for all widgets 
+new LSD.Type('Module');
+// some widgets may use those
+new LSD.Type('Trait');
+// these may be applied in runtime
+new LSD.Type('Mixin');
+// a widget holder
+new LSD.Type('Element');
+// native browser controls
+new LSD.Type('Native');
+
+// Inject native widgets into default widget pool as a fallback
+LSD.Element.pool[LSD.useNative ? 'unshift' : 'push'](LSD.Native);
+
+/*
+---
+ 
+script: Shape.js
+ 
+description: Draw a widget with any SVG path you want
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires: 
+  - LSD.Trait
+  - ART/ART.Shape
+  
+provides: 
+  - LSD.Module.Shape
+ 
+...
+*/
+
+LSD.Module.Shape = new Class({
+  options: {
+    shape: 'rectangle'
+  },
+  
+  getShape: Macro.getter('shape', function(name) {
+    return this.setShape(name);
+  }),
+  
+  setShape: function(name) {    
+    if (!name) name = this.options.shape;
+    var shape = new ART.Shape[name.camelCase().capitalize()];
+    shape.name = name;
+    shape.widget = this;
+    if (!this.shape) this.addEvents(LSD.Module.Shape.events);
+    this.shape = shape;
+    return shape;
+  },
+  
+  getCanvas: Macro.getter('canvas', function() {
+    var art = new ART;
+    art.toElement().inject(this.toElement(), 'top');
+    return art;
+  })
+  
+});
+
+LSD.Module.Shape.events = {
+  'render': function() {
+    if (this.setSize()) this.resized = true;
+  },
+  'update': function() {
+    delete this.resized;
+  }
+};
+/*
+---
+ 
+script: Actions.js
+ 
+description: Assign functions asyncronously to any widget
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+
+requires:
+  - LSD.Module
+  - LSD.Action
+
+provides: 
+  - LSD.Module.Actions
+ 
+...
+*/
+
+LSD.Module.Actions = new Class({
+  options: {
+    actions: {}
+  },
+  
+  constructors: {
+    actions: function() {
+      this.actions = {}
+    }
+  },
+  
+  addAction: function() {
+    this.getAction.apply(this, arguments).attach(this);
+  },
+  
+  removeAction: function() {
+    this.getAction.apply(this, arguments).detach(this);
+  },
+  
+  getAction: function(name, action) {
+    return this.actions[name] || (this.actions[name] = new (LSD.Action[LSD.capitalize(name)] || LSD.Action)(action, name))
+  },
+  
+  getActionState: function(action, args, state, revert) {
+    if (state == null) {
+      if (action.options.getState) state = action.options.getState.apply(action, args);
+      else state = true; //enable things by default
+    }
+    return !!((state && state.call ? state.apply(this, args) : state) ^ revert);
+  }
+});
+
+LSD.Module.Actions.attach = function(doc) {
+  LSD.Mixin.each(function(mixin, name) {
+    var selector = mixin.prototype.behaviour;
+    if (!selector) return;
+    var attached = {};
+    var watcher = function (widget, state) {
+      if (state) {
+        if (attached[widget.lsd]) return;
+        else attached[widget.lsd] = true;
+        widget.mixin(mixin, true);
+      } else if (attached[widget.lsd]) {
+        delete attached[widget.lsd];
+        widget.unmix(mixin, true);
+      }
+    };
+    selector.split(/\s*,\s*/).each(function(bit) {
+      doc.watch(bit, watcher)
+    })
+  });
+};
+
+LSD.Options.actions = {
+  add: 'addAction',
+  remove: 'removeAction',
+  iterate: true
+};
+/*
+---
+ 
+script: Chain.js
+ 
+description: A dynamic state machine with a trigger
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+
+requires:
+  - LSD.Module.Actions
+
+provides: 
+  - LSD.Module.Chain
+ 
+...
+*/
+
+!function() {
+
+LSD.Module.Chain = new Class({
+  constructors: {
+    chain: function() {
+      this.chains = {};
+      this.chainPhase = -1;
+      this.chainPhasing = [];
+    }
+  },
+  
+  addChain: function(name, chain) {
+    if (!chain.name) chains = name;
+    this.chains[name] = chain;
+  },
+  
+  removeChain: function(name, chain) {
+    if (this.chains[name] == chain) delete this.chains[name];
+  },
+  
+  getActionChain: function() {
+    var actions = [];
+    for (var name in this.chains) {
+      var chain = this.chains[name]
+      var action = (chain.indexOf ? this[chain] : chain).apply(this, arguments);
+      if (action) actions.push[action.push ? 'apply' : 'call'](actions, action);
+    }
+    return actions.sort(function(a, b) {
+      return (b.priority || 0) - (a.priority || 0);
+    });
+  },
+  
+  callChain: function() {
+    return this.eachLink('regular', arguments, true)
+  },
+  
+  uncallChain: function() {
+    return this.eachLink('regular', arguments, false, true);
+  },
+  
+  eachLink: function(filter, args, ahead, revert, target) {
+    if (filter && filter.indexOf) filter = Iterators[filter];
+    if (args != null && !args.push) args = LSD.slice(args); 
+    
+    var chain = this.currentChain || (this.currentChain = this.getActionChain.apply(this, args));
+    if (!chain.length) return this.clearChain();
+    var index = this.chainPhase;
+    if (ahead) index += +ahead;
+    if (ahead == 1 && index == chain.length) {
+      this.clearChain();
+      index = 0;
+    }
+    var action, phases = revert ? revert.length ? revert : this.chainPhasing : [];
+    for (var link; link = chain[index]; index += (revert ? -1 : 1)) {
+      action = link.action ? this.getAction(link.action) : null;
+      if (filter) {
+        var filtered = filter.call(this, link, chain, index);
+        if (filtered == null) return phases;
+        else if (filtered === false) continue;
+      };
+      if (action) {
+        if (revert) {
+          var last = phases.getLast();
+          if (last && last.asynchronous && last.index < this.chainPhase) break;
+          phases.pop();
+          if (!phases.length) revert = true;
+        }
+        var result = this.execute(link, args, last ? last.state : null, last ? true : revert, index - this.chainPhase);
+        if (link.keep === true) args = null;
+      } else if (!revert) {
+        if (link.arguments != null) args = link.arguments;
+        if (link.callback) link.callback.apply(this, args);
+      }
+      if (!revert) phases.push({index: index, state: result, asynchronous: result == null, action: link.action});
+      if (action && result == null) break; //action is asynchronous, stop chain
+    }
+    if (index >= chain.length) index = chain.length - 1;
+    if (index > -1) {
+      this.chainPhase = index;
+      if (!revert) this.chainPhasing.push.apply(this.chainPhasing, phases);
+    } else this.clearChain();
+    return phases;
+  },
+  
+  clearChain: function() {
+    this.chainPhase = -1;
+    this.chainPhasing = [];
+    delete this.currentChain;
+    return this;
+  },
+    
+  execute: function(command, args, state, revert, ahead) {
+    if (command.call && (!(command = command.apply(this, args))));
+    else if (command.indexOf) command = {action: command}
+    var action = this.getAction(command.action);
+    var targets = command.target;
+    if (targets && targets.call && (!(targets = targets.call(this)) || (targets.length === 0))) return true;
+    if (command.arguments != null) {
+      var cargs = command.arguments && command.arguments.call ? command.arguments.call(this) : command.arguments;
+      args = [].concat(cargs == null ? [] : cargs, args || []);
+    }
+    if (state == null && command.state != null) state = command.state;
+    var promised = [], succeed = [], failed = [], self = this;
+    var perform = function(target) {
+      var value = self.getActionState(action, [target].concat(args), state, revert);
+      var method = value ? 'commit' : 'revert';
+      var result = action[method](target, args);
+      if (result && result.callChain && (command.promise !== false)) {
+        if (value) var phases = self.eachLink('success', arguments, ahead + 1);
+        promised.push(result);
+        // waits for completion
+        var callback = function(args, state) {
+          (state ? succeed : failed).push([target, args]);
+          result.removeEvents(events);
+          // Try to fork off execution if action lets so 
+          if (state && (self != target) && command.fork) {
+            if (target.chainPhase == -1) target.callChain.apply(target, args);
+            else target.eachLink('optional', args, true);
+          };
+          if (failed.length + succeed.length != promised.length) return;
+          if (failed.length) self.eachLink('alternative', args, true, false, succeed);
+          if (self.currentChain && self.chainPhase < self.currentChain.length - 1)
+            if (succeed.length) self.eachLink('regular', args, true, false, succeed);
+        }
+        var events = {
+          complete: function() {
+            callback(arguments, true);
+          },
+          cancel: function() {
+            self.eachLink('success', arguments, ahead + phases.length - 1, phases || true);
+            self.eachLink('failure', arguments, ahead + 1);
+            callback(arguments, false);
+          }
+        }
+        // If it may fail, we should not simply wait for completion
+        if (result.onFailure) {
+          events.failure = events.cancel;
+          events.success = events.complete;
+          delete events.complete;
+        }
+        result.addEvents(events);
+        return;
+      } else if (result === false) return;
+      return value;
+    };
+    action.invoker = this;
+    var ret = (targets) ? (targets.map ? targets.map(perform) : perform(targets)) : perform(this);
+    delete action.invoker;
+    return (ret && ret.push) ? ret[0] : ret;
+  }
+});
+
+var Iterators = LSD.Module.Chain.Iterators = {
+  regular: function(link) {
+    if (!link.action) return true;
+    switch (link.keyword) {
+      case 'or': case 'and': return false;
+      default: return true;
+    }
+  },
+  
+  optional: function(link) {
+    return link.priority == null || link.priority < 0;
+  },
+  
+  success: function(link, chain, index) {
+    if (!link.action) return false;
+    if (index < chain.length - 1 && link.keyword == 'and') return true;
+  },
+  
+  failure: function(link, chain, index) {
+    if (!link.action) return false;
+    switch (link.keyword) {
+      case 'or': return true;
+      case 'and':
+        for (var i = index, other; other = chain[--i];) 
+          switch (other.keyword) {
+            case "or": return true;
+            case "and": continue;
+            default: break;
+          }
+        for (var i = index, other; other = chain[++i];) 
+          switch (other.keyword) {
+            case "or": return false;
+            case "and": continue;
+            default: break;
+          }
+    }
+  },
+  
+  alternative: function(link, chain, index) {
+    if (!link.action) return false;
+    switch (link.keyword) {
+      case 'else': return true;
+      case 'and': case 'or': case 'then':
+        for (var i = index, other; other = chain[++i];)
+          switch (other.keyword) {
+            case 'else': return true;
+            case 'and': case 'or': continue;
+            default: return;
+          }
+    }
+  }
+}
+
+LSD.Options.chain = {
+  add: 'addChain',
+  remove: 'removeChain',
+  iterate: true
+}
+
+}();
+/*
+---
+ 
+script: Dimensions.js
+ 
+description: Get and set dimensions of widget
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Module
+
+provides: 
+  - LSD.Module.Dimensions
+ 
+...
+*/
+
+
+LSD.Module.Dimensions = new Class({
+  constructors: {
+    dimensions: function() {
+      this.size = {}
+    }
+  },
+  
+  setSize: function(size) {
+    if (this.size) var old = Object.append({}, this.size)
+    if (!size || !(size.height || size.width)) size = {height: this.getStyle('height'), width: this.getStyle('width')}
+    if (!(this.setHeight(size.height, true) + this.setWidth(size.width, true))) return false;
+    this.fireEvent('resize', [this.size, old]);
+    var element = this.element, padding = this.offset.padding;
+    if (size.height && this.style.expressed.height) element.style.height = size.height - padding.top - padding.bottom + 'px'
+    if (size.width && this.style.expressed.width) element.style.width = size.width - padding.left - padding.right + 'px';
+    return true;
+  },
+  
+  setHeight: function(value, light) {
+    value = Math.min(this.style.current.maxHeight || 1500, Math.max(this.style.current.minHeight || 0, value));
+    if (this.size.height == value) return false;
+    this.size.height = value;
+    if (!light) this.setStyle('height', value);
+    return value;
+  },
+    
+  setWidth: function(value, light) {
+    value = Math.min(this.style.current.maxWidth || 3500, Math.max(this.style.current.minWidth || 0, value));
+    if (this.size.width == value) return false;
+    this.size.width = value;
+    if (!light) this.setStyle('width', value);
+    return value;
+  },
+  
+  getClientHeight: function() {
+    var style = this.style.current, height = style.height, offset = this.offset, padding = offset.padding;
+    if (!height || (height == "auto")) {
+      height = this.element.clientHeight;
+      var inner = offset.inner || padding;
+      if (height > 0 && inner) height -= inner.top + inner.bottom;
+    }
+    if (height != 'auto' && padding) height += padding.top + padding.bottom;
+    return height;
+  },
+  
+  getClientWidth: function() {
+    var style = this.style.current, offset = this.offset, padding = offset.padding, width = style.width;
+    if (typeof width != 'number') { //auto, inherit, undefined
+      var inside = offset.inside, outside = offset.outside, shape = offset.shape;
+      width = this.element.clientWidth;
+      if (width > 0) {
+        if (shape) width -= shape.left + shape.right;
+        if (inside) width -= inside.left + inside.right;
+        if (outside) width -= outside.left + outside.right;
+      }
+    }
+    if (style.display != 'block' && padding && inside) width += padding.left + padding.right;
+    return width;
+  },
+  
+  getOffsetHeight: function(height) {
+    var style = this.style.current, inside = this.offset.inside, bottom = style.borderBottomWidth, top = style.borderTopWidth;
+    if (!height) height =  this.getClientHeight();
+    if (inside)  height += inside.top + inside.bottom;
+    if (top)     height += top;
+    if (bottom)  height += bottom;
+    return height;
+  },
+  
+  getOffsetWidth: function(width) {
+    var style = this.style.current, inside = this.offset.inside, left = style.borderLeftWidth, right = style.borderRightWidth;
+    if (!width) width =  this.getClientWidth();
+    if (inside) width += inside.left + inside.right;
+    if (left)   width += left;
+    if (right)  width += right
+    return width;
+  },
+  
+  getLayoutHeight: function(height) {
+    height = this.getOffsetHeight(height);
+    if (this.offset.margin)  height += this.offset.margin.top + this.offset.margin.bottom;
+    if (this.offset.outside) height += this.offset.outside.top + this.offset.outside.bottom;
+    return height;
+  },
+
+  getLayoutWidth: function(width) {
+    var width = this.getOffsetWidth(width), offset = this.offset, margin = offset.margin, outside = offset.outside
+    if (margin)  width += margin.right + margin.left;
+    if (outside) width += outside.right + outside.left;
+    return width;
+  }
+  
+});
+/*
+---
+ 
+script: Attributes.js
+ 
+description: A mixin that adds support for setting attributes, adding and removing classes and pseudos
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Module
+  - Core/Slick.Parser
+ 
+provides: 
+  - LSD.Module.Attributes
+ 
+...
+*/
+
+LSD.Module.Attributes = new Class({
+  constructors: {
+    attributes: function() {
+      this.classes = new FastArray;
+      this.pseudos = new FastArray;
+      this.dataset = {};
+      this.attributes = {};
+    }
+  },
+  
+  getAttribute: function(attribute) {
+    switch (attribute) {
+      case "class":           return this.classes.join(' ');
+      case "slick-uniqueid":  return this.lsd;
+      default:                return this.attributes[attribute];
+    }
+  },
+  
+  removeAttribute: function(name) {
+    if (name.substring(0, 5) == 'data') {
+      delete this.dataset[name.substring(5, name.length - 5)];
+    } else if (this.attributes[name] != null) {
+      this.fireEvent('selectorChange', ['attributes', name, false]);
+      delete this.attributes[name];
+      if (this.element) this.element.removeAttribute(name);
+      if (LSD.States.Attributes[name])
+        if (this[name]) this.setStateTo(name, false);
+    }
+    return this;
+  },
+
+  setAttribute: function(name, value) {
+    if (LSD.Attributes.Numeric[name]) value = value.toInt();
+    else {
+      var logic = LSD.Attributes.Setter[name];
+      if (logic) logic.call(this, value)
+    }
+    if (name.substring(0, 5) == 'data-') {
+      this.dataset[name.substring(5, name.length - 5)] = value;
+    } else {
+      if (this.options && this.options.interpolate)
+        value = LSD.Interpolation.attempt(value, this.options.interpolate) || value;
+      if (this.attributes[name] != value) {
+        if (LSD.States.Attributes[name]) {
+          var mode = (value == true || value == name);
+          if (this[name] != mode) this.setStateTo(name, mode);
+        }
+        this.fireEvent('selectorChange', ['attributes', name, false]);
+        this.attributes[name] = value;    
+        this.fireEvent('selectorChange', ['attributes', name, true]);
+        if (this.element && this.element[name] != value) this.element.setAttribute(name, value);
+      }
+    }
+    return this;
+  },
+
+  addPseudo: function(name){
+    if (!this.pseudos[name]) {
+      if (this.$states[name]) this.setStateTo(name, true);
+      this.pseudos[name] = true;
+      this.fireEvent('selectorChange', ['pseudos', name, true]);
+    }
+    return this;
+  },
+
+  removePseudo: function(name) {
+    if (this.pseudos[name]) {
+      if (this.$states[name]) this.setStateTo(name, false);
+      this.fireEvent('selectorChange', ['pseudos', name, false]);
+      delete this.pseudos[name];
+    }  
+    return this;
+  },
+  
+  addClass: function(name) {
+    if (LSD.States.Classes[name] && !this[name]) this.setStateTo(name, true);
+    if (!this.classes[name]) {
+      this.classes[name] = true;
+      this.fireEvent('selectorChange', ['classes', name, true]);
+      if (this.element) this.element.addClass(name);
+    }
+    return this;
+  },
+
+  removeClass: function(name){
+    if (LSD.States.Classes[name] && this[name]) return this.setStateTo(name, false);
+    if (this.classes[name]) {
+      this.fireEvent('selectorChange', ['classes', name, false]);
+      delete this.classes[name];
+      if (this.element) this.element.removeClass(name);
+    }  
+    return this;
+  },
+  
+  hasClass: function(name) {
+    return this.classes[name]
+  },
+  
+  setState: function(name) {
+    var attribute = LSD.States.Attributes[name];
+    if (attribute) this.setAttribute(attribute, attribute)
+    else this.addClass(LSD.States.Classes[name] || 'is-' + name);
+    this.addPseudo(name);
+    return this;
+  },
+  
+  unsetState: function(name) {
+    var attribute = LSD.States.Attributes[name];
+    if (attribute) this.removeAttribute(attribute);
+    else this.removeClass(LSD.States.Classes[name] || 'is-' + name);
+    this.removePseudo(name);
+    return this;
+  },
+  
+  getSelector: function(){
+    var parent = this.parentNode;
+    var selector = (parent && parent.getSelector) ? parent.getSelector() + ' ' : '';
+    selector += this.tagName;
+    if (this.attributes.id) selector += '#' + this.attributes.id;
+    for (var klass in this.classes)  if (this.classes.hasOwnProperty(klass))  selector += '.' + klass;
+    for (var pseudo in this.pseudos) if (this.pseudos.hasOwnProperty(pseudo)) selector += ':' + pseudo;
+    for (var name in this.attributes) if (name != 'id') selector += '[' + name + '=' + this.attributes[name] + ']';
+    return selector;
+  },
+  
+  onStateChange: function(state, value, args) {
+    var args = Array.prototype.slice.call(arguments, 0);
+    args.slice(1, 2); //state + args
+    this[value ? 'setState' : 'unsetState'][args && ("length" in args) ? 'apply' : 'call'](this, args);
+    this.fireEvent('stateChange', [state, args]);
+    return true;
+  }
+});
+
+
+LSD.Attributes.Setter = {
+  'id': function(id) {
+    this.id = id;
+  },
+  'class': function(value) {
+    value.split(' ').each(this.addClass.bind(this));
+  },
+  'style': function(value) {
+    value.split(/\s*;\s*/).each(function(definition) {
+      var bits = definition.split(/\s*:\s*/)
+      if (!bits[1]) return;
+      bits[0] = bits[0].camelCase();
+      var integer = bits[1].toInt();
+      if (bits[1].indexOf('px') > -1 || (integer == bits[1])) bits[1] = integer
+      //this.setStyle.apply(this, bits);
+    }, this);
+  }
+};
+
+Object.append(LSD.Options, {
+  attributes: {
+    add: 'setAttribute',
+    remove: 'removeAttribute',
+    iterate: true
+  },
+  pseudos: {
+    add: 'addPseudo',
+    remove: 'removePseudo',
+    iterate: true
+  },
+  classes: {
+    add: 'addClass',
+    remove: 'removeClass',
+    iterate: true
+  }
+});
+
+/*
+---
+ 
+script: States.js
+ 
+description: Define class states and methods metaprogrammatically
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - Ext/States
+  - LSD.Module
+  
+provides: 
+  - LSD.Module.States
+
+...
+*/
+
+LSD.Module.States = States;
+
+LSD.Options.states = {
+  add: 'addState',
+  remove: 'removeState',
+  iterate: true
+};
+/*
+---
+ 
+script: Options.js
+ 
+description: A module that sets and unsets various options stuff
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Module
+  
+provides:
+  - LSD.Module.Options
+
+...
+*/
+
+LSD.Module.Options = new Class({
+  Implements: [Options],
+  
+  setOptions: function(options) {
+    for (var name in options) LSD.Module.Options.setOption.call(this, name, options[name]);
+    return this;
+  },
+  
+  unsetOptions: function(options) {
+    for (var name in options) LSD.Module.Options.setOption.call(this, name, options[name], true);
+    return this;
+  },
+  
+  construct: function(object) {
+    if (!object) object = this;
+    var initialized = object.$initialized = [];
+    /*
+      Run module constructors and keep returned values
+    */
+    for (var name in object.constructors) {
+      var initializer = object.constructors[name];
+      if (initializer) {
+        var result = initializer.call(this, object.options);
+        if (result) initialized.push(result);
+      }
+    }
+    /*
+      Set options returned from constructors
+    */
+    for (var i = 0, value; value = initialized[i++];) this.setOptions(value);
+    return object.options;
+  },
+  
+  destruct: function(object) {
+    if (!object) object = this;
+    var initialized = object.$initialized;
+    if (initialized)
+      for (var i = 0, value; value = initialized[i++];) this.unsetOptions(value);
+    return object.options;
+  }
+});
+
+LSD.Module.Options.setOption = function(name, value, unset, context) {
+  setter = (context || LSD.Options)[name];
+  if (!setter) {
+    Object.merge(this.options, name, value);
+    return this;
+  };
+  if (setter.process) {
+    value = (setter.process.charAt ? this[setter.process] : setter.process).call(this, value);
+  }
+  if (setter.events) LSD.Module.Events.setEventsByRegister.call(this, name, !unset, setter.events);
+  var mode = unset ? 'remove' : 'add', method = setter[mode];
+  if (method.charAt) method = this[method];
+  if (setter.iterate) {
+    if (value.each) {
+      var length = value.length;
+      if (length != null) for (var i = 0, j = value.length; i < j; i++) method.call(this, value[i]);
+      else value.each(method, this);
+    } else for (var i in value) method.call(this, i, value[i])
+  } else method.call(this, value);
+  return this;
+};
+
+LSD.Module.Options.implement('setOption', LSD.Module.Options.setOption);
+
+LSD.Module.Options.initialize = function(element, options) {
+  // Swap arguments if they are in the wrong order
+  if ((element && !element.localName) || (options && options.localName)) 
+    options = [element, element = options][0];
+  
+  // Merge given options object into this.options
+  if (options) Object.merge(this.options, options);
+  
+  // Collection options off constructors
+  options = this.construct();
+  
+  // Call parent class initializer (if set)
+  if (Class.hasParent(this)) this.parent(element, options);
+  
+  // Run callbacks for all the options set
+  this.setOptions(options);
+  
+  // Indicate readiness to start
+  this.fireEvent('boot', [options, element]);
+  
+  // Attach to a given element
+  this.fireEvent('prepare', [options, element]);
+  
+  // And we're all set!
+  this.fireEvent('initialize', [options, this.element]);
+};
+/*
+---
+ 
+script: Value.js
+ 
+description: Add your widget have a real form value.
+ 
+license: Public domain (http://unlicense.org).
+ 
+requires:
+  - LSD.Mixin
+ 
+provides: 
+  - LSD.Mixin.Value
+ 
+...
+*/
+
+LSD.Mixin.Value = new Class({
+  options: {
+    actions: {
+      value: {
+        enable: function() {
+          if (this.attributes.multiple) {
+            this.values = [];
+          } else {
+            if (typeof this.value != 'undefined') return;
+            this.setValue();
+          }
+        },
+        disable: function() {
+          
+        }
+      }
+    }
+  },
+  
+  setValue: function(value, unset) {
+    if (value == null || (value.event && value.type)) value = this.getDefaultValue();
+    else if (value.getValue) value = this.processValue(value.getValue());
+    var result = false;
+    if (this.isValueDifferent(value) ^ unset) {
+      result = this.writeValue(value, unset);
+      var previous = this.getPreviousValue();
+      this.fireEvent('change', [value, previous]);
+      if (!this.click) this.callChain(value, previous);
+    }
+    return result
+  },
+  
+  unsetValue: function(item) {
+    return this.setValue(item, true)
+  },
+
+  getValue: function() {
+    if (this.attributes.multiple) {
+      if (this.values) this.values = []; 
+      return this.values.map(this.formatValue, this);
+    } else {
+      if (typeof this.value == 'undefined') this.value = this.getDefaultValue();
+      return this.formatValue(this.value);
+    }
+  },
+  
+  writeValue: function(value, unset) {
+    if (this.attributes.multiple) {
+      if (unset) {
+        var index = this.values.indexOf(value);
+        if (index > -1) {
+          this.values.splice(index, 1);
+          this.valueInputs.splice(index, 1)[0].dispose();
+        }
+      } else {  
+        this.previousValue = this.values.clone();
+        this.values.push(value);
+        (this.valueInputs || (this.valueInputs = [])).push(this.getValueInput().set('value', value));
+        this.applyValue(this.values);
+      }
+      if (this.values.length == +!unset) this[unset ? 'removePseudo' : 'addPseudo']('valued');
+    } else {
+      var input = this.valueInput || (this.valueInput = this.getValueInput());
+      this.previousValue = this.value;
+      if (unset) {
+        if (this.value) this.removePseudo('valued');
+        delete this.value;
+      } else {
+        if (!this.value) this.addPseudo('valued');
+        this.value = value;
+      }
+      input.set('value', unset ? '' : value);
+      this.applyValue(this.value);
+    }
+  },
+  
+  applyValue: function(value) {
+    return this;
+  },
+
+  formatValue: function(value) {
+    return value;
+  },
+  
+  processValue: function(value) {
+    return value;
+  },
+  
+  getDefaultValue: function() {
+    return this.processValue(this.getRawValue());
+  },
+  
+  getRawValue: function() {
+    return this.attributes.value || LSD.Module.DOM.getID(this) || this.innerText;
+  },
+  
+  getPreviousValue: function() {
+    return this.previousValue
+  },
+  
+  shouldCallChainOnValueChange: function() {
+    var type = this.getCommandType ? this.getCommandType() : this.commandType; 
+    return !type || type == 'command';
+  },
+  
+  isValueDifferent: function(value) {
+    if (this.attributes.multiple) {
+      return this.values.indexOf(value) == -1
+    } else {
+      return this.value != value;
+    }
+  },
+  
+  toData: function() {
+    switch (this.commandType || (this.getCommandType && this.getCommandType())) {
+      case "checkbox": case "radio":
+        if (!this.checked) return;
+    }
+    return this.getValue();
+  },
+  
+  getData: function() {
+    var data = {};
+    if (this.attributes.name) data[this.attributes.name] = this.toData();
+    return data;
+  },
+  
+  canElementHoldValue: function() {
+    var tag = LSD.toLowerCase(this.element.tagName)
+    return (!this.attributes.multiple && this.attributes.type != 'file' 
+      && (tag == 'input' || tag == 'textarea')) 
+  },
+  
+  getValueInput: function() {
+    if (this.canElementHoldValue()) return this.element;
+    var name = this.attributes.name;
+    if (this.attributes.miltiple) name += '[]';
+    return new Element('input[type=hidden]', {name: name}).inject(this.element);
+  }
+});
+
+LSD.Behavior.define(':value', LSD.Mixin.Value);
+/*
+---
+ 
+script: Date.js
+ 
+description: Work with dates like a boss
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Trait
+  - More/Date
+
+provides:
+  - LSD.Trait.Date
+ 
+...
+*/
+
+LSD.Trait.Date = new Class({
+  options: {
+    date: {
+      interval: 'month',
+      format: '%b-%d-%Y'
+    }
+  },
+  
+  setDate: function(date) {
+    this.date = date;
+    if (date) this.fireEvent('setDate', date)
+  },
+  
+  formatDate: function(date) {
+    return date.format(this.options.date.format)
+  },
+  
+  getDate: function() {
+    if (this.date) return this.date;
+    if (this.getRawDate) {
+      var raw = this.getRawDate();
+      if (raw) return this.parseDate(raw);
+    }
+    return this.getDefaultDate();
+  },
+  
+  getDefaultDate: function() {
+    return new Date;
+  },
+  
+  parseDate: function(date) {
+    return Date.parse(date);
+  },
+  
+  increment: function(number) {
+    number = number.toInt ? number.toInt() : 1;
+    this.setDate(this.getDate().increment(this.options.date.interval, number))
+  },
+
+  decrement: function(number) {
+    number = number.toInt ? number.toInt() : 1;
+    this.setDate(this.getDate().decrement(this.options.date.interval, number))
+  }
+  
+});
+/*
+---
+ 
+script: Placeholder.js
+ 
+description: Placeholder for form fileds.
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Mixin
+
+ 
+provides:   
+  - LSD.Mixin.Placeholder
+ 
+...
+*/
+
+
+LSD.Mixin.Placeholder = new Class({
+  
+  options: {
+    actions: {
+      placeholder: {
+        enable: function(){
+          this.element.set('autocomplete', 'off');
+          this.onPlacehold();
+        },
+        disable: function(){
+          this.onUnplacehold();
+        }
+      }
+    },
+    events: {
+      enabled: {
+        element: {
+          'focus': 'onUnplacehold',
+          'blur': 'onPlacehold',
+          'keypress': 'onUnplacehold'
+        }
+      }
+    },
+    states: {
+      placeheld: {
+        enabler: 'placehold',
+        disabler: 'unplacehold'
+      }
+    }
+  },
+  
+  getPlaceholder: function(){
+    return this.attributes.placeholder;
+  },
+  
+  onUnplacehold: function(){
+    if (this.placeheld){
+      this.applyValue('');
+      this.unplacehold();
+      return true;
+    };
+  },
+  
+  onPlacehold: function(){
+    var value = this.getRawValue();
+    if (!value || value.match(/^\s*$/) || value == this.getPlaceholder()){
+      this.applyValue(this.getPlaceholder());
+      this.placehold();
+      return true;
+    };
+  }
+  
+});
+
+LSD.Behavior.define('[placeholder]', LSD.Mixin.Placeholder);
+/*
+---
+ 
+script: Root.js
+ 
+description: The topmost widget easily accessible.
+ 
+license: Public domain (http://unlicense.org).
+ 
+requires:
+  - LSD.Mixin
+  - LSD.Behavior
+ 
+provides: 
+  - LSD.Mixin.Root
+ 
+...
+*/
+
+LSD.Mixin.Root = new Class({
+  options: {
+    events: {
+      _root: {
+        nodeInserted: function(node) {
+          node.root = this;
+          node.fireEvent('setRoot', this);
+          node.fireEvent('register', ['root', this]);
+        },
+        nodeRemoved: function(node) {
+          if (node.root == this) {
+            node.fireEvent('unsetRoot', this);
+            node.fireEvent('unregister', ['root', this]);
+            delete node.root;
+          }
+        }
+      }
+    }
+  }
+});
+
+LSD.Behavior.define(':root', LSD.Mixin.Root);
+/*
+---
+ 
+script: ContentEditable.js
+ 
+description: Animated ways to show/hide widget
+ 
+license: Public domain (http://unlicense.org).
+ 
+requires:
+  - LSD.Mixin
+  
+uses:
+  - CKEDITOR
+ 
+provides: 
+  - LSD.Mixin.ContentEditable
+...
+*/
+
+LSD.Mixin.ContentEditable = new Class({
+  options: {
+    ckeditor: {
+      toolbarCanCollapse: false,
+      linkShowAdvancedTab: false,
+      linkShowTargetTab: false,
+      invisibility: true,
+      skin: 'ias',
+      toolbar: [['Bold', 'Italic', 'Strike', '-', 'Link', 'Unlink', '-', 'NumberedList', 'BulletedList', '-', 'Indent', 'Outdent', '-','Styles', '-', 'PasteFromWord', 'RemoveFormat']],
+      removeFormatTags: 'dialog,img,input,textarea,b,big,code,del,dfn,em,font,i,ins,kbd,q,samp,small,span,strike,strong,sub,sup,tt,u,var,iframe',
+      removeFormatAttributes: 'id,class,style,lang,width,height,align,hspace,valign',
+      contentsCss: '/stylesheets/layout/application/iframe.css',
+      extraPlugins: 'autogrow',
+      customConfig: false,
+      language: 'en',
+      removePlugins: 'bidi,dialogadvtab,liststyle,about,elementspath,blockquote,popup,undo,colorbutton,colordialog,div,entities,filebrowser,find,flash,font,format,forms,horizontalrule,image,justify,keystrokes,maximize,newpage,pagebreak,preview,print,resize,save,scayt,smiley,showblocks,showborders,sourcearea,style,table,tabletools,specialchar,templates,wsc,a11yhelp,a11yhelp',
+      stylesSet: [
+        { name : 'Paragraph', element : 'p' },
+      	{ name : 'Heading 1', element : 'h1' },
+      	{ name : 'Heading 2', element : 'h2' }
+      ]
+    }
+  },
+  
+  getEditor: function() {
+    if (this.editor) return this.editor;
+    use('CKEDITOR', function(CKEDITOR) {
+      var value = this.getValueForEditor();
+      var editor = this.editor = new CKEDITOR.editor( this.options.ckeditor, this.getEditedElement(), 1, value);
+      CKEDITOR.add(editor);
+      editor.on('focus', function() {
+        if (this.editor) this.getEditorContainer().addClass('focused');
+        this.onFocus.apply(this, arguments);
+      }.bind(this));
+      editor.on('blur', function() {
+        if (this.editor) this.getEditorContainer().removeClass('focused');
+        this.onBlur.apply(this, arguments);
+      }.bind(this));
+      editor.on('uiReady', function() {
+        this.showEditor();
+        this.fireEvent('editorReady');
+        !function() {/*
+          if (Browser.firefox) {
+            var body = this.getEditorBody()
+            body.contentEditable = false;
+            body.contentEditable = true;
+        }*/
+        this.editor.focus();
+        this.editor.forceNextSelectionCheck();
+        this.editor.focus();
+        }.delay(100, this)
+      }.bind(this));
+    }.bind(this))
+  },
+  
+  getValueForEditor: function() {
+    var element = this.getEditedElement();
+    switch (element.get('tag')) {
+      case "input": case "textarea":
+        return element.get('value');
+      default:
+        return element.innerHTML;
+    }
+  },
+  
+  showEditor: function() {
+    this.element.setStyle('display', 'none');
+    this.getEditorContainer().setStyle('display', 'block');
+  },
+  
+  hideEditor: function() {
+    this.element.setStyle('display', '');
+    this.getEditorContainer().setStyle('display', 'none');
+  },
+  
+  openEditor: function(callback) {
+    if (this.editor && this.editor.document) {
+      if (callback) callback.call(this.editor);
+      this.showEditor();
+    } else {
+      if (callback) this.addEvent('editorReady:once', callback);
+      this.getEditor();
+    }
+  },
+  
+  closeEditor: function(callback) {
+    this.editor.updateElement();
+    this.hideEditor();
+  },
+  
+  getEditorContainer: function() {
+    return $(this.editor.container.$);
+  },
+  
+  getEditorBody: function() {
+    return this.editor.document.$.body;
+  },
+  
+  getEditedElement: function() {
+    return this.toElement();
+  }
+});
+
+LSD.Behavior.define('[contenteditable=editor]', LSD.Mixin.ContentEditable);
+/*
+---
+ 
+script: Fieldset.js
+ 
+description: Wrapper around set of form fields
+ 
+license: Public domain (http://unlicense.org).
+ 
+requires:
+  - LSD.Mixin
+ 
+provides: 
+  - LSD.Mixin.Fieldset
+ 
+...
+*/
+!function() {
+  
+LSD.Mixin.Fieldset = new Class({
+  options: {
+    has: {
+      many: {
+        elements: {
+          selector: ':form-associated',
+          scopes: {
+            submittable: {
+              filter: '[name]:valued'
+            }
+          },
+          callbacks: {
+            'add': 'addField',
+            'remove': 'removeField'
+          }
+        }
+      }
+    },
+    expects: {
+      ':form': function(widget, state) {
+        widget[state ? 'addRelation' : 'removeRelation']('elements', {as: 'form'})
+      }
+    }
+  },
+  
+  constructors: {
+    fieldset: function() {
+      this.names = {};
+      this.params = {};
+      return {
+        events: {
+          request: {
+            request: 'validateFields',
+            badRequest: 'parseFieldErrors'
+          },
+          self: {
+            beforeNodeBuild: function(query, widget) {
+              if (!widget.options.clone) return;
+              var attrs = query.attributes, attributes = widget.attributes;
+              var name = attributes.name, id = attributes.id;
+              // bump name index
+              if (name) (attrs || (attrs = {})).name = Fieldset.bumpName(name) || name;
+              // bump id index
+              if (id) (attrs || (attrs = {})).id = Fieldset.bumpId(id) || id;
+              if (widget.tagName == 'label') {
+                var four = attributes['for'];
+                if (four) (attrs || (attrs = {}))['for'] = Fieldset.bumpId(four) || four;
+              }
+              if (attrs) query.attributes = attrs;
+            }
+          }
+        }
+      }
+    }
+  },
+  
+  checkValidity: function() {
+    var valid = true;
+    for (var i = 0, element; element = this.elements[i++];) if (!element.checkValidity()) valid = false;
+    return valid;
+  },
+  
+  getData: function() {
+    var data = {}
+    for (var name in this.names) {
+      var memo = this.names[name];
+      if (memo.push) {
+        for (var i = 0, radio; radio = memo[i++];) if (radio.checked) data[name] = radio.toData(); break;
+      } else {
+        var value = memo.toData();
+        if (value != null) data[name] = value;
+      }
+    }
+    return data;
+  },
+
+  getRequestData: function() {
+    return this.getData();
+  },
+  
+  reset: function() {
+    
+  },
+  
+  addFieldErrors: function(errors) {
+    for (var name in errors) {
+      var field = this.names[name];
+      if (!field) continue;
+      field.invalidate(errors[name]);
+      this.invalid = true;
+    }
+  },
+
+  parseFieldErrors: function(response) {
+    var result = {}, errors = response.errors;
+    if (errors) { //rootless response ({errors: {}), old rails
+      for (var i = 0, error; error = errors[i++];)
+        result[Fieldset.getName(this.getModelName(error[0]), error[0])] = error[1];
+    } else { //rooted response (publication: {errors: {}}), new rails
+      var regex = Fieldset.rPrefixAppender;
+      for (var model in response) {
+        var value = response[model], errors = value.errors;
+        if (!errors) continue;
+        for (var i = 0, error; error = errors[i++];)
+          result[Fieldset.getName(model, error[0])] = error[1];
+      }
+    }
+    if (Object.getLength(result) > 0) this.addFieldErrors(result);
+  },
+  
+  addField: function(widget) {
+    var name = widget.attributes.name, radio = (widget.commandType == 'radio');
+    if (!name || !widget.toData) return;
+    if (radio) {
+      if (!this.names[name]) this.names[name] = [];
+      this.names[name].push(widget);
+    } else this.names[name] = widget;
+    for (var regex = Fieldset.rNameParser, object = this.params, match, bit;;) {
+      match = regex.exec(name)
+      if (bit != null) {
+        if (!match) {
+          if (!object[bit] && radio) object[bit] = [];
+          if (object[bit] && object[bit].push) object[bit].push(widget);
+          else object[bit] = widget;
+        } else object = object[bit] || (object[bit] = (bit ? {} : []));
+      }
+      if (!match) break;
+      else bit = match[1] ||match[2];
+    }
+    return object
+  },
+  
+  getParams: function(object) {
+    if (!object) object = this.params;
+    var result = {};
+    for (var name in object) {
+      var value = object[name];
+      if (value && !value.indexOf) value = value.nodeType ? value.getValue() : this.getParams(value);
+      result[name] = value;
+    }
+    return result;
+  },
+  
+  removeField: function(widget) {
+    var name = widget.attributes.name, radio = (widget.commandType == 'radio');
+    if (!name) return;
+    if (radio) this.names[name].erase(widget);
+    else delete this.names[name];
+    for (var regex = Fieldset.rNameParser, object = this.params, match, bit;;) {
+      match = regex.exec(name)
+      if (bit != null) {
+        if (!match) {
+          if (radio) object[bit].erase(widget)
+          else delete object[bit];
+        } else object = object[bit];
+      }
+      if (!match) break;
+      else bit = match[1] ||match[2];
+    }
+    return object
+  },
+
+  invalidateFields: function(errors) {
+    this.getFields(errors, function(field, error) {
+      field.invalidate(error);
+    });
+  },
+  
+  getFieldsByName: function(fields, callback, root) {
+    if (fields.call && (callback = fields)) fields = null;
+    if (!fields) fields = this.elements;
+    if (!callback && fields.indexOf) return root[fields]
+    if (fields.map && fields.each && (!callback || !root)) return fields.map(function(field) {
+      return this.getFieldsByName(field, callback, root)
+    }.bind(this));
+  },
+  
+  validateFields: function(fields) {
+    if (!this.invalid) return;
+    this.elements.each(function(field) {
+      if (field.invalid) field.validate(true);
+    });
+  },
+
+  getModelName: function() {
+    for (var name in this.params) if (!this.params[name].nodeType) return name;
+  }
+});
+
+var Fieldset = Object.append(LSD.Mixin.Fieldset, {
+  rNameIndexBumper: /(\[)(\d+?)(\])/,
+  rIdIndexBumper:   /(_)(\d+?)(_|$)/,
+  rNameParser:      /(^[^\[]+)|\[([^\]]*)\]/g,
+  rNameMultiplier:  /(?:\[\])?$/,
+  rPrefixAppender:  /^[^\[]+/,
+  getName: function(model, name) {
+    return model + name.replace(Fieldset.rPrefixAppender, function(match) {return '[' + match + ']'});
+  },
+  bumpName: function(string) {
+    return string.replace(Fieldset.rNameIndexBumper, function(m, a, index, b) { 
+      return a + (parseInt(index) + 1) + b;
+    })
+  },
+  bumpId: function(string) {
+    return string.replace(Fieldset.rIdIndexBumper, function(m, a, index, b) { 
+      return a + (parseInt(index) + 1) + b;
+    })
+  },
+  multiplyName: function(string) {
+    return string.replace(Fieldset.rNameMultiplier, '[]')
+  }
+});
+
+LSD.Behavior.define(':fieldset', Fieldset);
+
+}();
+/*
+---
+ 
+script: Submittable.js
+ 
+description: Makes widget result in either submission or cancellation
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Mixin
+ 
+provides:
+  - LSD.Mixin.Submittable
+ 
+...
+*/
+
+
+LSD.Mixin.Submittable = new Class({
+  options: {
+    actions: {
+      autosubmission: {
+        enable: function() {
+          if (this.attributes.autosubmit) this.submit();
+        }
+      }
+    },
+    events: {
+      _form: {
+        attach: function(element) {
+          if (LSD.toLowerCase(element.tagName) == 'form') element.addEvent('submit', this.bindEvent('submit'));
+        },
+        detach: function(element) {
+          if (LSD.toLowerCase(element.tagName) == 'form') element.removeEvent('submit', this.bindEvent('submit'));
+        }
+      }
+    }
+  },
+  
+  submit: function(event) {
+    if (event && event.type == 'submit' && event.target == this.element)
+      event.preventDefault();
+    var submission = this.captureEvent('submit', arguments);
+    if (submission) return submission;
+    else if (submission !== false) this.callChain();
+    return this;
+  },
+  
+  cancel: function() {
+    var submission = this.captureEvent('cancel', arguments);
+    if (submission) return submission;
+    else if (submission !== false) {
+      var target = this.getSubmissionTarget();
+      if (target) target.uncallChain();
+      this.uncallChain();
+    };
+    return this;
+  }
+});
+
+LSD.Behavior.define(':submittable', LSD.Mixin.Submittable);
+/*
+---
+ 
+script: Target.js
+ 
+description: Functions to fetch and parse target into action chains
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Mixin
+
+provides: 
+  - LSD.Mixin.Target
+
+...
+*/
+
+!function() {
+  var cache = {};
+  LSD.Mixin.Target = new Class({
+    options: {
+      chain: {
+        target: function() {
+          if (!this.attributes.target) return;
+          return this.parseTargetSelector(this.attributes.target).map(function(chain) {
+            if (!chain.action) chain.action = this.getTargetAction(); 
+            if (!chain.action) return;
+            if (chain.selector) {
+              chain.target = function() {
+                return this.getElements(chain.selector);
+              }.bind(this);
+            };
+            switch (chain.keyword) {
+              case "before":
+                chain.priority = 50;
+                break;
+              case "after":
+                chain.priority = -50;
+            }
+            return chain;
+          }.bind(this));
+        }
+      }
+    },
+  
+    parseTargetSelector: function(selector) {
+      return (cache[selector] || (cache[selector] = Parser.exec.apply(Parser, arguments)))
+    },
+
+    getTargetAction: function() {
+      return this.attributes.interaction || this.captureEvent('getTargetAction', arguments);
+    }
+  });
+  
+  
+  var Parser = LSD.Mixin.Target.Parser = {
+    build: function(expression, start, end, keyword) {      
+      var last = expression[end - start - 1];
+      if (!last.classes && !last.attributes && last.tag == '*' && !last.id && last.pseudos[0].type == 'class') {
+        var actions = last.pseudos
+        end--;
+      };
+      if (keyword) start++;
+      var built = (start < end) ? {selector: Parser.slice(expression, start, end)} : {}
+      if (actions) return actions.map(function(pseudo, i) {
+        var object = Object.append({action: pseudo.key}, built);
+        var action = LSD.Action[LSD.toClassName(pseudo.key)];
+        var priority = action && action.prototype.options && action.prototype.options.priority;
+        if (priority != null) object.priority = priority;
+        if (pseudo.value) object.arguments = pseudo.value;
+        if (keyword) object.keyword = keyword;
+        return object;
+      }); else return built;
+    },
+    
+    slice: function(expressions, start, end) {
+      return {
+        Slick: true,
+        expressions: [expressions.slice(start, end)]
+      };
+    },
+    
+    exec: function(selector) {
+      var parsed = selector.Slick ? selector : Slick.parse(selector), expressions = [];
+      for (var i = 0, expression; expression = parsed.expressions[i]; i++) {
+        var started = 0;
+        var first = expression[0];
+        var keyword = Keywords[first.tag] ? first.tag : null; 
+        var exp = Parser.build(expression, started, expression.length, keyword);
+        expressions.push[exp.push ? 'apply' : 'call'](expressions, exp);
+      }
+      return expressions;
+    }
+  };
+  
+  var Keywords = Parser.Keywords = Array.fast('if', 'then', 'else', 'or', 'and', 'before');
+}();
+
+LSD.Behavior.define('[target]', LSD.Mixin.Target);
+/*
+---
+
+name: Events.Pseudos
+
+description: Adds the functionality to add pseudo events
+
+license: MIT-style license
+
+authors:
+  - Arian Stolwijk
+
+requires: [Core/Class.Extras, Core/Slick.Parser, More/MooTools.More]
+
+provides: [Events.Pseudos]
+
+...
+*/
+
+Events.Pseudos = function(pseudos, addEvent, removeEvent){
+
+	var storeKey = 'monitorEvents:';
+
+	var storageOf = function(object){
+		return {
+			store: object.store ? function(key, value){
+				object.store(storeKey + key, value);
+			} : function(key, value){
+				(object.$monitorEvents || (object.$monitorEvents = {}))[key] = value;
+			},
+			retrieve: object.retrieve ? function(key, dflt){
+				return object.retrieve(storeKey + key, dflt);
+			} : function(key, dflt){
+				if (!object.$monitorEvents) return dflt;
+				return object.$monitorEvents[key] || dflt;
+			}
+		};
+	};
+
+	var splitType = function(type){
+		if (type.indexOf(':') == -1 || !pseudos) return null;
+
+		var parsed = Slick.parse(type).expressions[0][0],
+			parsedPseudos = parsed.pseudos,
+			l = parsedPseudos.length,
+			splits = [];
+
+		while (l--) if (pseudos[parsedPseudos[l].key]){
+			splits.push({
+				event: parsed.tag,
+				value: parsedPseudos[l].value,
+				pseudo: parsedPseudos[l].key,
+				original: type
+			});
+		}
+
+		return splits.length ? splits : null;
+	};
+
+	var mergePseudoOptions = function(split){
+		return Object.merge.apply(this, split.map(function(item){
+			return pseudos[item.pseudo].options || {};
+		}));
+	};
+
+	return {
+
+		addEvent: function(type, fn, internal){
+			var split = splitType(type);
+			if (!split) return addEvent.call(this, type, fn, internal);
+
+			var storage = storageOf(this),
+				events = storage.retrieve(type, []),
+				eventType = split[0].event,
+				options = mergePseudoOptions(split),
+				stack = fn,
+				eventOptions = options[eventType] || {},
+				args = Array.slice(arguments, 2),
+				self = this,
+				monitor;
+
+			if (eventOptions.args) args.append(Array.from(eventOptions.args));
+			if (eventOptions.base) eventType = eventOptions.base;
+			if (eventOptions.onAdd) eventOptions.onAdd(this);
+
+			split.each(function(item){
+				var stackFn = stack;
+				stack = function(){
+					(eventOptions.listener || pseudos[item.pseudo].listener).call(self, item, stackFn, arguments, monitor, options);
+				};
+			});
+			monitor = stack.bind(this);
+
+			events.include({event: fn, monitor: monitor});
+			storage.store(type, events);
+
+			addEvent.apply(this, [type, fn].concat(args));
+			return addEvent.apply(this, [eventType, monitor].concat(args));
+		},
+
+		removeEvent: function(type, fn){
+			var split = splitType(type);
+			if (!split) return removeEvent.call(this, type, fn);
+
+			var storage = storageOf(this),
+				events = storage.retrieve(type);
+			if (!events) return this;
+
+			var eventType = split[0].event,
+				options = mergePseudoOptions(split),
+				eventOptions = options[eventType] || {},
+				args = Array.slice(arguments, 2);
+
+			if (eventOptions.args) args.append(Array.from(eventOptions.args));
+			if (eventOptions.base) eventType = eventOptions.base;
+			if (eventOptions.onRemove) eventOptions.onRemove(this);
+
+			removeEvent.apply(this, [type, fn].concat(args));
+			events.each(function(monitor, i){
+				if (!fn || monitor.event == fn) removeEvent.apply(this, [eventType, monitor.monitor].concat(args));
+				delete events[i];
+			}, this);
+
+			storage.store(type, events);
+			return this;
+		}
+
+	};
+
+};
+
+(function(){
+
+var pseudos = {
+
+	once: {
+		listener: function(split, fn, args, monitor){
+			fn.apply(this, args);
+			this.removeEvent(split.event, monitor)
+				.removeEvent(split.original, fn);
+		}
+	},
+
+	throttle: {
+		listener: function(split, fn, args){
+			if (!fn._throttled){
+				fn.apply(this, args);
+				fn._throttled = setTimeout(function(){
+					fn._throttled = false;
+				}, split.value || 250);
+			}
+		}
+	},
+
+	pause: {
+		listener: function(split, fn, args){
+			clearTimeout(fn._pause);
+			fn._pause = fn.delay(split.value || 250, this, args);
+		}
+	}
+
+};
+
+Events.definePseudo = function(key, listener){
+	pseudos[key] = Type.isFunction(listener) ? {listener: listener} : listener;
+	return this;
+};
+
+Events.lookupPseudo = function(key){
+	return pseudos[key];
+};
+
+var proto = Events.prototype;
+Events.implement(Events.Pseudos(pseudos, proto.addEvent, proto.removeEvent));
+
+['Request', 'Fx'].each(function(klass){
+	if (this[klass]) this[klass].implement(Events.prototype);
+});
+
+})();
+
+/*
+---
 name: Slick.Finder
 description: The new, superfast css selector engine.
 provides: Slick.Finder
@@ -10436,7 +9956,6 @@ local.setDocument = function(document){
 	= features.brokenEmptyAttributeQSA
 	= features.isHTMLDocument
 	= features.nativeMatchesSelector
-	= features.findPseudoElement
 	= false;
 
 	var starSelectsClosed, starSelectsComments,
@@ -10803,7 +10322,7 @@ local.search = function(context, expression, append, first){
 		combinator = 'combinator:' + currentBit.combinator;
 		if (!this[combinator]) continue search;
 
-		tag				= (this.isXMLDocument) ? currentBit.tag : currentBit.tag.toUpperCase();
+		tag				= currentBit.tag;//(this.isXMLDocument) ? currentBit.tag : currentBit.tag.toUpperCase();
 		id				 = currentBit.id;
 		classList	= currentBit.classList;
 		classes		= currentBit.classes;
@@ -10924,38 +10443,20 @@ local.createNTHPseudo = function(child, sibling, positions, ofType){
 /*</nth-pseudo-selectors>*//*</pseudo-selectors>*/
 
 local.pushArray = function(node, tag, id, classes, attributes, pseudos){
-	var matched = this.matchSelector(node, tag, id, classes, attributes, pseudos);
-	if (matched) {
-		if (matched === true) this.found.push(node);
-		else if (matched.push) this.found.push.apply(this.found, matched);
-		return true;
-	}
+	if (this.matchSelector(node, tag, id, classes, attributes, pseudos)) this.found.push(node);
 };
 
 local.pushUID = function(node, tag, id, classes, attributes, pseudos){
 	var uid = this.getUID(node);
-	if (!this.uniques[uid]) {
-		var matched = this.matchSelector(node, tag, id, classes, attributes, pseudos);
-		if (matched) {
-			if (matched === true) {
-				this.found.push(node);
-				this.uniques[uid] = true;
-			} else if (matched.push) {
-				for (var i = 0, match; match = matched[i++];) {
-					uid = this.getUID(match);
-					if (this.uniques[uid]) continue;
-					this.uniques[uid] = true;
-					this.found.push(match);
-				}
-			}
-			return true;
-		}
+	if (!this.uniques[uid] && this.matchSelector(node, tag, id, classes, attributes, pseudos)){
+		this.uniques[uid] = true;
+		this.found.push(node);
 	}
 };
 
 var reSingularCombinator = /^\!?[>+^]$/; // "+", ">", "^"
 local.matchNode = function(node, selector, needle){
-	if (this.isHTMLDocument && this.nativeMatchesSelector && selector.indexOf){
+	if (!needle && this.isHTMLDocument && this.nativeMatchesSelector && selector.indexOf){
 		try {
 			return this.nativeMatchesSelector.call(node, selector.replace(/\[([^=]+)=\s*([^'"\]]+?)\s*\]/g, '[$1="$2"]'));
 		} catch(matchError) {}
@@ -10988,13 +10489,15 @@ local.matchPseudo = function(node, name, argument){
 	return (argument) ? argument == attribute : !!attribute;
 };
 
+
+var uppercased = {};
 local.matchSelector = function(node, tag, id, classes, attributes, pseudos){
 	if (tag){
 		var nodeName = (this.isXMLDocument) ? node.nodeName : node.nodeName.toUpperCase();
 		if (tag == '*'){
 			if (nodeName < '@') return false; // Fix for comment nodes and closed nodes
 		} else {
-			if (nodeName != tag) return false;
+			if (nodeName != (uppercased[tag] || (uppercased[tag] = tag.toUpperCase()))) return false;
 		}
 	}
 
@@ -11014,16 +10517,9 @@ local.matchSelector = function(node, tag, id, classes, attributes, pseudos){
 			case 'class':
 				if (!this.matchPseudo(node, part.key, part.value)) return false;			
 				break;
-			case 'element':
-				if (elements) {
-					for (var j = 0, subelements = [], element; element = elements[j++];) 
-						subelements.push.apply(subelements, this.getPseudoElementsByName(element, part.key, part.value));
-					elements = subelements;
-				} else elements = this.getPseudoElementsByName(node, part.key, part.value);
-				if (!elements.length) return false;
 		}
 	}
-	return elements || true;
+	return true;
 };
 
 var combinators = {
@@ -11334,6 +10830,13 @@ Slick.match = function(node, selector){
 	return local.matchNode(node, selector);
 };
 
+
+Slick.matchSelector = function(node, tag, id, classes, attributes, pseudos){
+  if (!node) return false;
+	local.setDocument(node);
+	return local.matchSelector(node, tag, id, classes, attributes, pseudos);
+};
+
 // Slick attribute accessor
 
 Slick.defineAttributeGetter = function(name, fn){
@@ -11345,7 +10848,7 @@ Slick.lookupAttributeGetter = function(name){
 	return local.attributeGetters[name];
 };
 
-// Slick pseudo accessor
+// Slick combinator accessor
 
 Slick.defineCombinator = function(name, fn){
 	local['combinator:' + name] = function(node, argument){
@@ -11429,34 +10932,82 @@ LSD.Module.Selectors = new Class({
     return Slick.find(origin || this.getSelectorOrigin(selector), selector)
   },
   
-  // we have to figure the document before we do a .search  
+  /*
+    We have to figure the document before we do a .search
+    to let Slick switch into the right mode and be prepared
+  */
+    
   getSelectorOrigin: function(selector) {
     if (!selector.Slick) selector = Slick.parse(selector);
     var first = selector.expressions[0][0];
-    switch (first.combinator) {
-      case "$": case "$$":
+    switch (first.combinator.charAt(0)) {
+      case "$":
         return this.element;
-      case "&": case "&&": default:
+      default:
         return this;
     }
+  },
+  
+  getPseudoElementsByName: function(name) {
+    return this.captureEvent('getRelated', arguments) || this[name];
+  },
+  
+  match: function(selector) {
+    if (typeof selector == 'string') selector = Slick.parse(selector);
+    if (selector.expressions) selector = selector.expressions[0][0];
+    if (selector.combinator == '::') {
+      if (selector.tag && (selector.tag != '*')) {
+        var group = this.expectations['!::'];
+        if (!group || !(group = group[selector.tag]) || !group.length) return false;
+      }
+    } else {
+      if (selector.tag && (selector.tag != '*') && (this.tagName != selector.tag)) return false;
+    }
+    if (selector.id && (this.attributes.id != selector.id)) return false;
+    if (selector.attributes) for (var i = 0, j; j = selector.attributes[i]; i++) 
+      if (j.operator ? !j.test(this.attributes[j.key] && this.attributes[j.key].toString()) : !(j.key in this.attributes)) return false;
+    if (selector.classes) for (var i = 0, j; j = selector.classes[i]; i++) if (!this.classes[j.value]) return false;
+    if (selector.pseudos) {
+      for (var i = 0, j; j = selector.pseudos[i]; i++) {
+        var name = j.key;
+        if (this.pseudos[name]) continue;
+        var pseudo = pseudos[name];
+        if (pseudo == null) pseudos[name] = pseudo = Slick.lookupPseudo(name) || false;
+        if (pseudo === false || (pseudo && !pseudo.call(this, this, j.value))) return false;
+      }
+    }
+    return true;
   }
 });
+var pseudos = {};
 
 var Combinators = LSD.Module.Selectors.Combinators = {
-  '$': function(node, tag, id, classes, attributes, pseudos) { //this element
-    return this.push(node, tag, id, classes, attributes, pseudos)
+  '$': function(node, tag, id, classes, attributes, pseudos, classList) { //this element
+    if ((tag == '*') && !id && !classes && !attributes && !pseudos) return this.push(node);
+    else return this['combinator: '](node, tag, id, classes, attributes, pseudos, classList)
   },
 
-  '$$': function(node, tag, id, classes, attributes, pseudos) { //this element document
-    if ((tag == '*') && !id && !classes && !attributes) return this.push(this.document.body, null, null, null, null, pseudos);
-    else return this['combinator: '](this.document.body, tag, id, classes, attributes, pseudos);
+  '$$': function(node, tag, id, classes, attributes, pseudos, classList) { //this element document
+    if ((tag == '*') && !id && !classes && !attributes && !pseudos) return this.push(this.document.body);
+    else return this['combinator: '](this.document.body, tag, id, classes, attributes, pseudos, classList);
+  },
+  
+  '::': function(node, tag, id, classes, attributes, pseudos) {
+    var found = this.found;
+    var value = this.getPseudoElementsByName(node, tag, id, classes, attributes, pseudos);
+    this.found = found;
+    if (value)
+      for (var i = 0, element, result = [], ary = (value.length == null) ? [value] : value; element = ary[i]; i++)
+        this.push(element, '*', id, classes, attributes);
   }
 };
 
 Combinators['&'] = Combinators['$'];
 Combinators['&&'] = Combinators['$$'];
+for (var combinator in Combinators) 
+  if (combinator != '::') Combinators[combinator + '::'] = Combinators['::'];
 
-for (name in Combinators) Slick.defineCombinator(name, Combinators[name])
+for (name in Combinators) Slick.defineCombinator(name, Combinators[name]);
 
 LSD.Module.Selectors.Features = {
   brokenStarGEBTN: false,
@@ -11468,408 +11019,23 @@ LSD.Module.Selectors.Features = {
   brokenEmptyAttributeQSA: false,
   isHTMLDocument: false,
   nativeMatchesSelector: false,
+  documentSorter: function(a, b) {
+    if (!a.sourceIndex || !b.sourceIndex) return 0;
+		return a.sourceIndex - b.sourceIndex;
+  },
   hasAttribute: function(node, attribute) {
     return (attribute in node.attributes) || ((attribute in node.$states) && (attribute in node.pseudos))
   },
   getAttribute: function(node, attribute) {
     return node.attributes[attribute] || ((attribute in node.$states) || node.pseudos[attribute]);
   },
-  getPseudoElementsByName: function(node, name, value) {
-    var collection = node[name];
+  getPseudoElementsByName: function(node, name, id, classes, attributes, pseudos) {
+    var collection = node.getPseudoElementsByName ? node.getPseudoElementsByName(name, id, classes, attributes, pseudos) : node[name];
     return collection ? (collection.push ? collection : [collection]) : [];
   }
 };
 
 }();
-/*
----
-name: Slick.Parser
-description: Standalone CSS3 Selector parser
-provides: Slick.Parser
-...
-*/
-
-;(function(){
-
-var parsed,
-	separatorIndex,
-	combinatorIndex,
-	reversed,
-	cache = {},
-	reverseCache = {},
-	reUnescape = /\\/g;
-
-var parse = function(expression, isReversed){
-	if (expression == null) return null;
-	if (expression.Slick === true) return expression;
-	expression = ('' + expression).replace(/^\s+|\s+$/g, '');
-	reversed = !!isReversed;
-	var currentCache = (reversed) ? reverseCache : cache;
-	if (currentCache[expression]) return currentCache[expression];
-	parsed = {
-		Slick: true,
-		expressions: [],
-		raw: expression,
-		reverse: function(){
-			return parse(this.raw, true);
-		}
-	};
-	separatorIndex = -1;
-	while (expression != (expression = expression.replace(regexp, parser)));
-	parsed.length = parsed.expressions.length;
-	return currentCache[parsed.raw] = (reversed) ? reverse(parsed) : parsed;
-};
-
-var reverseCombinator = function(combinator){
-	if (combinator === '!') return ' ';
-	else if (combinator === ' ') return '!';
-	else if ((/^!/).test(combinator)) return combinator.replace(/^!/, '');
-	else return '!' + combinator;
-};
-
-var reverse = function(expression){
-	var expressions = expression.expressions;
-	for (var i = 0; i < expressions.length; i++){
-		var exp = expressions[i];
-		var last = {parts: [], tag: '*', combinator: reverseCombinator(exp[0].combinator)};
-
-		for (var j = 0; j < exp.length; j++){
-			var cexp = exp[j];
-			if (!cexp.reverseCombinator) cexp.reverseCombinator = ' ';
-			cexp.combinator = cexp.reverseCombinator;
-			delete cexp.reverseCombinator;
-		}
-
-		exp.reverse().push(last);
-	}
-	return expression;
-};
-
-var escapeRegExp = function(string){// Credit: XRegExp 0.6.1 (c) 2007-2008 Steven Levithan <http://stevenlevithan.com/regex/xregexp/> MIT License
-	return string.replace(/[-[\]{}()*+?.\\^$|,#\s]/g, function(match){
-		return '\\' + match;
-	});
-};
-
-var regexp = new RegExp(
-/*
-#!/usr/bin/env ruby
-puts "\t\t" + DATA.read.gsub(/\(\?x\)|\s+#.*$|\s+|\\$|\\n/,'')
-__END__
-	"(?x)^(?:\
-	  \\s* ( , ) \\s*               # Separator          \n\
-	| \\s* ( <combinator>+ ) \\s*   # Combinator         \n\
-	|      ( \\s+ )                 # CombinatorChildren \n\
-	|      ( <unicode>+ | \\* )     # Tag                \n\
-	| \\#  ( <unicode>+       )     # ID                 \n\
-	| \\.  ( <unicode>+       )     # ClassName          \n\
-	|                               # Attribute          \n\
-	\\[  \
-		\\s* (<unicode1>+)  (?:  \
-			\\s* ([*^$!~|]?=)  (?:  \
-				\\s* (?:\
-					([\"']?)(.*?)\\9 \
-				)\
-			)  \
-		)?  \\s*  \
-	\\](?!\\]) \n\
-	|   :+ ( <unicode>+ )(?:\
-	\\( (?:\
-		(?:([\"'])([^\\12]*)\\12)|((?:\\([^)]+\\)|[^()]*)+)\
-	) \\)\
-	)?\
-	)"
-*/
-	"^(?:\\s*(,)\\s*|\\s*(<combinator>+)\\s*|(\\s+)|(<unicode>+|\\*)|\\#(<unicode>+)|\\.(<unicode>+)|\\[\\s*(<unicode1>+)(?:\\s*([*^$!~|]?=)(?:\\s*(?:([\"']?)(.*?)\\9)))?\\s*\\](?!\\])|(:+)(<unicode>+)(?:\\((?:(?:([\"'])([^\\13]*)\\13)|((?:\\([^)]+\\)|[^()]*)+))\\))?)"
-	.replace(/<combinator>/, '[' + escapeRegExp(">+~`!@$%^&={}\\;</") + ']')
-	.replace(/<unicode>/g, '(?:[\\w\\u00a1-\\uFFFF-]|\\\\[^\\s0-9a-f])')
-	.replace(/<unicode1>/g, '(?:[:\\w\\u00a1-\\uFFFF-]|\\\\[^\\s0-9a-f])')
-);
-
-function parser(
-	rawMatch,
-
-	separator,
-	combinator,
-	combinatorChildren,
-
-	tagName,
-	id,
-	className,
-
-	attributeKey,
-	attributeOperator,
-	attributeQuote,
-	attributeValue,
-
-	pseudoMarker,
-	pseudoClass,
-	pseudoQuote,
-	pseudoClassQuotedValue,
-	pseudoClassValue
-){
-	if (separator || separatorIndex === -1){
-		parsed.expressions[++separatorIndex] = [];
-		combinatorIndex = -1;
-		if (separator) return '';
-	}
-
-	if (combinator || combinatorChildren || combinatorIndex === -1){
-		combinator = combinator || ' ';
-		var currentSeparator = parsed.expressions[separatorIndex];
-		if (reversed && currentSeparator[combinatorIndex])
-			currentSeparator[combinatorIndex].reverseCombinator = reverseCombinator(combinator);
-		currentSeparator[++combinatorIndex] = {combinator: combinator, tag: '*'};
-	}
-
-	var currentParsed = parsed.expressions[separatorIndex][combinatorIndex];
-
-	if (tagName){
-		currentParsed.tag = tagName.replace(reUnescape, '');
-
-	} else if (id){
-		currentParsed.id = id.replace(reUnescape, '');
-
-	} else if (className){
-		className = className.replace(reUnescape, '');
-
-		if (!currentParsed.classList) currentParsed.classList = [];
-		if (!currentParsed.classes) currentParsed.classes = [];
-		currentParsed.classList.push(className);
-		currentParsed.classes.push({
-			value: className,
-			regexp: new RegExp('(^|\\s)' + escapeRegExp(className) + '(\\s|$)')
-		});
-
-	} else if (pseudoClass){
-		pseudoClassValue = pseudoClassValue || pseudoClassQuotedValue;
-		pseudoClassValue = pseudoClassValue ? pseudoClassValue.replace(reUnescape, '') : null;
-
-		if (!currentParsed.pseudos) currentParsed.pseudos = [];
-		currentParsed.pseudos.push({
-			key: pseudoClass.replace(reUnescape, ''),
-			value: pseudoClassValue,
-			type: pseudoMarker.length == 1 ? 'class' : 'element'
-		});
-
-	} else if (attributeKey){
-		attributeKey = attributeKey.replace(reUnescape, '');
-		attributeValue = (attributeValue || '').replace(reUnescape, '');
-
-		var test, regexp;
-
-		switch (attributeOperator){
-			case '^=' : regexp = new RegExp(       '^'+ escapeRegExp(attributeValue)            ); break;
-			case '$=' : regexp = new RegExp(            escapeRegExp(attributeValue) +'$'       ); break;
-			case '~=' : regexp = new RegExp( '(^|\\s)'+ escapeRegExp(attributeValue) +'(\\s|$)' ); break;
-			case '|=' : regexp = new RegExp(       '^'+ escapeRegExp(attributeValue) +'(-|$)'   ); break;
-			case  '=' : test = function(value){
-				return attributeValue == value;
-			}; break;
-			case '*=' : test = function(value){
-				return value && value.indexOf(attributeValue) > -1;
-			}; break;
-			case '!=' : test = function(value){
-				return attributeValue != value;
-			}; break;
-			default   : test = function(value){
-				return !!value;
-			};
-		}
-
-		if (attributeValue == '' && (/^[*$^]=$/).test(attributeOperator)) test = function(){
-			return false;
-		};
-
-		if (!test) test = function(value){
-			return value && regexp.test(value);
-		};
-
-		if (!currentParsed.attributes) currentParsed.attributes = [];
-		currentParsed.attributes.push({
-			key: attributeKey,
-			operator: attributeOperator,
-			value: attributeValue,
-			test: test
-		});
-
-	}
-
-	return '';
-};
-
-// Slick NS
-
-var Slick = (this.Slick || {});
-
-Slick.parse = function(expression){
-	return parse(expression);
-};
-
-Slick.escapeRegExp = escapeRegExp;
-
-if (!this.Slick) this.Slick = Slick;
-
-}).apply(/*<CommonJS>*/(typeof exports != 'undefined') ? exports : /*</CommonJS>*/this);
-
-/*
----
- 
-script: Attributes.js
- 
-description: A mixin that adds support for setting attributes, adding and removing classes and pseudos
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Module
-  - Core/Slick.Parser
- 
-provides: 
-  - LSD.Module.Attributes
- 
-...
-*/
-
-LSD.Module.Attributes = new Class({
-  initializers: {
-    attributes: function() {
-      this.classes = new FastArray;
-      this.pseudos = new FastArray;
-      this.attributes = {};
-    }
-  },
-  
-  getAttribute: function(attribute) {
-    switch (attribute) {
-      case "class":           return this.classes.join(' ');
-      case "slick-uniqueid":  return this.lsd;
-      default:                return this.attributes[attribute];
-    }
-  },
-  
-  removeAttribute: function(attribute) {
-    this.fireEvent('selectorChange', ['attributes', name, false]);
-    delete this.attributes[attribute];
-    if (this.element) this.element.removeAttribute(attribute);
-  },
-
-  setAttribute: function(name, value) {
-    if (LSD.Attributes.Numeric[name]) value = value.toInt();
-    else {
-      var logic = LSD.Attributes.Setter[name];
-      if (logic) logic.call(this, value)
-    }
-    this.fireEvent('selectorChange', ['attributes', name, false]);
-    this.attributes[name] = value;    
-    this.fireEvent('selectorChange', ['attributes', name, true]);
-    if (this.element) this.element.setAttribute(name, value);
-  },
-
-  addPseudo: function(name){
-    this.pseudos.include(name);
-    this.fireEvent('selectorChange', ['pseudos', name, true]);
-  },
-
-  removePseudo: function(name){
-    this.fireEvent('selectorChange', ['pseudos', name, false]);
-    this.pseudos.erase(name);
-  },
-
-  addClass: function(name) {
-    this.classes.include(name);
-    if (this.element) this.element.addClass(name);
-    this.fireEvent('selectorChange', ['classes', name, true]);
-  },
-
-  removeClass: function(name) {
-    this.fireEvent('selectorChange', ['classes', name, false]);
-    var state = LSD.States.Classes[name];
-    if (state) this.pseudos.erase(state)
-    this.classes.erase(name);
-    if (this.element) this.element.removeClass(name);
-  },
-  
-  hasClass: function(name) {
-    return this.classes[name]
-  },
-  
-  setState: function(state) {
-    var attribute = LSD.States.Attributes[state];
-    if (attribute) this.setAttribute(attribute, attribute)
-    else this.addClass(LSD.States.Classes[state] || 'is-' + state);
-    this.addPseudo(state);
-  },
-  
-  unsetState: function(state) {
-    var attribute = LSD.States.Attributes[state];
-    if (attribute) this.removeAttribute(attribute);
-    else this.removeClass(LSD.States.Classes[state] || 'is-' + state);
-    this.removePseudo(state);
-  },
-  
-  getSelector: function(){
-    var parent = this.parentNode;
-    var selector = (parent && parent.getSelector) ? parent.getSelector() + ' ' : '';
-    selector += this.options.tag;
-    if (this.attributes.id) selector += '#' + this.attributes.id;
-    for (var klass in this.classes)  if (this.classes.hasOwnProperty(klass))  selector += '.' + klass;
-    for (var pseudo in this.pseudos) if (this.pseudos.hasOwnProperty(pseudo)) selector += ':' + pseudo;
-    for (var name in this.attributes) if (name != 'id') selector += '[' + name + '=' + this.attributes[name] + ']';
-    return selector;
-  }
-});
-
-
-LSD.Attributes.Setter = {
-  'id': function(id) {
-    this.id = id;
-  },
-  'class': function(value) {
-    value.split(' ').each(this.addClass.bind(this));
-  },
-  'style': function(value) {
-    value.split(/\s*;\s*/).each(function(definition) {
-      var bits = definition.split(/\s*:\s*/)
-      if (!bits[1]) return;
-      bits[0] = bits[0].camelCase();
-      var integer = bits[1].toInt();
-      if (bits[1].indexOf('px') > -1 || (integer == bits[1])) bits[1] = integer
-      //this.setStyle.apply(this, bits);
-    }, this);
-  }
-};
-
-Object.append(LSD.Options, {
-  attributes: {
-    add: 'setAttribute',
-    remove: 'removeAttribute',
-    iterate: true
-  },
-  classes: {
-    add: function(name) {
-      this[LSD.States.Classes[name] ? 'addPseudo' : 'addClass'](name);
-    },
-    remove: function(name) {
-      this[LSD.States.Classes[name] ? 'removePseudo' : 'removeClass'](name);
-    },
-    iterate: true
-  },
-  pseudos: {
-    add: function(name) {
-      if (this.$states[name]) this.setStateTo(name, true);
-      else this.addPseudo(name);
-    },
-    remove: function(name) {
-      if (this.$states[name]) this.setStateTo(name, false);
-      else this.removePseudo(name);
-    },
-    iterate: true
-  }
-});
-
 /*
 ---
 
@@ -12757,8 +11923,8 @@ extends: Core/Element
     replaces: function(el) {
       el = document.id(el, true);
       var parent = el.parentNode;
-      if (el.fireEvent) el.fireEvent('dispose', parent);
   		parent.replaceChild(this, el);
+      if (el.fireEvent) el.fireEvent('dispose', parent);
   		return this;
     }
   });
@@ -12769,6 +11935,53 @@ extends: Core/Element
     return Element.prototype.dispose.call(element, el);
   }
 }(Element.prototype.dispose, Element.prototype.replaces);
+/*
+---
+ 
+script: Element.from.js
+ 
+description: Methods to create elements from strings
+ 
+license: MIT-style license.
+
+credits: 
+  - http://jdbartlett.github.com/innershiv
+ 
+extends: Core/Element
+
+*/
+
+Document.implement('id', (function(){
+
+	var types = {
+
+		string: function(id, nocash, doc){
+			id = Slick.find(doc, '#' + id.replace(/(\W)/g, '\\$1'));
+			return (id) ? types.element(id, nocash) : null;
+		},
+
+		element: function(el, nocash){
+			$uid(el);
+			if (!nocash && !el.$family && !(/^(?:object|embed)$/i).test(el.tagName)){
+				Object.append(el, Element.Prototype);
+			}
+			return el;
+		}
+
+	};
+
+	types.textnode = types.whitespace = types.window = types.document = function(zero){
+		return zero;
+	};
+
+	return function(el, nocash, doc){
+		if (el && el.$family && el.uid) return el;
+		if (el && el.toElement) return types.element(el.toElement(doc), nocash);
+		var type = typeOf(el);
+		return (types[type]) ? types[type](el, nocash, doc || document) : null;
+	};
+
+})());
 /*
 ---
 
@@ -12947,515 +12160,182 @@ Element.Events = new Hash(Element.Events);
 
 /*
 ---
- 
-script: DOM.js
- 
-description: Provides DOM-compliant interface to play around with other widgets
- 
-license: Public domain (http://unlicense.org).
 
-authors: Yaroslaff Fedin
+name: Element.Event.Pseudos
 
-requires:
-  - LSD.Module
-  - Core/Element.Event
+description: Adds the functionality to add pseudo events for Elements
 
-provides:
-  - LSD.Module.DOM
-  - LSD.Module.DOM.findDocument
+license: MIT-style license
+
+authors:
+  - Arian Stolwijk
+
+requires: [Core/Element.Event, Events.Pseudos]
+
+provides: [Element.Event.Pseudos]
 
 ...
 */
 
-!function() {
+(function(){
 
-LSD.Module.DOM = new Class({
-  options: {
-    nodeType: 1,
-  },
-  
-  initializers: {
-    dom: function(options) {
-      this.childNodes = [];
-      this.nodeType = options.nodeType;
-      this.nodeName = this.tagName = options.tag;
-      return {
-        events: {
-          element: {
-            /*
-            When dispose event comes from the element, 
-            it is is already removed from dom
-            */
-            'dispose': 'onElementDispose'
-          },
-          self: {
-            'destroy': function() {
-              if (this.parentNode) this.dispose();
-            },
-            'dispose': function() {
-              if (this.element.parentNode) this.element.dispose();
-            }
-          }
-        }
-      }
-    }
-  },
-  
-  contains: function(element) {
-    while (element = element.parentNode) if (element == this) return true;
-    return false;
-  },
-  
-  getChildren: function() {
-    return this.childNodes;
-  },
+var pseudos = {},
+	copyFromEvents = ['once', 'throttle', 'pause'],
+	count = copyFromEvents.length;
 
-  getRoot: function() {
-    var widget = this;
-    while (widget.parentNode) widget = widget.parentNode;
-    return widget;
-  },
-  
-  setParent: function(widget){
-    widget = LSD.Module.DOM.find(widget);
-    this.parentNode = widget;
-    this.fireEvent('setParent', [widget, widget.document])
-    var siblings = widget.childNodes;
-    var length = siblings.length;
-    if (length == 1) widget.firstChild = this;
-    widget.lastChild = this;
-    var previous = siblings[length - 2];
-    if (previous) {
-      previous.nextSibling = this;
-      this.previousSibling = previous;
-    }
-  },
-  
-  unsetParent: function(widget) {
-    var parent = this.parentNode;
-    if (parent.firstChild == this) delete parent.firstChild;
-    if (parent.lastChild == this) delete parent.lastChild;
-    delete this.parentNode;
-  },
-  
-  appendChild: function(widget, adoption) {
-    this.childNodes.push(widget);
-    widget.setParent(this);
-    if (!widget.quiet && (adoption !== false) && this.toElement()) (adoption || function() {
-      this.element.appendChild(widget.toElement());
-    }).apply(this, arguments);
-    delete widget.quiet;
-    this.fireEvent('adopt', [widget]);
-    LSD.Module.DOM.walk(widget, function(node) {
-      this.dispatchEvent('nodeInserted', node);
-    }, this);
-    return true;
-  },
-  
-  removeChild: function(widget) {
-    LSD.Module.DOM.walk(widget, function(node) {
-      this.dispatchEvent('nodeRemoved', node);
-    }, this);
-    widget.unsetParent(this);
-    this.childNodes.erase(widget);
-  },
-  
-  insertBefore: function(insertion, element) {
-    return this.appendChild(insertion, function() {
-      if (element)
-        document.id(element.parentNode).insertBefore(document.id(insertion), document.id(element))
-      else
-        document.id(this).insertBefore(document.id(insertion))
-    }.bind(this));
-  },
+while (count--) pseudos[copyFromEvents[count]] = Events.lookupPseudo(copyFromEvents[count]);
 
-  extractDocument: function(widget) {
-    var element = widget.lsd ? widget.element : widget;
-    var isDocument = widget.documentElement || (instanceOf(widget, LSD.Document));
-    var parent = this.parentNode;
-    if (isDocument  // if document
-    || (parent && parent.dominjected) //already injected widget
-    || (widget.ownerDocument && (widget.ownerDocument.body == widget)) //body element
-    || element.offsetParent) { //element in dom (costy check)
-      return (parent && parent.document) || (isDocument ? widget : LSD.Module.DOM.findDocument(widget));
-    }
-  },
-  
-  setDocument: function(document) {
-    LSD.Module.DOM.walk(this, function(child) {
-      child.ownerDocument = child.document = document;
-      child.fireEvent('setDocument', document);
-      child.fireEvent('dominject', [child.element.parentNode, document]);
-      child.dominjected = true;
-    });
-    return this;
-  },
-  
-  inject: function(widget, where, quiet) {
-    if (!widget.lsd) {
-      var instance = LSD.Module.DOM.find(widget, true)
-      if (instance) widget = instance;
-    }
-    this.quiet = quiet || (widget.documentElement && this.element && this.element.parentNode);
-    if (where === false) widget.appendChild(this, false)
-    else if (!inserters[where || 'bottom'](widget.lsd ? this : this.toElement(), widget) && !quiet) return false;
-    if (quiet !== true || widget.document) {
-      var document = widget.document || (this.documentElement ? this : this.extractDocument(widget));
-      if (document) this.setDocument(document);
-    }
-    this.fireEvent('inject', this.parentNode);
-    return this;
-  },
-
-  grab: function(el, where){
-    inserters[where || 'bottom'](document.id(el, true), this);
-    return this;
-  },
-  
-  /*
-    Wrapper is where content nodes get appended. 
-    Defaults to this.element, but can be redefined
-    in other Modules or Traits (as seen in Container
-    module)
-  */
-  
-  getWrapper: function() {
-    return this.toElement();
-  },
-  
-  write: function(content) {
-    if (!content || !(content = content.toString())) return;
-    var wrapper = this.getWrapper();
-    if (this.written) for (var node; node = this.written.shift();) Element.dispose(node);
-    var fragment = document.createFragment(content);
-    this.written = Array.prototype.slice.call(fragment.childNodes, 0);
-    wrapper.appendChild(fragment);
-    this.fireEvent('write', [this.written])
-    this.innerText = wrapper.get('text').trim();
-    return this.written;
-  },
-
-  replaces: function(el){
-    this.inject(el, 'after');
-    el.dispose();
-    return this;
-  },
-  
-  onDOMInject: function(callback) {
-    if (this.document) callback.call(this, this.document.element) 
-    else this.addEvent('dominject', callback.bind(this))
-  },
-  
-  onElementDispose: function() {
-    if (this.parentNode) this.dispose();
-  },
-
-  dispose: function() {
-    var parent = this.parentNode;
-    if (!parent) return;
-    this.fireEvent('beforeDispose', parent);
-    parent.removeChild(this);
-    this.fireEvent('dispose', parent);
-    return this;
-  },
-  
-  onElementDispose: function() {
-    if (this.parentNode) this.dispose();
-  }
-});
-
-var inserters = {
-
-  before: function(context, element){
-    var parent = element.parentNode;
-    if (parent) return parent.insertBefore(context, element);
-  },
-
-  after: function(context, element){
-    var parent = element.parentNode;
-    if (parent) return parent.insertBefore(context, element.nextSibling);
-  },
-
-  bottom: function(context, element){
-    return element.appendChild(context);
-  },
-
-  top: function(context, element){
-    return element.insertBefore(context, element.firstChild);
-  }
-
+Event.definePseudo = function(key, listener){
+	pseudos[key] = Type.isFunction(listener) ? {listener: listener} : listener;
+	return this;
 };
 
-Object.append(LSD.Module.DOM, {
-  walk: function(element, callback, bind, memo) {
-    var widget = element.lsd ? element : LSD.Module.DOM.find(element, true);
-    if (widget) {
-      var result = callback.call(bind || this, widget, memo);
-      if (result) (memo || (memo = [])).push(widget);
-    }
-    for (var nodes = element.childNodes, node, i = 0; node = nodes[i]; i++) 
-      if (node.nodeType == 1) LSD.Module.DOM.walk(node, callback, bind, memo); 
-    return memo;
-  },
-  
-  find: function(target, lazy) {
-    return target.lsd ? target : ((!lazy || target.uid) && Element[lazy ? 'retrieve' : 'get'](target, 'widget'));
-  },
-  
-  findDocument: function(target) {
-    if (target.documentElement) return target;
-    if (target.document && target.document.lsd) return target.document;
-    if (target.lsd) return;
-    var body = target.ownerDocument.body;
-    var document = (target != body) && Element.retrieve(body, 'widget');
-    while (!document && (target = target.parentNode)) {
-      var widget = Element.retrieve(target, 'widget')
-      if (widget) document = (widget instanceof LSD.Document) ? widget : widget.document;
-    }
-    return document;
-  },
-  
-  getID: function(target) {
-    if (target.lsd) {
-      return target.attributes.itemid;
-    } else {
-      return target.getAttribute('itemid');
-    }
-  }
-});
+var proto = Element.prototype;
+[Element, Window, Document].invoke('implement', Events.Pseudos(pseudos, proto.addEvent, proto.removeEvent));
 
-}();
+})();
+
 /*
 ---
- 
-script: Render.js
- 
-description: A module that provides rendering workflow
- 
-license: Public domain (http://unlicense.org).
 
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Module.DOM
+script: Element.Delegation.js
 
-provides: 
-  - LSD.Module.Render
+name: Element.Delegation
+
+description: Extends the Element native object to include the delegate method for more efficient event management.
+
+credits:
+  - "Event checking based on the work of Daniel Steigerwald. License: MIT-style license. Copyright: Copyright (c) 2008 Daniel Steigerwald, daniel.steigerwald.cz"
+
+license: MIT-style license
+
+authors:
+  - Aaron Newton
+  - Daniel Steigerwald
+
+requires: [/MooTools.More, Element.Event.Pseudos]
+
+provides: [Element.Delegation]
 
 ...
 */
 
+(function(){
 
+var eventListenerSupport = !(window.attachEvent && !window.addEventListener),
+	nativeEvents = Element.NativeEvents;
 
-LSD.Module.Render = new Class({
-  options: {
-    render: null
-  },
-  
-  initializers: {
-    render: function() {
-      this.redraws = 0;
-      this.dirty = true;
-      return {
-        events: {
-          stateChange: function() {
-            if (this.redraws > 0) this.refresh(true);
-          }
-        }
-      }
-    }
-  },
-  
-  render: function() {
-    if (!this.built) this.build();
-    delete this.halted;
-    this.redraws++;
-    this.fireEvent('render', arguments)
-    this.childNodes.each(function(child){
-      if (child.render) child.render();
-    });
-  },
-  
-  /*
-    Update marks widget as willing to render. That
-    can be followed by a call to *render* to trigger
-    redrawing mechanism. Otherwise, the widget stay 
-    marked and can be rendered together with ascendant 
-    widget.
-  */
-  
-  update: function(recursive) {
-    if (recursive) LSD.Module.DOM.walk(this, function(widget) {
-      widget.update();
-    });
-  },
-  
-  /*
-    Refresh updates and renders widget (or a widget tree 
-    if optional argument is true). It is a reliable way
-    to have all elements redrawn, but a costly too.
-    
-    Should be avoided when possible to let internals 
-    handle the rendering and avoid some unnecessary 
-    calculations.
-  */
+nativeEvents.focusin = 2;
+nativeEvents.focusout = 2;
 
-  refresh: function(recursive) {
-    this.update(recursive);
-    return this.render();
-  },
-  
-
-  /*
-    Halt marks widget as failed to render.
-    
-    Possible use cases:
-    
-    - Dimensions depend on child widgets that are not
-      rendered yet
-    - Dont let the widget render when it is not in DOM
-  */ 
-  halt: function() {
-    if (this.halted) return false;
-    this.halted = true;
-    return true;
-  }
-});
-/*
----
- 
-script: Container.js
- 
-description: Makes widget use container - wrapper around content setting
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Module.DOM
-
-provides:
-  - LSD.Module.Container
- 
-...
-*/
-
-LSD.Module.Container = new Class({
-  options: {
-    container: {
-      enabled: true,
-      position: null,
-      inline: true,
-      attributes: {
-        'class': 'container'
-      }
-    },
-    
-    proxies: {
-      container: {
-        container: function() {
-          return $(this.getContainer()) //creates container, once condition is true
-        },
-        condition: function() {         //turned off by default
-          return false 
-        },      
-        priority: -1,                   //lowest priority
-        rewrite: false                  //does not rewrite parent
-      }
-    }
-  },
-  
-  getContainer: Macro.getter('container', function() {
-    var options = this.options.container;
-    if (!options.enabled) return;
-    var tag = options.tag || (options.inline ? 'span' : 'div');
-    return new Element(tag, options.attributes).inject(this.element, options.position);
-  }),
-  
-  getWrapper: function() {
-    return this.getContainer() || this.toElement();
-  }
-});
-/*
----
-
-script: Proxies.js
-
-description: Dont adopt children, pass them to some other widget
-
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Module.DOM
-
-provides: 
-  - LSD.Module.Proxies
-
-...
-*/
-  
-LSD.Module.Proxies = new Class({
-  initializers: {
-    proxies: function() {
-      this.proxies = [];
-    }
-  },
-  
-  addProxy: function(name, proxy) {
-    for (var i = 0, other; (other = this.proxies[i]) && ((proxy.priority || 0) < (other.priority || 0)); i++);
-    this.proxies.splice(i, 0, proxy);
-  },
-  
-  removeProxy: function(name, proxy) {
-    this.proxies.erase(proxy);
-  },
-  
-  proxyChild: function(child) {
-    for (var i = 0, proxy; proxy = this.proxies[i++];) {
-      if (!proxy.condition.call(this, child)) continue;
-      var self = this;
-      var reinject = function(target) {
-        if (proxy.rewrite === false) {
-          self.appendChild(child, function() {
-            target.adopt(child);
-          });
-        } else {
-          child.inject(target);
-        }
-      };
-      var container = proxy.container;
-      if (container.call) {
-        if ((container = container.call(this, reinject))) reinject(container);
-      } else {
-        this.use(container, reinject)
-      }
-      return true;
-    }
-  },
-  
-  appendChild: function(widget, adoption) {
-    if (!adoption && this.canAppendChild && !this.canAppendChild(widget)) {
-      if (widget.parentNode) widget.dispose();
-      else if (widget.element.parentNode) widget.element.dispose();
-      return false;
-    }
-    return LSD.Module.DOM.prototype.appendChild.apply(this, arguments);
-  },
-  
-  canAppendChild: function(child) {
-    return !this.proxyChild(child);
-  }
-  
-});
-
-LSD.Options.proxies = {
-  add: 'addProxy',
-  remove: 'removeProxy',
-  iterate: true
+var check = function(split, target, event){
+	var elementEvent = Element.Events[split.event], condition;
+	if (elementEvent) condition = elementEvent.condition;
+	return Slick.match(target, split.value) && (!condition || condition.call(target, event));
 };
+
+var bubbleUp = function(split, event, fn){
+	for (var target = event.target; target && target != this; target = document.id(target.parentNode)){
+		if (target && check(split, target, event)) return fn.call(target, event, target);
+	}
+};
+
+var formObserver = function(eventName){
+
+	var $delegationKey = '$delegation:';
+
+	return {
+		base: 'focusin',
+
+		onRemove: function(element){
+			element.retrieve($delegationKey + 'forms', []).each(function(el){
+				el.retrieve($delegationKey + 'listeners', []).each(function(listener){
+					el.removeEvent(eventName, listener);
+				});
+				el.eliminate($delegationKey + eventName + 'listeners')
+					.eliminate($delegationKey + eventName + 'originalFn');
+			});
+		},
+
+		listener: function(split, fn, args, monitor, options){
+			var event = args[0],
+				forms = this.retrieve($delegationKey + 'forms', []),
+				target = event.target,
+				form = (target.get('tag') == 'form') ? target : event.target.getParent('form');
+				
+			if (!form) return;
+				
+			var formEvents = form.retrieve($delegationKey + 'originalFn', []),
+				formListeners = form.retrieve($delegationKey + 'listeners', []),
+				self = this;
+
+			forms.include(form);
+			this.store($delegationKey + 'forms', forms);
+
+			if (!formEvents.contains(fn)){
+				var formListener = function(event){
+					bubbleUp.call(self, split, event, fn);
+				};
+				form.addEvent(eventName, formListener);
+
+				formEvents.push(fn);
+				formListeners.push(formListener);
+
+				form.store($delegationKey + eventName + 'originalFn', formEvents)
+					.store($delegationKey + eventName + 'listeners', formListeners);
+			}
+		}
+	};
+};
+
+var inputObserver = function(eventName){
+	return {
+		base: 'focusin',
+		listener: function(split, fn, args){
+			var events = {blur: function(){
+				this.removeEvents(events);
+			}}, self = this;
+			events[eventName] = function(event){
+				bubbleUp.call(self, split, event, fn);
+			};
+			args[0].target.addEvents(events);
+		}
+	};
+};
+
+var eventOptions = {
+	mouseenter: {
+		base: 'mouseover'
+	},
+	mouseleave: {
+		base: 'mouseout'
+	},
+	focus: {
+		base: 'focus' + (eventListenerSupport ? '' : 'in'),
+		args: [true]
+	},
+	blur: {
+		base: eventListenerSupport ? 'blur' : 'focusout',
+		args: [true]
+	}
+};
+
+if (!eventListenerSupport) Object.append(eventOptions, {
+	submit: formObserver('submit'),
+	reset: formObserver('reset'),
+	change: inputObserver('change'),
+	select: inputObserver('select')
+});
+
+Event.definePseudo('relay', {
+	listener: function(split, fn, args){
+		bubbleUp.call(this, split, args[0], fn);
+	},
+	options: eventOptions
+});
+
+})();
+
 /*
 ---
 
@@ -13728,8 +12608,6 @@ provides:
 
 
 LSD.Mixin.Touchable = new Class({
-  behaviour: ':touchable',
-  
   options: {
     events: {
       enabled: {
@@ -13740,13 +12618,324 @@ LSD.Mixin.Touchable = new Class({
         }
       }
     },
-    states: {
-      active: {
-        enabler: 'activate',
-        disabler: 'deactivate'
+    states: Array.fast('active')
+  }
+});
+
+LSD.Behavior.define(':touchable', LSD.Mixin.Touchable);
+/*
+---
+ 
+script: Keypress.js
+ 
+description: A wrapper to cross-browser keypress keyboard event implementation.
+ 
+license: MIT-style license.
+ 
+requires:
+  - Core/Element.Event
+  - Core/Event
+
+provides: 
+  - Element.Events.input
+...
+*/
+
+
+Element.Events.input = {
+  base: Browser.ie ? 'propertychange' : 'input'
+}
+Element.NativeEvents['propertychange'] = Element.NativeEvents['input'] = 2;
+
+/*
+---
+ 
+script: Input.js
+ 
+description: A base class for all kinds of form controls
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+ - LSD/LSD.Native
+ - Ext/Element.Events.input
+ 
+provides: 
+  - LSD.Native.Input
+ 
+...
+*/
+
+LSD.Native.Input = new Class({
+  options: {
+    tag: 'input',
+    events: {
+      _input: {
+        element: {
+          input: 'setValue'
+        }
+      }
+    },
+    inline: null,
+    pseudos: Array.fast('form-associated', 'value')
+  },
+  
+  applyValue: function(value) {
+    this.element.set('value', value);
+  },
+  
+  getRawValue: function() {
+    return this.element.get('value');
+  },
+  
+  focus: function() {
+    this.element.focus();
+  }
+  
+});
+/*
+---
+ 
+script: Date.js
+ 
+description: Date picker input
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Native.Input
+  - LSD/LSD.Trait.Date
+
+provides: 
+  - LSD.Native.Input.Date
+
+...
+*/
+
+LSD.Native.Input.Date = new Class({
+  Includes: [
+    LSD.Native.Input,
+    LSD.Trait.Date
+  ],
+  
+  options: {
+    attributes: {
+      type: 'date'
+    }
+  }
+});
+/*
+---
+ 
+script: Textarea.js
+ 
+description: Multiline text input
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Native.Input
+
+provides: 
+  - LSD.Native.Textarea
+ 
+...
+*/
+
+LSD.Native.Textarea = new Class({
+  Extends: LSD.Native.Input,
+  
+  options: {
+    tag: 'textarea'
+  }
+});
+/*
+---
+ 
+script: File.js
+ 
+description: Simple text input
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Native.Input
+
+provides: 
+  - LSD.Native.Input.File
+ 
+...
+*/
+
+LSD.Native.Input.File = new Class({
+  Extends: LSD.Native.Input
+});
+/*
+---
+ 
+script: Hidden.js
+ 
+description: Simple text input
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Native.Input
+
+provides: 
+  - LSD.Native.Input.Hidden
+ 
+...
+*/
+
+LSD.Native.Input.Hidden = new Class({
+  Extends: LSD.Native.Input
+});
+/*
+---
+ 
+script: Password.js
+ 
+description: Simple text input
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Native.Input
+
+provides: 
+  - LSD.Native.Input.Password
+ 
+...
+*/
+
+LSD.Native.Input.Password = new Class({
+  Extends: LSD.Native.Input,
+  
+  options: {
+    attributes: {
+      type: 'password'
+    }
+  }
+});
+/*
+---
+ 
+script: Checkbox.js
+ 
+description: On/Off widget
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Native.Input
+
+provides: 
+  - LSD.Native.Input.Checkbox
+ 
+...
+*/
+
+LSD.Native.Input.Checkbox = new Class({
+  Extends: LSD.Native.Input,
+  
+  options: {
+    pseudos: Array.fast('checkbox', 'clickable'),
+    events: {
+      _checkbox: {
+        self: {
+          setDocument: function() {
+            if (this.attributes.checked) this.click();
+          },
+          check: function() {
+            this.element.checked = true;
+          },
+          uncheck: function() {
+            this.element.checked = false;
+          }
+        }
       }
     }
   }
+});
+/*
+---
+ 
+script: Radio.js
+ 
+description: One-from-a-list kind of a widget
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Native.Input
+
+provides: 
+  - LSD.Native.Input.Radio
+ 
+...
+*/
+
+LSD.Native.Input.Radio = new Class({
+  Extends: LSD.Native.Input,
+
+  options: {
+    pseudos: Array.fast('radio', 'clickable'),
+    events: {
+      _checkbox: {
+        self: {
+          setDocument: function() {
+            if (this.attributes.checked) this.click();
+          },
+          check: function() {
+            this.element.checked = true;
+          },
+          uncheck: function() {
+            this.element.checked = false;
+          }
+        }
+      }
+    }
+  }
+});
+/*
+---
+ 
+script: Search.js
+ 
+description: Search input
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Native.Input
+
+provides: 
+  - LSD.Native.Input.Search
+ 
+...
+*/
+
+LSD.Native.Input.Search = new Class({
+  Extends: LSD.Native.Input
 });
 /*
 ---
@@ -13856,81 +13045,133 @@ window.addEvent('load', function(){
 
 /*
 ---
+
+name: History
+
+description: History Management via popstate or hashchange.
+
+authors: Christoph Pojer (@cpojer)
+
+license: MIT-style license.
+
+requires: [Core/Events, Core/Element.Event]
+
+provides: History
+
+...
+*/
+
+(function(){
+
+var events = Element.NativeEvents,
+	location = window.location,
+	base = location.pathname,
+	history = window.history,
+	hasPushState = ('pushState' in history),
+	event = hasPushState ? 'popstate' : 'hashchange';
+
+this.History = new new Class({
+
+	Implements: [Events],
+
+	initialize: hasPushState ? function(){
+		events[event] = 2;
+		window.addEvent(event, this.pop.bind(this));
+	} : function(){
+		events[event] = 1;
+		window.addEvent(event, this.pop.bind(this));
+
+		this.hash = location.hash;
+		var hashchange = ('onhashchange' in window);
+		if (!(hashchange && (document.documentMode === undefined || document.documentMode > 7)))
+			this.timer = this.check.periodical(200, this);
+	},
+
+	push: hasPushState ? function(url, title, state){
+		if (base && base != url) base = null;
+		
+		history.pushState(state || null, title || null, url);
+		this.onChange(url, state);
+	} : function(url){
+		location.hash = url;
+	},
+
+	replace: hasPushState ? function(url, title, state){
+		history.replaceState(state || null, title || null, url);
+	} : function(url){
+		this.hash = '#' + url;
+		this.push(url);
+	},
+
+	pop: hasPushState ? function(event){
+		var url = location.pathname;
+		if (url == base){
+			base = null;
+			return;
+		}
+		this.onChange(url, event.event.state);
+	} : function(){
+		var hash = location.hash;
+		if (this.hash == hash) return;
+
+		this.hash = hash;
+		this.onChange(hash.substr(1));
+	},
+
+	onChange: function(url, state){
+		this.fireEvent('change', [url, state || {}]);
+	},
+
+	back: function(){
+		history.back();
+	},
+
+	forward: function(){
+		history.forward();
+	},
+	
+	getPath: function(){
+		return hasPushState ? location.pathname : location.hash.substr(1);
+	},
+
+	hasPushState: function(){
+		return hasPushState;
+	},
+
+	check: function(){
+		if (this.hash != location.hash) this.pop();
+	}
+
+});
+
+}).call(this);
+
+/*
+---
  
-script: Application.js
+script: History.js
  
-description: A class to handle execution and bootstraping of LSD
+description: History Action Management.
  
 license: Public domain (http://unlicense.org).
 
 authors: Yaroslaff Fedin
  
 requires:
-  - Core/DomReady
-  - Core/Options
-  - Core/Events
-  - More/String.QueryString
-  
+  - LSD.Action
+  - History/History
+ 
 provides:
-  - LSD.Application
+  - LSD.Action.History
  
 ...
 */
-LSD.Application = new Class({
-  Implements: [Options, Events],
-  
-  options: {
-    method: 'augment'
-  },
-  
-  initialize: function(document, options) {
-    if (!LSD.application) LSD.application = this;
-    this.param = (location.search.length > 1) ? location.search.substr(1, location.search.length - 1).parseQueryString() : {}
-    if (document) this.element = document.id(document);
-    if (options) this.setOptions(options);
-    document.addEvent('domready', function() {
-      if (this.param.benchmark != null) console.profile();
-      this.setDocument(document);
-      if (this.param.benchmark != null) console.profileEnd();
-    }.bind(this));
-  },
-  
-  setHead: function(head) {
-    for (var i = 0, el, els = head.getElementsByTagName('meta'); el = els[i++];) {
-      var type = el.getAttribute('rel');
-      if (type) {
-        if (!this[type]) this[type] = {};
-        var content = el.getAttribute('content')
-        this[type][el.getAttribute('name')] = (content.charAt(0) =="{") ? JSON.decode(content) : content;
-      }
-    }
-  },
-  
-  setDocument: function(document) {
-    this.setHead(document.head);
-    var element = this.element = document.body;
-    this.setBody(document.body);
-  },
-  
-  setBody: function(element) {
-    this.fireEvent('beforeBody', element);
-    var body = this.body = new (this.getBodyClass(element))(element);
-    this.fireEvent('body', [body, element]);
-    return body;
-  },
-  
-  getBodyClass: function() {
-    return LSD.Element.find('body');
-  },
-  
-  getBody: function() {
-    return this.body;
-  },
-  
-  redirect: function(url) {
-    window.location.href = url;
+
+LSD.Action.History = LSD.Action.build({
+  enable: function(target, content) {
+    var url = target.getAttribute('src')|| target.getAttribute('action') || target.getAttribute('href');
+    if (url) History.push(url);
   }
-  
 });
 /*
 ---
@@ -14117,636 +13358,6 @@ Element.ShortStyles = {margin: {}, padding: {}, border: {}, borderWidth: {}, bor
 
 })();
 
-/*
----
- 
-script: Styles.js
- 
-description: Set, get and render different kind of styles on widget
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Module
-  - Core/Element.Style
-  - Ext/FastArray
-  - Sheet/SheetParser.Styles
-
-provides: 
-  - LSD.Module.Styles
-
-...
-*/
-
-!function() {
-  
-var CSS = SheetParser.Styles, Paint = LSD.Styles;
-var setStyle = function(element, property, value, type) {
-  delete this.style.expressed[property];
-  delete this.style.calculated[property];
-  if (value === false) {
-    if (element && this.element) delete this.element.style[property];
-    delete this.style[element ? 'element' : 'paint'][property], delete this.style.current[property];
-    if (type) delete this.style[type][property];
-  } else {
-    if (element && this.element) this.element.style[property] = (typeof value == 'number') ? value + 'px' : value;
-    this.style[element ? 'element' : 'paint'][property] = this.style.current[property] = value;
-    if (type) this.style[type][property] = value;
-  }
-}
-
-LSD.Module.Styles = new Class({
-  initializers: {
-    style: function() {
-      this.rules = [];
-      this.style = {    // Styles that...
-        current: {},    // ... widget currently has
-        found: {},      // ... were found in stylesheets
-        given: {},      // ... were manually assigned
-
-        changed: {},    // ... came from stylesheet since last render
-        calculated: {}, // ... are calculated in runtime
-        computed: {},   // ... are already getStyled
-        expressed: {},  // ... are expressed through function
-        implied: {},    // ... are assigned by environment
-
-        element: {},    // ... are currently assigned to element
-        paint: {}       // ... are currently used to paint
-      };
-      return {
-        events: {
-          update: function() {
-            this.style.calculated = {};
-            this.style.computed = {};
-          }
-        }
-      } 
-    }
-  },
-
-  setStyle: function(property, value) {
-    var paint, css;
-    if (!(paint = Paint[property]) && !(css = CSS[property])) return false;
-    var length = arguments.length;
-    if (length > 2) {
-      if (arguments[length - 1] in this.style) var type = arguments[--length];
-      if (length > 2) value = Array.prototype.splice.call(arguments, 1, length);
-    }
-    if (value.call) {
-      var expression = value;
-      value = value.call(this, property);
-    }
-    var result = (css || paint)[value.push ? 'apply' : 'call'](this, value);
-    if (result === true || result === false) setStyle.call(this, css, property, value, type);
-    else for (var prop in result) setStyle.call(this, css, prop, result[prop], type);
-    if (expression) {
-      this.style.expressed[property] = expression
-      this.style.computed[property] = value
-    }
-    return result;
-  },
-
-  setStyles: function(style, type) {
-    for (var key in style) this.setStyle(key, style[key], type)
-  },
-
-  getStyle: function(property) {
-    if (this.style.computed[property]) return this.style.computed[property];
-    var value;
-    var definition = Paint[property] || CSS[property];
-    if (!definition) return;
-    if (definition.properties) return definition.properties.map(this.getStyle.bind(this));
-    var expression = this.style.expressed[property];    
-    if (expression) {
-      value = this.style.current[property] = this.calculateStyle(property, expression);
-    } else {  
-      value = this.style.current[property];
-      if (property == 'height') {
-        if (typeof value !== 'number') value = this.getClientHeight();
-      } else if (property == 'width') {
-        if (typeof value !== 'number') value = this.getClientWidth();
-      } else {
-        if (value == "inherit") value = this.inheritStyle(property);
-        if (value == "auto") value = this.calculateStyle(property);
-      }
-    }
-    this.style.computed[property] = value;
-    return value;
-  },
-
-  getStyles: function(properties) {
-    var result = {};
-    for (var i = 0, property, args = arguments; property = args[i++];) result[property] = this.getStyle(property);
-    return result;
-  },
-  
-  renderStyles: function(styles) {
-    var style = this.style, 
-        current = style.current,
-        paint = style.paint, 
-        element = style.element,  
-        found = style.found,
-        implied = style.implied,
-        calculated = style.calculated,
-        given = Object.append(style.given, styles),
-        changed = style.changed;
-    this.setStyles(given, 'given')
-    for (var property in found) if ((property in changed) && !(property in given)) this.setStyle(property, found[property]);
-    Object.append(style.current, style.implied);
-    for (var property in element)  {
-      if (!(property in given) && !(property in found) && !(property in calculated) && !(property in implied)) {
-        this.element.style[property] = '';
-        delete element[property]
-      }
-    }
-    for (var property in current)  {
-      if (!(property in given) && !(property in found) && !(property in calculated) && !(property in implied)) {
-        delete current[property];
-        delete paint[property];
-      }
-    }
-  },
-  
-  combineRules: function(rule) {
-    var rules = this.rules, style = this.style, found = style.found = {}, implied = style.implied = {}, changed = style.changed;
-    for (var j = rules.length, other; other = rules[--j];) {
-      var setting = other.style, implying = other.implied, self = (rule == other);
-      if (setting) for (var property in setting) if (!(property in found)) {
-        if (self) changed[property] = setting[property];
-        found[property] = setting[property];
-      }
-      if (implying) for (var property in implying) if (!(property in implied)) implied[property] = implying[property];
-    }
-  },
-  
-  addRule: function(rule) {
-    var rules = this.rules;
-    if (rules.indexOf(rule) > -1) return
-    for (var i = 0, other;  other = rules[i++];) {
-      if ((other.specificity > rule.specificity) || (other.specificity == rule.specificity)) 
-        if (other.index > rule.index) break;
-    }
-    rules.splice(--i, 0, rule);
-    this.combineRules(rule);
-  },
-  
-  removeRule: function(rule) {
-    var rules = this.rules, index = rules.indexOf(rule)
-    if (index == -1) return
-    rules.splice(index, 1);
-    this.combineRules();
-    var style = this.style, found = style.found, changed = style.changed, setting = rule.style;
-    for (var property in setting) if (!Object.equals(found[property], setting[property])) changed[property] = found[property];
- },
-  
-  inheritStyle: function(property) {
-    var node = this;
-    var style = node.style.current[property];
-    while ((style == 'inherit' || !style) && (node = node.parentNode)) style = node.style.current[property];
-    return style;
-  },
-  
-  calculateStyle: function(property, expression) {
-    if (this.style.calculated[property]) return this.style.calculated[property];
-    var value;
-    if (expression) {
-      value = expression.call(this, property);
-    } else {
-      switch (property) {
-        case "height":
-          value = this.getClientHeight();
-        case "width":
-          value = this.inheritStyle(property);
-          if (value == "auto") value = this.getClientWidth();
-        case "height": case "width":  
-          //if dimension size is zero, then the widget is not in DOM yet
-          //so we wait until the root widget is injected, and then try to repeat
-          if (value == 0 && (this.redraws == 0)) this.halt();
-      }
-    }
-    this.style.calculated[property] = value;
-    return value;
-  },
-  
-  render: function(style) {
-    this.renderStyles(style);
-    this.parent.apply(this, arguments);
-  }
-});
-
-LSD.Options.styles = {
-  add: 'setStyles',
-  remove: 'unsetStyles'
-};
-}();
-/*
----
- 
-script: Layer.js
- 
-description: Adds a piece of SVG that can be drawn with widget styles
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - ART/ART.Shape
-  - LSD.Module.Styles
-  - Sheet/SheetParser.Styles
- 
-provides: 
-  - LSD.Layer
-  - LSD.Layer.Shaped
- 
-...
-*/
-
-!function() {
-  
-LSD.Layer = function(name, styles, painters) {
-  this.name = name;
-  this.styles = styles;
-  this.painters = painters;
-}
-
-LSD.Layer.prototype = {
-  render: function(widget, commands) {
-    var canvas = widget.getCanvas();
-    var shape = commands.shape;
-    if (shape == 'none') return;
-    if (!shape) shape = widget.getStyle('shape') || 'rectangle';
-    var layer = widget.shapes[this.name];
-    if (shape.glyph) {
-      var glyph = ART.Glyphs[shape.glyph];
-      if (!glyph) return;    
-      var path = new ART.Path(glyph);
-      var box = path.measure();
-      if (!layer) layer = new ART.Shape(path, box.width, box.height);
-      if (commands.size && !Object.equals(previous ? previous.size : box, commands.size))
-        layer.resizeTo(commands.size.width, commands.size.height)
-        
-    } else if (!shape.indexOf){
-      for (var name in shape) {
-        var values = shape[name];
-        if (!values.push) values = [values];
-        shape = name;
-      }
-    }
-    if (!layer) {
-      var path = ART.Shape[shape.capitalize()];
-      if (!path) return;
-      var layer = new path;
-      layer.render(commands)
-    } else {
-      var previous = layer.commands;
-      if (layer.draw && layer.render) layer.render(commands)
-    }
-    layer.commands = commands;
-    widget.shapes[this.name] = layer;
-    for (command in commands) {
-      var value = commands[command];
-      if (layer[command] && command != 'move') {
-        if (!value || !previous || !Object.equals(previous[command], value)) layer[command][value && value.push ? 'apply' : 'call'](layer, value);
-      }
-    }
-    var translate = commands.translate = {x: 0, y: 0}
-    if (commands.inside) {
-      translate.x += commands.inside.left
-      translate.y += commands.inside.top;
-    };
-    //if (commands.outside) {
-    //  top += commands.outside.top;
-    //  left += commands.outside.left
-    //};
-    if (commands.move) {
-      translate.x += commands.move.x;
-      translate.y += commands.move.y;
-    }
-    if (!previous || !Object.equals(previous.translate, translate)) layer.moveTo(translate.x, translate.y)
-  },
-  
-  draw: function(widget, context, previous) {
-    context = Object.append({size: widget.size, style: widget.style.current}, context || {});
-    if (context.style.cornerRadiusTopLeft !== null) {
-      context.radius = widget.getStyle('cornerRadius')
-    }
-    var inherited = {}, overwritten = {};
-    for (var painter, i = 0; painter = this.painters[i++];) {
-      var commands = painter.paint.apply(context, painter.keys.map(function(prop) { return widget.getStyle(prop)}));
-      for (var name in commands) {
-        var value = commands[name];
-        if (Inherit[name]) {;
-          inherited[name] = merge(value, context[name])
-        } else {
-          if (!Accumulate[name]) overwritten[name] = context[name]
-          context[name] = (Accumulate[name] || Merge[name]) ? merge(value, context[name]) : value;
-        }
-      }
-      //for (var command in value) this[command](command[value]);
-    }    
-    this.render(widget, context);
-    return Object.append(context, overwritten, inherited);;
-  }
-}
-
-var merge = function(value, old) {
-  if (typeof value == "object") {
-    if (value.push) {
-      for (var j = 0, k = value.length; j < k; j++) {
-        var item = value[j] || 0;
-        if (old) old[j] = (old[j] || 0) + item;
-        else old = [item]
-      }
-      return old;
-    } else if (!value.indexOf) {
-      for (var prop in value) {
-        var item = value[prop] || 0;
-        if (!old) old = {}
-        old[prop] = (old[prop] || 0) + item;
-      }
-      return old;
-    }
-  }  
-  return value;
-}
-
-var Accumulate = LSD.Layer.accumulated = new FastArray('translate', 'radius');
-var Inherit = LSD.Layer.inherited = new FastArray('inside', 'outside')
-var Merge = LSD.Layer.merged = new FastArray('size')
-
-var Property = SheetParser.Property;
-var Styles = LSD.Styles;
-var Map = LSD.Layer.Map = {};
-var Cache = LSD.Layer.Cache = {};
-
-//LSD.Layer.getProperty = function(property, properties)
- 
-LSD.Layer.generate = function(name, layers) {
-  if (arguments.length > 2) layers = Array.prototype.splice.call(arguments, 1);
-  var painters = [];
-  var styles = LSD.Layer.prepare(name, layers, function(painter) {
-    painters.push(painter)
-  })
-  return new LSD.Layer(name, styles, painters);
-};
-
-LSD.Layer.prepare = function(name, layers, callback) {
-  var properties = [], styles = {};
-  for (var i = 0, layer; layer = layers[i++];) {
-    var definition = LSD.Layer[layer.capitalize()];
-    if (!definition ) continue;
-    var properties = definition.properties && Object.clone(definition.properties);
-    if (!properties) continue;
-    definition = Object.append({styles: {}, keys: []}, definition);
-    var prefix = definition.prefix;
-    if (prefix === false || layer == name) prefix = name;
-    else if (!prefix) prefix = name + layer.capitalize();
-    var length = 0;
-    for (var property in properties) length++
-    var simple = (length == 1);
-    Object.each(properties, function(value, property) {
-      if (property == layer) {
-        if (simple) var style = prefix
-        else return;
-      } else var style = prefix + property.capitalize()
-      definition.styles[style] = styles[style] = Property.compile(value, properties);
-      definition.keys.push(style);
-    });
-    var shorthand = properties[layer];
-    if (shorthand && !simple) {
-      var style = (layer == name) ? name : name + layer.capitalize();
-      if (length) {
-        for (var j = 0, k = 0, l = 0, prop; prop = shorthand[j]; j++) {
-          if (!prop.push) { 
-            if (properties[prop]) {
-              shorthand[j] = prefix + prop.capitalize();
-              k++
-            }
-          } else for (var m = 0, sub; sub = prop[m]; m++) {
-            if (properties[sub]) {
-              prop[m] = prefix + sub.capitalize();
-              l++;
-            }
-          }
-        }
-      }
-      definition.styles[style] = styles[style] = Property.compile(((l > 0 && (k > 0 || j == 1)) ) ? [shorthand] : shorthand, styles);
-      definition.shorthand = style;
-    }
-    if (definition.onCompile) definition.onCompile(name);
-    if (callback) callback(definition);
-  }
-  for (var property in styles) {
-    Styles[property] = styles[property];
-    Map[property] = name;
-  }
-  return styles;
-}
-
-LSD.Layer.get = function(name) {
-  var key = name//Array.flatten(arguments).join('');
-  if (Cache[key]) return Cache[key];
-  else return (Cache[key] = LSD.Layer.generate.apply(LSD.Layer, arguments))
-}
-
-}();
-/*
----
- 
-script: Layers.js
- 
-description: Make widget use layers for all the SVG
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Trait
-  - LSD.Layer
-  - LSD.Module.Styles
-
-provides: 
-  - LSD.Module.Layers
- 
-...
-*/
-
-
-!function() {
-
-LSD.Module.Layers = new Class({
-  initializers: {
-    layers: function() {
-      this.offset = {
-        inside: {},
-        outside: {},
-        padding: {}
-      };
-      this.shapes = {};
-      this.style.layers = {};
-      this.layers = {}
-    }
-  },
-
-  addLayer: function(name, value) {
-    var slots = this.style.layers || (this.style.layers = {});
-    var layer = this.layers[name] = LSD.Layer.get(name, Array.concat(value));
-    for (var i = 0, painter; painter = layer.painters[i++];) {
-      for (var group = painter.keys, j = 0, property; property = group[j++];) {
-        if (!slots[property]) slots[property] = [];
-        slots[property].push(name);
-      }
-    }
-  },
-  
-  removeLayer: function(name, value) {
-    var slots = this.style.layers || (this.style.layers = {});
-    var layer = this.layers[name] = LSD.Layer.get(name, Array.concat(value));
-    for (var i = 0, painter; painter = layer.painters[i++];) {
-      for (var group = painter.keys, j = 0, property; property = group[j++];) {
-        if (slots[property]) slots[property].erase(name);
-      }
-    }
-  },
-  
-  renderLayers: function(dirty) {
-    var updated = new FastArray, style = this.style, layers = style.layers, offset = this.offset;
-    for (var property in dirty) if (layers[property]) updated.push.apply(updated, layers[property]);
-    
-    var result = {};
-    for (var name in this.layers) {
-      if (!updated[name]) continue;
-      var layer = this.layers[name];
-      var sizes = Object.append({box: this.size}, {size: Object.append({}, this.size)});
-      result = layer.draw(this, Object.append(result.inside ? {inside: result.inside, outside: result.outside} : {}, sizes))
-    }
-    var inside  = offset.inside  = Object.append({left: 0, right: 0, top: 0, bottom: 0}, result.inside);
-    var outside = offset.outside = Object.append({left: 0, right: 0, top: 0, bottom: 0}, result.outside);
-    offset.shape = /*this.shape.getOffset ? this.shape.getOffset(style.current) : */{left: 0, right: 0, top: 0, bottom: 0};
-    
-    for (var name in this.shapes) {
-      var layer = this.shapes[name];
-      if (!layer) continue;
-      if (!layer.injected) {
-        for (var layers = Object.keys(this.layers), i = layers.indexOf(layer.name), key, next; key = layers[++i];) {
-          if ((next = this.layers[key]) && next.injected && next.shape) {
-            layer.inject(next.shape, 'before');
-            break;
-          }
-        }
-        if (!layer.injected) layer.inject(this.getCanvas());
-        layer.injected = true;
-      }
-    }
-  },
-  
-  render: function() {
-    var style = this.style, last = style.last, old = style.size, paint = style.paint, changed = style.changed;
-    this.parent.apply(this, arguments);
-    this.setSize(this.getStyles('height', 'width'));
-    var size = this.size;
-    if (size && (!old || (old.width != size.width || old.height != size.height))) {
-      this.fireEvent('resize', [size, old]);
-      changed = paint;
-    }
-    if (Object.getLength(changed) > 0) this.renderLayers(changed);
-    style.changed = {};
-    style.last = Object.append({}, paint);
-    style.size = Object.append({}, size);
-    this.renderOffsets();
-  },
-  
-  renderStyles: function() {
-    this.parent.apply(this, arguments);
-    var style = this.style, current = style.current;
-    Object.append(this.offset, {
-      padding: {left: current.paddingLeft || 0, right: current.paddingRight || 0, top: current.paddingTop || 0, bottom: current.paddingBottom || 0},
-      margin: {left: current.marginLeft || 0, right: current.marginRight || 0, top: current.marginTop || 0, bottom: current.marginBottom || 0}
-    });
-  },
-  
-  renderOffsets: function() {
-    var element = this.element,
-        current = this.style.current, 
-        offset  = this.offset,         // Offset that is provided by:
-        inside  = offset.inside,       // layers, inside the widget
-        outside = offset.outside,      // layers, outside of the widget
-        shape   = offset.shape,        // shape
-        padding = offset.padding,      // padding style declarations
-        margin  = offset.margin,       // margin style declarations
-        inner   = {},                  // all inside offsets above, converted to padding
-        outer   = {};                  // all outside offsets above, converted to margin
-        
-    for (var property in inside) {
-      var cc = property.capitalize();
-      if (offset.inner) var last = offset.inner[property];
-      inner[property] = padding[property] + inside[property] + shape[property] + outside[property];
-      if (last != null ? last != inner[property] : inner[property]) element.style['padding' + cc] = inner[property] + 'px';
-      if (offset.outer) last = offset.outer[property];
-      outer[property] = margin[property] - outside[property];
-      if (last != null ? last != outer[property] : outer[property]) element.style['margin' + cc] = outer[property] + 'px';
-    }
-    if (inside) Object.append(offset, {inner: inner, outer: outer});
-  }
-});
-
-if (!LSD.Layers) LSD.Layers =  {
-  shadow:     ['size', 'radius', 'shape', 'shadow'],
-  stroke:     [        'radius', 'stroke', 'shape', 'fill'],
-  background: ['size', 'radius', 'stroke', 'offset', 'shape', 'color'],
-  foreground: ['size', 'radius', 'stroke', 'offset', 'shape', 'color'],
-  reflection: ['size', 'radius', 'stroke', 'offset', 'shape', 'color'],
-  icon:       ['size', 'scale', 'color', 'stroke', 'offset', 'shape', 'position','shadow'],
-  glyph:      ['size', 'scale', 'color', 'stroke', 'offset', 'shape', 'position', 'shadow']
-};
-
-for (var layer in LSD.Layers) LSD.Layer.get(layer, LSD.Layers[layer]);
-
-LSD.Options.layers = {
-  add: 'addLayer',
-  remove: 'removeLayer',
-  iterate: true,
-  process: function(value) {
-    return (value === true) ? LSD.Layers : value;
-  }
-};
-
-}();
-
-/*
----
-
-script: Proxies.js
-
-description: All visual rendering aspects under one umbrella
-
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Module.Layers
-  - LSD.Module.Render
-  - LSD.Module.Shape
-
-provides: 
-  - LSD.Module.Graphics
-
-...
-*/
-
-
-LSD.Module.Graphics = new Class({
-  Implements: [
-    LSD.Module.Layers, 
-    LSD.Module.Render, 
-    LSD.Module.Shape
-  ]
-});
 /*
 ---
 
@@ -15834,337 +14445,6 @@ Slider = new Class({
 })
 /*
 ---
-
-name: Fx.CSS
-
-description: Contains the CSS animation logic. Used by Fx.Tween, Fx.Morph, Fx.Elements.
-
-license: MIT-style license.
-
-requires: [Fx, Element.Style]
-
-provides: Fx.CSS
-
-...
-*/
-
-Fx.CSS = new Class({
-
-	Extends: Fx,
-
-	//prepares the base from/to object
-
-	prepare: function(element, property, values){
-		values = Array.from(values);
-		if (values[1] == null){
-			values[1] = values[0];
-			values[0] = element.getStyle(property);
-		}
-		var parsed = values.map(this.parse);
-		return {from: parsed[0], to: parsed[1]};
-	},
-
-	//parses a value into an array
-
-	parse: function(value){
-		value = Function.from(value)();
-		value = (typeof value == 'string') ? value.split(' ') : Array.from(value);
-		return value.map(function(val){
-			val = String(val);
-			var found = false;
-			Object.each(Fx.CSS.Parsers, function(parser, key){
-				if (found) return;
-				var parsed = parser.parse(val);
-				if (parsed || parsed === 0) found = {value: parsed, parser: parser};
-			});
-			found = found || {value: val, parser: Fx.CSS.Parsers.String};
-			return found;
-		});
-	},
-
-	//computes by a from and to prepared objects, using their parsers.
-
-	compute: function(from, to, delta){
-		var computed = [];
-		(Math.min(from.length, to.length)).times(function(i){
-			computed.push({value: from[i].parser.compute(from[i].value, to[i].value, delta), parser: from[i].parser});
-		});
-		computed.$family = Function.from('fx:css:value');
-		return computed;
-	},
-
-	//serves the value as settable
-
-	serve: function(value, unit){
-		if (typeOf(value) != 'fx:css:value') value = this.parse(value);
-		var returned = [];
-		value.each(function(bit){
-			returned = returned.concat(bit.parser.serve(bit.value, unit));
-		});
-		return returned;
-	},
-
-	//renders the change to an element
-
-	render: function(element, property, value, unit){
-		element.setStyle(property, this.serve(value, unit));
-	},
-
-	//searches inside the page css to find the values for a selector
-
-	search: function(selector){
-		if (Fx.CSS.Cache[selector]) return Fx.CSS.Cache[selector];
-		var to = {}, selectorTest = new RegExp('^' + selector.escapeRegExp() + '$');
-		Array.each(document.styleSheets, function(sheet, j){
-			var href = sheet.href;
-			if (href && href.contains('://') && !href.contains(document.domain)) return;
-			var rules = sheet.rules || sheet.cssRules;
-			Array.each(rules, function(rule, i){
-				if (!rule.style) return;
-				var selectorText = (rule.selectorText) ? rule.selectorText.replace(/^\w+/, function(m){
-					return m.toLowerCase();
-				}) : null;
-				if (!selectorText || !selectorTest.test(selectorText)) return;
-				Object.each(Element.Styles, function(value, style){
-					if (!rule.style[style] || Element.ShortStyles[style]) return;
-					value = String(rule.style[style]);
-					to[style] = ((/^rgb/).test(value)) ? value.rgbToHex() : value;
-				});
-			});
-		});
-		return Fx.CSS.Cache[selector] = to;
-	}
-
-});
-
-Fx.CSS.Cache = {};
-
-Fx.CSS.Parsers = {
-
-	Color: {
-		parse: function(value){
-			if (value.match(/^#[0-9a-f]{3,6}$/i)) return value.hexToRgb(true);
-			return ((value = value.match(/(\d+),\s*(\d+),\s*(\d+)/))) ? [value[1], value[2], value[3]] : false;
-		},
-		compute: function(from, to, delta){
-			return from.map(function(value, i){
-				return Math.round(Fx.compute(from[i], to[i], delta));
-			});
-		},
-		serve: function(value){
-			return value.map(Number);
-		}
-	},
-
-	Number: {
-		parse: parseFloat,
-		compute: Fx.compute,
-		serve: function(value, unit){
-			return (unit) ? value + unit : value;
-		}
-	},
-
-	String: {
-		parse: Function.from(false),
-		compute: function(zero, one){
-			return one;
-		},
-		serve: function(zero){
-			return zero;
-		}
-	}
-
-};
-
-//<1.2compat>
-
-Fx.CSS.Parsers = new Hash(Fx.CSS.Parsers);
-
-//</1.2compat>
-
-/*
----
-
-name: Fx.Tween
-
-description: Formerly Fx.Style, effect to transition any CSS property for an element.
-
-license: MIT-style license.
-
-requires: Fx.CSS
-
-provides: [Fx.Tween, Element.fade, Element.highlight]
-
-...
-*/
-
-Fx.Tween = new Class({
-
-	Extends: Fx.CSS,
-
-	initialize: function(element, options){
-		this.element = this.subject = document.id(element);
-		this.parent(options);
-	},
-
-	set: function(property, now){
-		if (arguments.length == 1){
-			now = property;
-			property = this.property || this.options.property;
-		}
-		this.render(this.element, property, now, this.options.unit);
-		return this;
-	},
-
-	start: function(property, from, to){
-		if (!this.check(property, from, to)) return this;
-		var args = Array.flatten(arguments);
-		this.property = this.options.property || args.shift();
-		var parsed = this.prepare(this.element, this.property, args);
-		return this.parent(parsed.from, parsed.to);
-	}
-
-});
-
-Element.Properties.tween = {
-
-	set: function(options){
-		this.get('tween').cancel().setOptions(options);
-		return this;
-	},
-
-	get: function(){
-		var tween = this.retrieve('tween');
-		if (!tween){
-			tween = new Fx.Tween(this, {link: 'cancel'});
-			this.store('tween', tween);
-		}
-		return tween;
-	}
-
-};
-
-Element.implement({
-
-	tween: function(property, from, to){
-		this.get('tween').start(arguments);
-		return this;
-	},
-
-	fade: function(how){
-		var fade = this.get('tween'), o = 'opacity', toggle;
-		how = [how, 'toggle'].pick();
-		switch (how){
-			case 'in': fade.start(o, 1); break;
-			case 'out': fade.start(o, 0); break;
-			case 'show': fade.set(o, 1); break;
-			case 'hide': fade.set(o, 0); break;
-			case 'toggle':
-				var flag = this.retrieve('fade:flag', this.get('opacity') == 1);
-				fade.start(o, (flag) ? 0 : 1);
-				this.store('fade:flag', !flag);
-				toggle = true;
-			break;
-			default: fade.start(o, arguments);
-		}
-		if (!toggle) this.eliminate('fade:flag');
-		return this;
-	},
-
-	highlight: function(start, end){
-		if (!end){
-			end = this.retrieve('highlight:original', this.getStyle('background-color'));
-			end = (end == 'transparent') ? '#fff' : end;
-		}
-		var tween = this.get('tween');
-		tween.start('background-color', start || '#ffff88', end).chain(function(){
-			this.setStyle('background-color', this.retrieve('highlight:original'));
-			tween.callChain();
-		}.bind(this));
-		return this;
-	}
-
-});
-
-/*
----
- 
-script: Animation.js
- 
-description: Animated ways to show/hide widget
- 
-license: Public domain (http://unlicense.org).
- 
-requires:
-  - LSD.Mixin
-  - Core/Fx.Tween
- 
-provides: 
-  - LSD.Mixin.Animation
- 
-...
-*/
-
-
-LSD.Mixin.Animation = new Class({
-  behaviour: '[animation]',
-  
-  options: {
-    animation: {}
-  },
-  
-  getAnimation: function() {
-    if (!this.animation) {
-      this.animation = this.getAnimatedElement().set('tween', this.options.animation).get('tween');
-      if (this.options.animation.value) this.animation.set(this.options.animation.value);
-    }
-    return this.animation;
-  },
-  
-  fade: function(how){
-    return this.getAnimation().start('opacity', how == 'in' ? 1 : 0);
-  },
-  
-  slide: function(how){
-    this.getAnimatedElement().store('style:overflow', this.getAnimatedElement().getStyle('overflow'));
-    this.getAnimatedElement().setStyle('overflow', 'hidden');
-    return this.getAnimation().start('height', how == 'in' ? this.getAnimatedElement().scrollHeight - this.getAnimatedElement().offsetHeight : 0);
-  },
-  
-  show: function() {
-    var parent = this.parent;
-    this.getAnimatedElement().setStyle('display', this.getAnimatedElement().retrieve('style:display') || 'inherit');
-    this[this.attributes.animation]('in').chain(function(){
-      this.getAnimatedElement().setStyle('overflow', this.getAnimatedElement().retrieve('style:overflow') || 'inherit');
-      LSD.Widget.prototype.show.apply(this, arguments);
-    }.bind(this));
-  },
-  
-  hide: function(how) {
-    var parent = this;
-    this[this.attributes.animation]('out').chain(function(){
-      this.getAnimatedElement().setStyle('overflow', this.getAnimatedElement().retrieve('style:overflow') || 'inherit');
-      this.getAnimatedElement().store('style:display', this.getAnimatedElement().getStyle('display'));
-      this.getAnimatedElement().setStyle('display', 'none');
-      LSD.Widget.prototype.hide.apply(this, arguments);
-    }.bind(this));
-  },
-  
-  remove: function() {
-    return this[this.attributes.animation]('out').chain(this.dispose.bind(this));
-  },
-  
-  dispose: function() {
-    return this.getAnimatedElement().dispose()
-  },
-  
-  getAnimatedElement: function() {
-    return this.element;
-  }
-  
-});
-/*
----
  
 script: Data.js
  
@@ -16199,519 +14479,2778 @@ Element.Properties.widget = {
 /*
 ---
  
-script: Item.js
+script: Events.js
  
-description: Methods to get and set microdata closely to html5 spsec
- 
-license: MIT-style license.
- 
-requires:
-- Core/Element
- 
-provides: [Element.prototype.getItems, Element.Properties.item, Element.Microdata]
- 
-...
-*/
-if (!Element.Item) Element.Item = {};
-Element.Item = {
-  walk: function(element, callback, memo, prefix) {
-    var prop = element.getAttribute('itemprop');
-    var scope = !!element.getAttribute('itemscope');
-    if (prefix && prop) {
-      if (!memo) memo = [];
-      memo.push(prop);
-    }
-    for (var i = 0, children = element.childNodes, child; child = children[i++];) {
-      if (child.nodeType != 1) continue;
-      memo = Element.Item.walk.call(this, child, callback, memo, prefix);
-    }
-    var reference = element.getAttribute('itemref');
-    if (scope && reference) {
-      for (var i = 0, bits = reference.split(/\s*/), j = bits.length; i < j; i++) {
-        var node = document.getElementById(bits[i]);
-        if (node) Element.Item.walk.call(this, child, callback, memo, prefix);
-      }
-    }
-    if (prefix && prop) memo.pop();
-    return (prop) ? callback.call(this, element, prop, scope, memo) : memo;
-  },
-  
-  serialize: function(element) {
-    return Element.Item.walk(element, function(element, prop, scope, object) {
-      if (!object) object = {};
-      if (scope) {
-        var obj = {};
-        obj[prop] = object;
-        return obj;
-      } else {
-        object[prop] = Element.get(element, 'itemvalue');
-        return object;
-      }
-    })
-  }
-};
-
-[Document, Element].invoke('implement', {
-  getItems: function(tokens, strict) {
-    var selector = '[itemscope]:not([itemprop])';
-    if (tokens) selector += tokens.split(' ').map(function(type) {
-      return '[itemtype' + (strict ? '~' : '*') + '=' + type + ']'
-    }).join('');
-    return this.getElements(selector).each(function(element) {
-      return element.get('item');
-    }).get('item')
-  }
-});
-
-(function() {
-  var push = function(properties, property, value) {
-    var old = properties[property];
-    if (old) { //multiple values, convert to array
-      if (!old.push) properties[property] = [old];
-      properties[property].push(value)
-    } else {
-      properties[property] = value;
-    }
-  }
-
-Element.Properties.properties = {
-  get: function() {
-    var properties = {};
-    var property = Element.getProperty(this, 'itemprop'), scope;
-    if (property) {
-      var scope = Element.getProperty(this, 'itemscope');
-      if (!scope) {
-        var value = Element.get(this, 'itemvalue');
-        if (value) push(properties, property, value);
-      }
-    }
-    for (var i = 0, child; child = this.childNodes[i++];) {
-      if (child.nodeType != 1) continue;
-      var values = Element.get(child, 'properties');
-      for (var prop in values) push(properties, prop, values[prop]);
-    }
-    
-    var reference = Element.getProperty(this, 'itemref');
-    if (reference) {
-      var selector = reference.split(' ').map(function(id) { return '#' + id}).join(', ');
-      var elements = Slick.search(document.body, selector);
-      for (var i = 0, reference; reference = elements[i++];) {
-        var values = Element.get(reference, 'properties');
-        for (var prop in values) push(properties, prop, values[prop]);
-      }
-    }
-    
-    if (scope) {
-      var props = {};
-      props[property] = properties;
-      return props;
-    }
-    return properties;
-  },
-  
-  set: function(value) {
-    for (var i = 0, child; child = this.childNodes[i++];) {
-      if (child.nodeType != 1) continue;
-      var property = Element.getProperty(child, 'itemprop');
-      if (property) Element.set(child, 'itemvalue', value[property]);
-      else Element.set(child, 'properties', value)
-    };
-  }
-};
-
-})();
-
-Element.Properties.item = {
-  get: function() {
-    if (!Element.getProperty(this, 'itemscope')) return;
-    return Element.get(this, 'properties');
-  },
-  
-  set: function(value) {
-    if (!Element.getProperty(this, 'itemscope')) return;
-    return Element.set(this, 'properties', value);
-  }
-};
-
-(function() {
-
-var resolve = function(url) {
-  if (!url) return '';
-  var img = document.createElement('img');
-  img.setAttribute('src', url);
-  return img.src;
-}
-
-Element.Properties.itemvalue = {
-  get: function() {
-    var property = this.getProperty('itemprop');
-    if (!property) return;
-    switch (this.get('tag')) {
-      case 'meta':
-        return this.get('content') || '';
-      case 'input':
-      case 'select':
-      case 'textarea':
-        return this.get('value');
-      case 'audio':
-      case 'embed':
-      case 'iframe':
-      case 'img':
-      case 'source':
-      case 'video':
-        return resolve(this.get('src'));
-      case 'a':
-      case 'area':
-      case 'link':
-        return resolve(this.get('href'));
-      case 'object':
-        return resolve(this.get('data'));
-      case 'time':
-        var datetime = this.get('datetime');
-        if (!(datetime === undefined)) return Date.parse(datetime);
-      default:
-        return this.getProperty('itemvalue') || this.get('text').trim();
-    }
-  },
-
-  set: function(value) {
-    var property = this.getProperty('itemprop');
-    var scope = this.getProperty('itemscope');
-    if (property === undefined) return;
-    else if (scope && Object.type(value[scope])) return this.set('item', value[scope]);
-    
-    switch (this.get('tag')) {
-      case 'meta':
-        return this.set('content', value);
-      case 'audio':
-      case 'embed':
-      case 'iframe':
-      case 'img':
-      case 'source':
-      case 'video':
-        return this.set('src', value);
-      case 'a':
-      case 'area':
-      case 'link':
-        return this.set('href', value);
-      case 'object':
-        return this.set('data', value);
-      case 'time':
-        var datetime = this.get('datetime');
-        if (!(datetime === undefined)) this.set('datetime', value)
-      default:
-        return this.set('html', value);
-    }
-  }
-}
-
-})();
-/*
----
- 
-script: List.js
- 
-description: Trait that makes it simple to work with a list of item (and select one of them)
+description: A mixin that adds support for declarative events assignment
  
 license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
  
 requires:
-  - LSD.Trait
-  - Core/Element
-  - Ext/Element.Properties.item
- 
-provides: 
-  - LSD.Trait.List
- 
+  - LSD.Module
+  - Core/Events
+  - Core/Element.Event
+  - More/Element.Delegation
+  - More/Events.Pseudos
+  - Ext/Element.Properties.widget
+
+provides:
+  - LSD.Module.Events
+
 ...
 */
 
+!function() {
+  
+LSD.Module.Events = new Class({
+  Implements: window.Events
+});
 
-LSD.Trait.List = new Class({  
-  options: {
-    list: {
-      endless: true,
-      force: false,
-      multiple: false,
-      unselect: null
-    },
-    proxies: {
-      container: {
-        condition: function(widget) {
-          return !!widget.setList
-        }
+var proto = window.Events.prototype;
+var Events = Object.append(LSD.Module.Events, {
+  bindEvents: function(events, bind, args) {
+    var result = {};
+    for (var name in events) {
+      var value = events[name];
+      if (!value || value.call) result[name] = value;
+      else if (value.indexOf) result[name] = Events.bindEvent.call(this, value, bind, args);
+      else result[name] = Events.bindEvents.call(this, value);
+    }
+    return result;
+  },
+  
+  bindEvent: function(name, bind, args) {
+    if (name.map) {
+      var args = name.slice(1);
+      name = name[0];
+    }
+    if (!this.$bound) this.$bound = {};
+    if (!this.$bound[name]) this.$bound[name] = Events.bind(name, bind || this, args);
+    return this.$bound[name];
+  },
+  
+  setStoredEvents: function(events, state, bind) {
+    var target = Events.Targets[name];
+    for (var event in events)
+      for (var i = 0, fn, group = events[event]; fn = group[i++];)
+        Events.setEvent.call(this, event, (fn.indexOf && bind ? bind.bindEvent(fn) : fn), !state);
+  },
+  
+  watchEventTarget: function(name, fn) {
+    var target = Events.Targets[name];
+    if (target.events) Object.each(target.events, function(state, event) {
+      Events.setEvent.call(this, event, function(object) {
+        if (target.getter === false) object = this;
+        fn.call(this, object, state);
+      });
+    }, this);
+    if (target.condition && target.condition.call(this)) fn.call(this, this, true);
+    else if (target.getter && this[target.getter]) fn.call(this, this[target.getter], true);
+  },
+  
+  setEvent: function(name, fn, revert) {
+    if (fn.indexOf && this.lsd) fn = this.bindEvent(fn);
+    if (fn.call || (fn.indexOf && !this.lsd)) {
+      if (!revert) {
+        if (!this.$events) this.$events = {};
+        var method = 'addEvent';
+      } else var method = 'removeEvent'
+      var kicker = this[method];
+      if (!kicker || kicker.$origin == Events[method]) kicker = proto[method];
+      return kicker.call(this, name, fn);
+    } else {
+      if (name.charAt(0) == '_') {
+        for (var event in fn) Events.setEvent.call(this, event, fn[event], revert);
+        return this;
       }
-    },
-    shortcuts: {
-      previous: 'previous',
-      next: 'next'
-    },
-    events: {
-      attach: function() {
-        var items = this.list && this.list.length ? this.list : this.options.list.items;
-        if (items) this.setItems(items);
+      if (!revert && !this.events) this.events = {};
+      var events = this.events[name], initial = !events;
+      if (!events) events = this.events[name] = {};
+      var bound = this.lsd ? this.bindEvents(fn) : fn;
+      for (event in bound) {
+        var group = (events[event] || (events[event] = []));
+        if (revert) {
+          var i = group.indexOf(bound[event]);
+          if (i > -1) group.slice(i, 1);
+        } else group.push(bound[event])
       }
-    },
-    has: {
-      many: {
-        items: {
-          selector: ':item',
-          events: {
-            select: function() {
-              this.listWidget.selectItem(this)
-            },
-            unselect: function() {
-              this.listWidget.unselectItem(this);
-            },
-            dispose: function() {
-              this.listWidget.unselectItem(this);
-            }
-          },
-          alias: 'listWidget',
-          states: {
-            add: Array.fast('selected')
-          },
-          pseudos: Array.fast('valued'),
-          callbacks: {
-            'fill': 'fill',
-            'empty': 'empty'
-          }
-        }
-      }
-    },
-    pseudos: Array.fast('list'),
-    states: {
-      empty: true
+      var target = Events.Targets[name];
+      if (target)
+        if (target.call) {
+          if ((target = target.call(this))) 
+            for (var event in bound) Events.setEvent.call(target, event, bound[event], revert);
+        } else if (initial) {
+          Events.watchEventTarget.call(this, name, function(object, state) {
+            Events.setStoredEvents.call(object, events, state, this);
+          })
+        } else if (target.getter && this[target.getter]) this[target.getter][revert ? 'removeEvents' : 'addEvents'](bound)
+      return this;
     }
   },
   
-  initialize: function() {
-    this.parent.apply(this, arguments);
-    this.setItems(this.options.items || this.items);
+  setEvents: function(events, revert) {
+    for (var type in events) Events.setEvent.call(this, type, events[type], revert);
+    return this;
+	},
+	
+  addEvent: function(name, fn) {
+    return Events.setEvent.call(this, name, fn);
   },
   
-  selectItem: function(item) {
-    if (!(item = this.getItem(item)) && this.options.list.force) return false;
-    var unselect = (this.options.list.unselect !== null) ? this.options.list.unselect : !this.options.list.multiple;
-    var selected = this.selectedItem;
-    if (unselect && (selected != item) && selected && selected.unselect) this.unselectItem(selected);
-    this.setSelectedItem.apply(this, arguments); 
-    this.fireEvent('set', [item, this.getItemIndex(item)]);
-    item.select();
-    return item;
-  },
-  
-  unselectItem: function(item) {
-    if (!(item = this.getItem(item)) || !this.isItemSelected(item)) return false;
-    if (item.unselect) item.unselect();
-    this.unsetSelectedItem.apply(this, arguments);
-    this.fireEvent('unset', [item, this.getItemIndex(item)]);
-    delete item;
-  },
-  
-  setSelectedItem: function(item, type) {
-    var property = (type || 'selected') + 'Item';
-    if (this.options.list.multiple)  {
-      property += 's';
-      if (!this[property]) this[property] = [];
-      this[property].push(item);
-    } else this[property] = item
-  },
-  
-  unsetSelectedItem: function(item, type) {
-    var property = (type || 'selected') + 'Item';
-    if (this.options.list.multiple)  {
-      property += 's';
-      if (this[property]) this[property].erase(item);
-    } else delete this[property]
-  },
-
-  getSelectedItem: function() {
-    return this.selectedItem || (this.selectedItems ? this.selectedItems.getLast() : null);
-  },
-  
-  getSelectedItems: function(type) {
-    if (this.selectedItems) return Array.prototype.slice.call(this.selectedItems, 0);
-    return this.selectedItem ? [this.selectedItem] : [];
-  },
-  
-  isItemSelected: function(item) {
-    return this.selectedItems ? this.selectedItems.indexOf(item) > -1 : (this.selectedItem == item)
-  },
-  
-  buildItem: function(value) {
-    if (this.options.layout.item) return this.buildLayout(this.options.layout.item);
-    return new Element('div', {
-      'class': 'lsd option', 
-      'html': value.toString(), 
-      'events': {
-        click: function() {
-          this.selectItem(value);
-        }.bind(this)
-      }
-    });
-  },
-  
-  getItem: function(item) {
-    return (item && item.select) ? item : this.findItemByValue(item);
-  },
-  
-  setItems: function(items) {
-    this.list = [];
-    this.widgets = [];
-    items.each(this.addItem.bind(this));
+  addEvents: function(events) {
+    for (var type in events) Events.setEvent.call(this, type, events[type]);
     return this;
   },
   
-  addItem: function(item) {
-    if (item.setList) var data = item.getValue ? item.getValue() : item.value || LSD.uid(item), widget = item, item = data;
-    if (this.options.list.force && !this.getSelectedItem()) this.selectItem(item);
-    if (!this.list.contains(item)) {
-      if (widget) {
-        widget.listWidget = this;
-        this.widgets.push(widget);
-      }
-      return true;
+  removeEvent: function(name, fn) {
+    return Events.setEvent.call(this, name, fn, true);
+  },
+  
+  removeEvents: function(events) {
+    for (var type in events) Events.setEvent.call(this, type, events[type], true);
+    return this;
+  },
+  
+  setEventsByRegister: function(name, state, events) {
+    var register = this.$register;
+    if (!register) register = this.$register = {};
+    if (register[name] == null) register[name] = 0;
+    switch (register[name] += (state ? 1 : -1)) {
+      case 1:
+        if (events) this.addEvents(events)
+        else if (this.events) Events.setStoredEvents.call(this, this.events[name], true);
+        return true;
+      case 0:
+        if (events) this.removeEvents(events)
+        else if (this.events) Events.setStoredEvents.call(this, this.events[name], false);
+        return false;
     }
-    return false;
   },
   
-  makeItems: function() {
-    var item, i = this.widgets.length;
-    while (item = this.list[i++]) this.makeItem(item);
-  },
-	
-  makeItem: function(item) {
-    var widget = this.buildItem.apply(this, arguments);
-    widget.item = widget.value = item;
-    if (widget.write) widget.write(item)
-    else widget.set('html', item.toString());
-    return widget;
-  },
-  
-  getItems: function() {
-    return this.list;
-  },
-  
-  hasItems: function() {
-    var items = this.getItems()
-    return items && items.length > 0;
-  },
-  
-  getItemIndex: function(item) {
-    return this.getItems().indexOf(item || this.selectedItem);
-  },
-  
-  findItemByValue: function(value) {
-    for (var i = 0, widget; widget = this.widgets[i++];) {
-      var val = widget.value == null ? (widget.getValue ? widget.getValue() : null) : widget.value;
-      if (val === value) return this.widgets[i];
+  fireEvent: function(type, args, delay){
+    var events = this.$events[type];
+    if (!events) return this;
+    for (var i = 0, j = events.length, fn; i < j; i++) {
+      if (!(fn = events[i])) continue;
+      if (fn.indexOf) fn = this[fn];
+      if (!delay) {
+        if (!method) var method = Type.isEnumerable(args) ? 'apply' : 'call';
+        fn[method](this, args);
+      } else fn.delay(delay, this, args);
     }
-    return null;
+    return this;
   },
   
-  getItemValue: function(item) {
-    for (var i = 0, j = this.widgets.length; i < j; i++) {
-      if (this.widgets[i] == item) return this.list[i];
+  dispatchEvent: function(type, args){
+    for (var node = this; node; node = node.parentNode) {
+      var events = node.$events[type];
+      if (!events) continue;
+      if (!method) var method = Type.isEnumerable(args) ? 'apply' : 'call';
+      for (var i = 0, j = events.length, fn; i < j; i++)
+        if ((fn = events[i])) fn[method](node, args);
     }
-    return null;
+    return this;
   },
   
-  getActiveItem: function() {
-    var active = (this.chosenItem || this.selectedItem);
-    return active ? active.value : null;
-  },
-
-  next: function(e) {
-    this.makeItems();
-    var next = this.getItems()[this.getItemIndex(this.getActiveItem()) + 1];
-    if (!next && this.options.list.endless) next = this.getItems()[0];
-    if (this.selectItem(next, true, !!e)) {
-      if (e && e.stop) e.stop();
-      return !!this.fireEvent('next', [next]);
+  captureEvent: function(type, args) {
+    var events = this.$events[type];
+    if (!events) return;
+    for (var i = 0, j = events.length, event; i < j; i++) {
+      if (!(event = events[i])) continue;
+      if (!method) var method = Type.isEnumerable(args) ? 'apply' : 'call';
+      var result = event[method](this, args);
+      if (result) return result;
     }
-    return false;
   },
-
-  previous: function(e) {
-    this.makeItems();
-    var previous = this.getItems()[this.getItemIndex(this.getActiveItem()) - 1];
-    if (!previous && this.options.list.endless) previous = this.getItems().getLast();
-    if (this.selectItem(previous, true)) {
-      if (e && e.stop) e.stop();
-      return !!this.fireEvent('previous', [previous]);
+  
+  bind: function(method, bind, args) {
+    return function() {
+      if (bind[method]) return bind[method].apply(bind, args || arguments);
     }
-    return false;
-  },
-  
-  sort: function(sort) {
-    return this.getItems().sort(sort)
-  },
-  
-  filter: function(filter) {
-    return this.getItems().filter(filter)
   }
-  
 });
+
+LSD.Module.Events.addEvents.call(LSD.Module.Events.prototype, {
+  register: function(name, object) {
+    var events = this.events && this.events[name];
+    if (events) Events.setStoredEvents.call(object, events, true, this);
+  },
+  unregister: function(name, object) {
+    var events = this.events && this.events[name];
+    if (events) Events.setStoredEvents.call(object, events, false, this);
+  }
+});
+
+/*
+  Inject generic methods into the module prototype
+*/
+['addEvent',  'addEvents', 'removeEvent', 'removeEvents', 
+ 'fireEvent', 'captureEvent', 'dispatchEvent',
+ 'bindEvent', 'bindEvents'].each(function(method) {
+  Events.implement(method, Events[method]);
+});
+
+/*
+  Target system re-routes event groups to various objects.  
+  
+  Combine them for fun and profit.
+  
+  | Keyword    |  Object that recieves events       |
+  |-------------------------------------------------|
+  | *self*     | widget itself (no routing)         |
+  | *element*  | widget element (when built)        |
+  | *parent*   | parent widget                      |
+  | *document* | LSD document                       |
+  | *window*   | window element                     |
+  
+  | State      | Condition                          |
+  |-------------------------------------------------|
+  | *enabled*  | widget is enabled                  |
+  | *disabled* | widget is disabled                 |
+  | *focused*  | widget is focused                  |
+  | *blured*   | widget is blured                   |
+  | *target*   | first focusable parent is focused  |
+  
+  | Extras     | Description                        |
+  |-------------------------------------------------|
+  | *expected* | Routes events to widgets, selected |
+  |            | by selectors (keys of event group).|
+  |            | Provided by Expectations module    |
+  | _\w        | An event group which name starts   |
+  |            | with underscore is auto-applied    |
+  
+*/
+Events.Targets = {
+  self: function() { 
+    return this
+  },
+  window: function() {
+    return window;
+  },
+  mobile: function() {
+    return this;
+  },
+  element: {
+    getter: 'element',
+    registers: true,
+    events: {
+      attach: true,
+      detach: false
+    }
+  },
+  document: {
+    getter: 'document',
+    registers: true,
+    events: {
+      setDocument: true,
+      unsetDocument: false
+    }
+  },
+  parent: {
+    getter: 'parentNode',
+    registers: true,
+    events: {
+      setParent: true,
+      unsetParent: false
+    }
+  },
+  root: {
+    getter: 'root',
+    registers: true,
+    events: {
+      setRoot: true,
+      unsetRoot: false
+    }
+  }
+};
+!function(Known, Positive, Negative) {
+  Object.each(Object.append({}, Positive, Negative), function(name, condition) {
+    var events = {}, positive = !!Positive[name], state = Known[name];
+    events[state[!positive ? 'enabler' : 'disabler']] = true;
+    events[state[ positive ? 'enabler' : 'disabler']] = false;
+    Events.Targets[condition] = {
+      getter: false,
+      condition: function() {
+        return positive ^ this[state && state.property || name]
+      },
+      events: events
+    }
+  });
+}(LSD.States.Known, LSD.States.Positive, LSD.States.Negative)
+
+
+/*
+  Defines special *on* pseudo class for events used for
+  event delegation. The difference between usual event 
+  delegation (which is :relay in mootools) and this, is
+  that with :on you can use LSD selectors and it fires 
+  callbacks in context of widgets.
+  
+  element.addEvent('mouseover:on(button)', callback)
+*/
+
+Event.definePseudo('on', function(split, fn, args){
+  var event = args[0];
+  var widget = Element.get(event.target, 'widget');
+  if (widget && widget.match(split.value)) {
+    fn.call(widget, event, widget, event.target);
+    return;        
+  }
+});
+
+LSD.Options.events = {
+  add: 'addEvent',
+  remove: 'removeEvent',
+  iterate: true
+};
+
+Class.Mutators.$events = function(events) {
+  var category = this.prototype.$events || (this.prototype.$events = {});
+  for (name in events) {
+    var type = category[name] || (category[name] = []);
+    type.push.apply(type, events[name]);
+  }
+};
+
+Class.Mutators.events = function(events) {
+  var category = this.prototype.events || (this.prototype.events = {});
+  for (label in events) {
+    var group = events[label];
+    var type = category[label] || (category[label] = {});
+    for (var name in group) {
+      var stored = type[name] || (type[name] = []);
+      var value = group[name];
+      stored.push.apply(stored, group[name]);
+    }
+  }
+};
+
+
+}();
 /*
 ---
  
-script: Choice.js
+script: Relation.js
  
-description: Trait that completes List. Allows one item to be chosen and one selected (think navigating to a menu item to select)
+description: An unsettable relation that dispatches options to specific widgets
  
 license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
  
 requires:
-  - LSD.Trait.List
- 
+  - LSD
+  - LSD.Module.Events
+
 provides: 
-  - LSD.Trait.Choice
+  - LSD.Relation
  
 ...
 */
 
+!function() {
+  
+LSD.Relation = function(name, origin, options) {
+  this.name = name;
+  this.origin = origin;
+  if (this.$events) this.$events = Object.clone(this.$events);
+  this.onChange = this.onChange.bind(this);
+  this.options = {};
+  this.$options = [];
+  this.memo = {};
+  this.widgets = [];
+  this.target = origin;
+  origin.relations[name] = this;
+  if (options) this.setOptions(options);
+}
 
-LSD.Trait.Choice = new Class({
+LSD.Relation.prototype = Object.append({
   
-  selectItem: function(item, temp) {
-    if (temp !== true) return this.parent.apply(this, arguments)
-    if (!(item = this.getItem(item)) && this.options.list.force) return false;
-    var chosen = this.chosenItem;
-    this.setSelectedItem(item, 'chosen');
-    this.fireEvent('choose', [item, this.getItemIndex()]);
-    if (item.choose() && chosen) chosen.forget();
-    return item;
-  },
-  
-  forgetChosenItem: function(item) {
-    item = this.getItem(item) || this.chosenItem;
-    if (item) item.forget();
-    this.unsetSelectedItem(item, 'chosen');
-  },
-  
-  selectChosenItem: function() {
-    return this.selectItem(this.chosenItem)
-  },
-
-  getChosenItems: function() {
-    return this.chosenItem || (this.chosenItems ? this.chosenItems.getLast() : null);
-  },
-  
-  getChosenItems: function(type) {
-    return this.chosenItems || (this.chosenItem && [this.chosenItem]);
-  },
-  
-  getSelectedOptionPosition: function() {
-    var height = 0;
-    if (!this.selectedItem) return height;
-    for (var i = 0, j = this.widgets.length; i < j; i++) {
-      if (this.widgets[i] == this.selectedItem) break;
-      height += this.widgets[i].getLayoutHeight();
+  setOptions: function(options, unset) {
+    this.$options[unset ? 'erase' : 'include'](options);
+    var opts = Object.merge.apply(Object, [{}].concat(this.$options));
+    this.lastOptions = this.options;
+    this.options = opts;
+    if (options.target) this.memo.target = Options.target.call(this, options.target, true);
+    for (name in options) {
+      var setter = Options[name], value = options[name];
+      if (!setter || !setter.call) 
+        for (var i = 0, widget; widget = this.widgets[i++];) 
+          this.applyOption(widget, name, value, unset, setter);
+      else this.memo[name] = setter.call(this, value, !unset, this.memo[name]);
     }
-    return height
+    return this;
+  },
+  
+  applyOption: function(widget, name, value, unset, setter) {
+    if (setter) {
+      if (!setter.call && setter !== true) {
+        if (setter.process) {
+          if (setter.process.call) value = setter.process.call(this, value);
+          else value = widget[setter.process](value);
+        }
+        var method = setter[unset ? 'remove' : 'add'];
+        if (setter.iterate) {
+          var length = value.length;
+          if (length != null) for (var i = 0, j = value.length; i < j; i++) method.call(this, widget, value[i]);
+          else for (var i in value) method.call(this, widget, i, value[i])
+        } else method.call(this, widget, value);
+      }
+    } else {
+      widget.setOption(name, value, unset);
+    }
+  },
+  
+  applyOptions: function(widget, unset) {
+    for (var name in this.options)
+      this.applyOption(widget, name, this.options[name], unset, Options[name]);
+  },
+  
+  onChange: function(widget, state) {
+    return this[state ? 'onFind' : 'onLose'](widget);
+  },
+  
+  onFind: function(widget) {
+    if (widget == this) return;
+    this.add(widget);
+    this.applyOptions(widget);
+    this.fireEvent('add', widget);
+    this.origin.fireEvent('relate', [widget, this.name]);
+  },
+  
+  onLose: function(widget) {
+    if (widget == this) return;
+    this.origin.fireEvent('unrelate', [widget, this.name]);
+    if (this.remove(widget) === false) return;
+    this.fireEvent('remove', widget);
+    this.applyOptions(widget, true);
+  },
+  
+  add: function(widget) {
+    if (this.options.multiple) {
+      if (this.widgets.include(widget) > 1) return; 
+    } else {
+      this.widget = widget;
+      this.widgets = [widget];
+      this.origin[this.name] = widget;
+    }
+    delete this.empty;
+    this.fireEvent('fill');
+  },
+  
+  remove: function(widget) {
+    if (this.options.multiple) {
+      var index = this.widgets.indexOf(widget);
+      if (index == -1) return false;
+      this.widgets.splice(index, 1);
+      if (this.widgets.length) return;
+    } else {
+      if (this.widget != widget) return false;
+      delete this.widget;
+      delete this.origin[this.name];
+      this.widgets.splice(0, 1);
+    }
+    this.empty = true;
+    this.fireEvent('empty');
+  },
+  
+  proxy: function(widget) {
+    if (this.widget) return this.widget.appendChild(widget);
+    if (!this.proxied) {
+      this.proxied = [];
+      this.addEvent('fill:once', function() {
+        for (var proxied; proxied = this.proxied.shift();) this.widget.appendChild(proxied);
+      });
+    }
+    (this.proxied || (this.proxied = [])).push(widget);
+  },
+  
+  getSource: function() {
+    return this.options.source;
+  }
+}, Events.prototype);
+
+var Options = LSD.Relation.Options = {
+  selector: function(selector, state, memo) {
+    if (memo) memo[0].unwatch(memo[1], this.onChange);
+    if (state && this.target) {
+      if (selector.call) selector = selector.call(this.origin);
+      this.target.watch(selector, this.onChange);
+      return [this.target, selector];
+    }
+  },
+  
+  expectation: function(expectation, state, memo) {
+    if (memo) memo[0].unexpect(memo[1], this.onChange);
+    if (expectation.target && (state ? !this.target : this.targeted == expectation.target))
+      Options.target.call(this, expectation.target, state, this.memo.target);
+    if (state && this.target) {
+      if (expectation.call && !(expectation = expectation.call(this.origin))) return;
+      this.target.expect(expectation, this.onChange);
+      return [this.target, expectation];
+    }
+  },
+  
+  target: function(target, state, memo) {
+    if (target.call) target = target.call(this.origin);
+    if (this.targeted == target) return;
+    this.targeted = target;
+    if (memo) this.origin.removeEvents(memo);
+    var setting = Targets[target];
+    if (setting) {
+      var relation = this, events = Object.map(setting.events, function(value, event) {
+        return function(object) {
+          if (value) {
+            relation.target = object.nodeType == 9 ? object.body : object;
+            var selector = relation.options.selector, expectation = relation.options.expectation;
+            if (selector) Options.selector.call(relation, selector, true, relation.memo.selector);
+            if (expectation) Options.expectation.call(relation, expectation, true, relation.memo.expectation);
+          }
+        }
+      })
+      this.origin.addEvents(events);
+      if (setting.getter && !this.target) {
+        this.target = this.origin[setting.getter];
+        events[Object.keyOf(setting, true)](this.target)
+      }
+      return events;
+    } else {
+      if (this.origin[target]) this.target = this.origin[target];
+    }
+  },
+  
+  mutation: function(mutation, state, memo) {
+    if (memo) this.origin.removeMutation(mutation, memo);
+    if (state) {
+      this.origin.addMutation(mutation, this.getSource());
+      return this.options.source;
+    }
+  },
+  
+  proxy: function(condition, state, memo) {
+    if (state) {
+      var proxy = memo || {container: this.proxy.bind(this)};
+      proxy.condition = condition;
+      if (!memo) this.origin.addProxy(this.name, proxy);
+      return proxy;
+    } else {
+      this.origin.removeProxy(this.name, memo);
+    }
+  },
+
+  relay: function(events, state, memo) {
+    if (state) {
+      var origin = this.origin, relation = this, relay = Object.map(events, function(callback, event) {
+        return function(event) {
+          for (var widget = Element.get(event.target, 'widget'); widget; widget = widget.parentNode) {
+            if (relation.widgets.indexOf(widget) > -1) {
+              callback.apply(widget, arguments);
+              break;
+            }
+          }
+        };
+      });
+      var fillers = {
+        fill: function() { 
+          origin.addEvent('element', relay)
+        },
+        empty: function() {
+          origin.removeEvent('element', relay)
+        }
+      };
+      this.addEvents(fillers);
+      if (!this.empty) fillers.fill();
+      return fillers;
+    } else {
+      this.removeEvents(memo);
+      if (!this.empty) memo.empty();
+    }
+  },
+  
+  multiple: function(multiple, state, memo) {
+    if (multiple) {
+      this.origin[this.name] = this.widgets
+    } else {
+      delete this.origin[this.name];
+    }
+  },
+  
+  callbacks: function(events, state) {
+    for (var name in events) {
+      var event = events[name];
+      event = event.indexOf ? this.origin.bindEvent(event) : event.bind(this.origin);
+      this[state ? 'addEvent' : 'removeEvent'](name, event);
+    }
+  },
+  
+  through: function(name, state, memo) {
+    return LSD.Relation.Options.selector.call(this, '::' + name + '::' + (this.options.as || this.name), state, memo)
+  },
+  
+  traits: function(traits, state, memo) {
+    Object.each(traits, function(value, key) {
+      var name = key || value;  
+      var trait = LSD.Relation.Traits[name];
+      if (!trait) LSD.warn('Can not find LSD.Relation.Traits.' + name)
+      else this.setOptions(trait, !state);
+    }, this);
+  },
+  
+  origin: function(options) {
+    this.origin.setOptions(options, !state)
+  },
+  
+  scope: function(name, state, memo) {
+    if (memo) {
+      for (var i = 0, widget; widget = this.widgets[i++];) memo.callbacks.remove.call(this, widget);
+      this.origin.removeRelation(name, memo);
+    }
+    if (state) {
+      var self = this, relation = this.origin.relations[name], filter;
+      memo = {
+        callbacks: {
+          add: function(widget) {
+            widget.expect((filter = self.options.filter), self.onChange, true)
+          },
+          remove: function(widget) {
+            widget.unexpect(filter, self.onChange, true, true);
+          }
+        }
+      };
+      if (relation) for (var i = 0, widget; widget = relation.widgets[i++];) memo.callbacks.add.call(this, widget);
+      this.origin.addRelation(name, memo);
+      return memo;
+    }
+  },
+  
+  scopes: function(scopes, state, memo) {
+    for (var scope in scopes) {
+      var name = LSD.Relation.getScopeName(this.name, scope), relation = scopes[scope];
+      this.origin[state ? 'addRelation' : 'removeRelation'](name, relation);
+      var options = {};
+      if (!relation.scope) options.scope = this.name;
+      if (this.options.multiple) options.multiple = true;
+      this.origin[state ? 'addRelation' : 'removeRelation'](name, options);
+    }
+  },
+  
+  states: {
+    add: function(widget, states) {
+      var get = states.get, set = states.set, add = states.add, lnk = states.link, use = states.use;
+      if (get) for (var from in get) widget.linkState(this.origin, from, (get[from] === true) ? from : get[from]);
+      if (set) for (var to in set) this.origin.linkState(widget, to, (set[to] === true) ? to : set[to]);
+      if (use) for (var to in use) this.origin.addState(widget, to, (use[to] === true) ? to : use[to]);
+      if (add) for (var index in add) widget.addState(index, add[index]);
+      if (lnk) for (var to in lnk) widget.linkState(widget, to, (lnk[to] === true) ? to : lnk[to]);
+    },
+    remove: function(widget, states) {
+      var get = states.get, set = states.set, add = states.add, lnk = states.link, use = states.use;
+      if (get) for (var from in get) widget.unlinkState(this.origin, from, (get[from] === true) ? from : get[from]);
+      if (set) for (var to in set) this.origin.unlinkState(widget, to, (set[to] === true) ? to : set[to]);
+      if (use) for (var to in use) this.origin.removeState(widget, to, (use[to] === true) ? to : use[to]);
+      if (add) for (var index in add) widget.removeState(index, add[index]);
+      if (lnk) for (var to in lnk) widget.unlinkState(widget, to, (lnk[to] === true) ? to : lnk[to]);
+    }
+  },
+  
+  as: {
+    add: function(widget, name) {
+      if (!widget[name]) widget[name] = this.origin;
+    },
+    remove: function(widget, name) {
+      if (widget[name] == this.origin) delete widget[name];
+    }
+  },
+  
+  collection: {
+    add: function(widget, name) {
+      (widget[name] || (widget[name] = [])).push(this.origin);
+    },
+    remove: function(widget, name) {
+      widget[name].erase(this.origin);
+    }
+  },
+  
+  events: {
+    add: function(widget, events) {
+      widget.addEvents(events);
+    },
+    remove: function(widget, events) {
+      widget.removeEvents(events);
+    },
+    process: function(events) {
+      return this.origin.bindEvents(events);
+    }
+  },
+  
+  relations: {
+    add: function(widget, name, relation) {
+      widget.addRelation(name, relation);
+    },
+    remove: function(widget, name, relation) {
+      widget.removeRelation(name, relation);
+    },
+    iterate: true
+  },
+  
+  options: {
+    add: function(widget, options) {
+      widget.setOptions(options.call ? options.call(this.origin) : options);
+    },
+    remove: function(widget, options) {
+      widget.setOptions(options.call ? options.call(this.origin) : options, true);
+    }
+  },
+  
+  filter: true
+};
+
+LSD.Relation.getScopeName = function(scoped) {
+  return function(relation, scope, multiple) {
+    var key = Array.prototype.join.call(arguments);
+    return (scoped[key] || (scoped[key] = (scope + LSD.capitalize(relation))))
+  }
+}({});
+
+Options.has = Object.append({
+  process: function(has) {
+    var one = has.one, many = has.many, relations = {};
+    if (one) for (var name in one) relations[name] = one[name];
+    if (many) for (var name in many) relations[name] = Object.append(many[name], {multiple: true});
+    return relations;
+  }
+}, Options.relations);
+
+var Traits = LSD.Relation.Traits = {};
+var Targets = LSD.Module.Events.Targets;
+}();
+/*
+---
+ 
+script: Relations.js
+ 
+description: Define a widget associations
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Module
+  - LSD.Relation
+
+provides: 
+  - LSD.Module.Relations
+
+...
+*/
+
+LSD.Module.Relations = new Class({
+  constructors: {
+    relations: function() {
+      this.relations = {};
+      this.related = {};
+    }
+  },
+  
+  addRelation: function(name, options) {
+    if (!this.relations[name]) new LSD.Relation(name, this);
+    return this.relations[name].setOptions(options);
+  },
+  
+  removeRelation: function(name, options) {
+    this.relations[name].setOptions(options, true);
+    /*
+      A deleted scope can remove its parent relation before relation gets to the 
+      deletion of itself. No need to clean then, it's already clean 
+    */
+    if (this.relations[name] && !this.relations[name].$options.length) delete this.relations[name];
   }
 });
+
+LSD.Options.relations = {
+  add: 'addRelation',
+  remove: 'removeRelation',
+  iterate: true
+};
+
+LSD.Options.has = Object.append({
+  process: function(has) {
+    var one = has.one, many = has.many, relations = {};
+    if (one) for (var name in one) relations[name] = one[name];
+    if (many) for (var name in many) relations[name] = Object.append(many[name], {multiple: true});
+    return relations;
+  }
+}, LSD.Options.relations);
+
+LSD.Relation.Traits = {
+  selectable: {
+    scopes: {
+      selected: {
+        filter: ':selected',
+        callbacks: {
+          add: function(widget) {
+            if (this.setValue) this.setValue(widget);
+            this.fireEvent('set', widget);
+          },
+          remove: function(widget) {
+            if (widget.getCommandType() != 'checkbox') return;
+            if (this.setValue) this.setValue(widget, true);
+            this.fireEvent('unset', widget);
+          }
+        }
+      }
+    }
+  },
+  
+  contextmenu: {
+    as: 'initiator',
+    tag: 'menu',
+    attributes: {
+      type: 'context'
+    },
+    proxy: function(widget) {
+      return widget.pseudos.item;
+    },
+    states: {
+      use: Array.fast('collapsed'),
+      set: {
+        collapsed: 'hidden'
+      },
+      get: {
+        hidden: 'collapsed'
+      }
+    }
+  }
+};
+
+/*
+---
+ 
+script: Allocations.js
+ 
+description: Spares a few temporal widgets or elements
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Module
+  - LSD.Module.Events
+
+provides:
+  - LSD.Module.Allocations
+ 
+...
+*/
+
+LSD.Module.Allocations = new Class({
+  constructors: {
+    allocations: function() {
+      this.allocations = {};
+    }
+  },
+  
+  allocate: function() {
+    var args = Array.prototype.slice.call(arguments);
+    var last = args[args.length - 1];
+    if (last == args[0] && last.type) args = [last.type, last.kind, (last = last.options)];
+    if (last && !last.indexOf && !last.push) var options = args.pop();
+    var type = args[0], kind = args[1];
+    var allocation = LSD.Allocations[type];
+    if (!allocation) return;
+    var allocations = this.allocations, object;
+    var opts = this.options.allocations && this.options.allocations[type];
+    if (allocation.multiple) {
+      var group = allocations[type] || (allocations[type] = {});
+      if (kind) {
+        var index = type + '-' + kind;
+        var customized = LSD.Allocations[index];
+        if (group[kind]) return group[kind];
+      } else {
+        for (var id = kind; allocations[++id];);
+      }
+    } else {
+      if (allocations[type]) return allocations[type];
+    }
+    if (allocation.call) {
+      allocation = allocation.apply(this, [options].concat(args));
+      if (allocation.nodeType) object = allocation;
+    } else {
+      if (allocation.options)
+        var generated = allocation.options.call ? allocation.options.call(this, options, kind) : allocation.options;
+    }
+    if (!object) {
+      options = Object.merge({}, allocation, generated, customized, opts, options);
+      delete options.multiple;
+      delete options.options;
+      if (options.source && options.source.call) options.source = options.source.call(this, kind, options);
+      options.invoker = this;
+      var parent = options.parent ? (options.parent.call ? options.parent.call(this) : option.parent) : this;
+      delete options.parent;
+      if (!parent.lsd) parent = [this, parent];
+      object = this.buildLayout(options.source || options.tag, parent, options);
+    };
+    (group || allocations)[kind || id] = object;
+    return object;
+  },
+  
+  release: function(type, name, widget) {
+    var allocations = this.allocations, group = allocations[type];
+    if (group) {
+      if (!name) name = 1;
+      if (group[name]) {
+        group[name].dispose();
+        delete group[name];
+      }
+    }
+  }
+  
+});
+
+LSD.Module.Events.addEvents.call(LSD.Module.Allocations.prototype, {
+  getRelated: function(type, id, classes, attributes, pseudos) {
+    if (!LSD.Allocations[type]) return;
+    var allocation = LSD.Module.Allocations.prepare(type, {}, classes, attributes, pseudos);
+    return this.allocate(allocation);
+  }
+});
+
+LSD.Module.Allocations.prepare = function(type, options, classes, attributes, pseudos) {
+  var name, kind;
+  if (attributes)
+    for (var i = 0, attribute; attribute = attributes[i++];) 
+      (options.attributes || (options.attributes = {}))[attribute.name] = attribute.value;
+  if (pseudos)
+    for (var i = 0, pseudo; pseudo = pseudos[i++];) 
+      switch (pseudo.key) {
+        case "of-kind": case "of-type":
+          kind = pseudo.value;
+          break;
+        case "of-name":
+          name = pseudo.value;
+          break;
+        default:
+          (options.pseudos || (options.pseudos = {}))[pseudo.key] = pseudo.value || true;
+      }
+  return {type: type, name: name, kind: kind, options: options}
+}
+
+LSD.Allocations = {
+  
+  lightbox: {
+    source: 'body-lightbox',
+    parent: function() {
+      return document.body;
+    }
+  },
+  
+  dialog: {
+    multiple: true,
+    options: function(options, kind) {
+      return Object.merge(
+        {
+          tag: 'body',
+          attributes: {
+            type: 'dialog'
+          }
+        },
+        kind ? {attributes: {kind: kind}} : null,
+        options
+      )
+    },
+    parent: function() {
+      return document.body;
+    }
+  },
+  
+  menu: {
+    source: 'menu-context'
+  },
+  
+  scrollbar: {
+    source: 'scrollbar'
+  },
+  
+  editor: function(options, type, name) {
+    return Object.merge(
+      {source: type == 'area' ? 'textarea' : ('input' + (type ? '-' + type : ''))}, 
+      name ? {attributes: {name: name}} : null,
+      options
+    );
+  },
+  
+  input: function(options, type, name) {
+    return new Element('input', Object.merge({
+      type: type || 'text',
+      name: name
+    }, options));
+  },
+  
+  submit: function(options) {
+    return new Element('input', Object.merge({
+      type: 'submit',
+      styles: {
+        width: 1,
+        height: 0,
+        display: 'block',
+        border: 0,
+        padding: 0,
+        overflow: 'hidden',
+        position: 'absolute'
+      },
+      events: {
+        click: function(e) {
+          e.preventDefault()
+        }
+      }
+    }, options));
+  }
+};
+/*
+---
+ 
+script: DOM.js
+ 
+description: Provides DOM-compliant interface to play around with other widgets
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+
+requires:
+  - LSD.Module
+  - LSD.Module.Events
+
+provides:
+  - LSD.Module.DOM
+  - LSD.Module.DOM.findDocument
+
+...
+*/
+
+!function() {
+
+LSD.Module.DOM = new Class({
+  options: {
+    nodeType: 1,
+  },
+  
+  constructors: {
+    dom: function(options) {
+      this.childNodes = [];
+    }
+  },
+  
+  contains: function(element) {
+    while (element = element.parentNode) if (element == this) return true;
+    return false;
+  },
+  
+  getChildren: function() {
+    return this.childNodes;
+  },
+
+  getRoot: function() {
+    var widget = this;
+    while (widget.parentNode) widget = widget.parentNode;
+    return widget;
+  },
+  
+  moveTo: function(widget) {
+    if (widget == this.parentNode) {
+      unset.call(this, widget);
+    } else {
+      if (this.parentNode) this.dispose();
+      return true;
+    }
+  },
+  
+  setParent: function(widget, index){
+    if (!widget.lsd) widget = LSD.Module.DOM.find(widget);
+    if (!widget) return;
+    if (this.moveTo(widget)) {
+      this.parentNode = widget;
+      this.fireEvent('setParent', [widget, widget.document])
+      var changed = true;
+    }
+    set.call(this, widget, index);
+    if (changed) {
+      this.fireEvent('register', ['parent', widget]);
+      widget.fireEvent('adopt', [this]);
+    }
+    var previous = this.previousSibling;
+    var start = previous ? (previous.sourceLastIndex || previous.sourceIndex) : widget.sourceIndex || (widget.sourceIndex = 1);
+    var sourceIndex = start;
+    LSD.Module.DOM.walk(this, function(node) {
+      node.sourceIndex = ++sourceIndex;
+      if (node.sourceLastIndex) node.sourceLastIndex += start;
+      for (var parent = widget; parent; parent = parent.parentNode) {
+        parent.sourceLastIndex = (parent.sourceLastIndex || parent.sourceIndex) ;
+        if (!changed) continue;
+        var events = parent.$events.nodeInserted;
+        if (!events) continue;
+        for (var i = 0, j = events.length, fn; i < j; i++)
+          if ((fn = events[i])) fn.call(parent, node);
+      }
+    }, this);
+  },
+  
+  unsetParent: function(widget, index) {
+    if (!widget) widget = this.parentNode;
+    LSD.Module.DOM.walk(this, function(node) {
+      widget.dispatchEvent('nodeRemoved', node);
+    });
+    this.fireEvent('unregister', ['parent', widget]);
+    this.removed = true;
+    unset.call(this, widget, index); 
+    delete this.parentNode;
+    delete this.removed;
+  },
+  
+  appendChild: function(widget, override) {
+    widget.parentNode = this;
+    if (!widget.quiet && (override !== false) && this.toElement()) (override || function() {
+      this.element.appendChild(widget.toElement());
+    }).apply(this, arguments);
+    delete widget.parentNode;
+    widget.setParent(this, this.childNodes.push(widget) - 1);
+    delete widget.quiet;
+    return true;
+  },
+  
+  removeChild: function(child) {
+    var index = this.childNodes.indexOf(child);
+    if (index == -1) return false;
+    child.unsetParent(this, index);
+    this.childNodes.splice(index, 1);
+    if (child.element && child.element.parentNode) child.element.dispose();
+  },
+  
+  replaceChild: function(insertion, child) {
+    var index = this.childNodes.indexOf(child);
+    if (index == -1) return;
+    this.removeChild(child);
+    this.childNodes.splice(index, 0, insertion);
+    insertion.setParent(this, index);
+  },
+  
+  insertBefore: function(insertion, child) {
+    var widget = LSD.Module.DOM.findNext(child);
+    var index = widget && widget != this ? this.childNodes.indexOf(widget) : this.childNodes.length;
+    if (index == -1) return;
+    this.childNodes.splice(index, 0, insertion);
+    if (!child) {
+      if (index) insertion.toElement().inject(this.childNodes[index - 1].toElement(), 'after')
+      else this.toElement().appendChild(insertion.toElement())
+    } else this.toElement().insertBefore(insertion.toElement(), child.element || child);
+    insertion.setParent(this, index);
+    return this;
+  },
+
+  cloneNode: function(children, options) {
+    var clone = this.context.create(this.element.cloneNode(children), Object.merge({
+      source: this.source,
+      tag: this.tagName,
+      pseudos: this.pseudos.toObject(),
+      traverse: !!children
+    }, options));
+    return clone;
+  },
+  
+  setDocument: function(document, revert) {
+    LSD.Module.DOM.walk(this, function(child) {
+      if (revert) {
+        delete child.ownerDocument;
+        delete child.document;
+      } else child.ownerDocument = child.document = document;
+      child.fireEvent(revert ? 'unregister' : 'register', ['document', document]);
+      child.fireEvent(revert ? 'unsetDocument' : 'setDocument', document);
+    });
+    return this;
+  },
+  
+  unsetDocument: function(document) {
+    return this.setDocument(document, true);
+  },
+  
+  inject: function(widget, where, quiet) {
+    if (!widget.lsd) {
+      var instance = LSD.Module.DOM.find(widget, true)
+      if (instance) widget = instance;
+    }
+    if (!this.pseudos.root) {
+      this.quiet = quiet || (widget.documentElement && this.element && this.element.parentNode);
+      if (where === false) widget.appendChild(this, false)
+      else if (!inserters[where || 'bottom'](widget.lsd ? this : this.toElement(), widget) && !quiet) return false;
+    }
+    if (where == 'after' || where == 'before') widget = this.parentNode;
+    if (quiet !== true || widget.document) this.setDocument(widget.document || LSD.document);
+    if (!this.pseudos.root) this.fireEvent('inject', this.parentNode);
+    return this;
+  },
+
+  grab: function(el, where){
+    inserters[where || 'bottom'](document.id(el, true), this);
+    return this;
+  },
+  
+  /*
+    Wrapper is where content nodes get appended. 
+    Defaults to this.element, but can be redefined
+    in other Modules or Traits (as seen in Container
+    module)
+  */
+  
+  getWrapper: function() {
+    return this.toElement();
+  },
+  
+  write: function(content, hard) {
+    if (!content || !(content = content.toString())) return;
+    var wrapper = this.getWrapper();
+    if (hard && this.written) for (var node; node = this.written.shift();) Element.dispose(node);
+    var fragment = document.createFragment(content);
+    var written = Array.prototype.slice.call(fragment.childNodes, 0);
+    if (!hard) this.written.push.apply(this.written, written);
+    else this.written = written;
+    wrapper.appendChild(fragment);
+    this.fireEvent('write', [written, hard])
+    this.innerText = wrapper.get('text').trim();
+    return written;
+  },
+
+  replaces: function(el){
+    this.inject(el, 'after');
+    el.dispose();
+    return this;
+  },
+  
+  watchInjection: function(callback) {
+    this.addEvent('setDocument', callback);
+    if (this.document) callback.call(this, this.document.element)
+  },
+  
+  unwatchInjection: function(callback) { 
+    this.removeEvent('setDocument', callback);
+  },
+  
+  onElementDispose: function() {
+    if (this.parentNode) this.dispose();
+  },
+
+  dispose: function() {
+    var parent = this.parentNode;
+    if (!parent) return;
+    this.fireEvent('beforeDispose', parent);
+    parent.removeChild(this);
+    this.fireEvent('dispose', parent);
+    return this;
+  }
+});
+
+var set = function(widget, index) {
+  var siblings = widget.childNodes, length = siblings.length;
+  if (siblings[0] == this) widget.firstChild = this;
+  if (siblings[siblings.length - 1] == this) widget.lastChild = this;
+  if (index == null) index = length - 1;
+  var previous = siblings[index - 1], next = siblings[index + 1];
+  if (previous) {
+    previous.nextSibling = this;
+    this.previousSibling = previous;
+  }
+  if (next) {
+    next.previousSibling = this;
+    this.nextSibling = next;
+  }
+};
+
+var unset = function(widget, index) {
+  var parent = this.parentNode, siblings = widget.childNodes;
+  if (index == null) index = siblings.indexOf(this);
+  var previous = siblings[index - 1], next = siblings[index + 1];
+  if (previous && previous.nextSibling == this) {
+    previous.nextSibling = next;
+    if (this.previousSibling == previous) delete this.previousSibling;
+  }
+  if (next && next.previousSibling == this) {
+    next.previousSibling = previous;
+    if (this.nextSibling == next) delete this.nextSibling;
+  }
+  if (parent.firstChild == this) parent.firstChild = next;
+  if (parent.lastChild == this) parent.lastChild = previous;
+};
+
+var inserters = {
+
+  before: function(context, element){
+    var parent = element.parentNode;
+    if (parent) return parent.insertBefore(context, element);
+  },
+
+  after: function(context, element){
+    var parent = element.parentNode;
+    if (parent) return parent.insertBefore(context, element.nextSibling);
+  },
+
+  bottom: function(context, element){
+    return element.appendChild(context);
+  },
+
+  top: function(context, element){
+    return element.insertBefore(context, element.firstChild);
+  }
+
+};
+
+LSD.Module.Events.addEvents.call(LSD.Module.DOM.prototype, {
+  destroy: function() {
+    if (this.parentNode) this.dispose();
+  },
+  
+  element: {
+    /*
+      When dispose event comes from the element, 
+      it is is already removed from dom
+    */
+    dispose: 'onElementDispose'
+  }
+});
+
+Object.append(LSD.Module.DOM, {
+  walk: function(element, callback, bind, memo) {
+    var widget = element.lsd ? element : LSD.Module.DOM.find(element, true);
+    if (widget) {
+      var result = callback.call(bind || this, widget, memo);
+      if (result) (memo || (memo = [])).push(widget);
+    }
+    for (var nodes = element.childNodes, node, i = 0; node = nodes[i]; i++) 
+      if (node.nodeType == 1) LSD.Module.DOM.walk(node, callback, bind, memo); 
+    return memo;
+  },
+  
+  find: function(target, lazy) {
+    return target.lsd ? target : ((!lazy || target.uid) && Element[lazy ? 'retrieve' : 'get'](target, 'widget'));
+  },
+  
+  findNext: function(target) {
+    var widget = target;
+    if (widget && !widget.lsd)
+      if (!target.uid || !(widget = target.retrieve('widget')))
+        for (var item = target, stack = [item.nextSibling]; item = stack.pop();)
+          if (item.uid && (widget = item.retrieve('widget'))) {
+            break;
+          } else {
+            if ((widget = item.nextSibling)) stack.push(widget);
+            else stack.push(item.parentNode);
+          }
+    return widget;
+  },
+  
+  getID: function(target) {
+    if (target.lsd) {
+      return target.attributes.itemid;
+    } else {
+      return target.getAttribute('itemid');
+    }
+  }
+});
+
+}();
+
+LSD.Options.document = {
+  add: 'setDocument',
+  remove: 'unsetDocument'
+}
+/*
+---
+ 
+script: Render.js
+ 
+description: A module that provides rendering workflow
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Module.DOM
+  - LSD.Module.Events
+
+provides: 
+  - LSD.Module.Render
+
+...
+*/
+
+
+
+LSD.Module.Render = new Class({
+  options: {
+    render: null
+  },
+  
+  constructors: {
+    render: function() {
+      this.redraws = 0;
+      this.dirty = true;
+    }
+  },
+  
+  render: function() {
+    if (!this.built) this.build();
+    delete this.halted;
+    this.redraws++;
+    this.fireEvent('render', arguments)
+    this.childNodes.each(function(child){
+      if (child.render) child.render();
+    });
+  },
+  
+  /*
+    Update marks widget as willing to render. That
+    can be followed by a call to *render* to trigger
+    redrawing mechanism. Otherwise, the widget stay 
+    marked and can be rendered together with ascendant 
+    widget.
+  */
+  
+  update: function(recursive) {
+    if (recursive) LSD.Module.DOM.walk(this, function(widget) {
+      widget.update();
+    });
+  },
+  
+  /*
+    Refresh updates and renders widget (or a widget tree 
+    if optional argument is true). It is a reliable way
+    to have all elements redrawn, but a costly too.
+    
+    Should be avoided when possible to let internals 
+    handle the rendering and avoid some unnecessary 
+    calculations.
+  */
+
+  refresh: function(recursive) {
+    this.update(recursive);
+    return this.render();
+  },
+  
+
+  /*
+    Halt marks widget as failed to render.
+    
+    Possible use cases:
+    
+    - Dimensions depend on child widgets that are not
+      rendered yet
+    - Dont let the widget render when it is not in DOM
+  */ 
+  halt: function() {
+    if (this.halted) return false;
+    this.halted = true;
+    return true;
+  }
+});
+
+LSD.Module.Events.addEvents.call(LSD.Module.Render.prototype, {
+  stateChange: function() {
+    if (this.redraws > 0) this.refresh(true);
+  }
+});
+/*
+---
+ 
+script: Container.js
+ 
+description: Makes widget use container - wrapper around content setting
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Module.DOM
+
+provides:
+  - LSD.Module.Container
+ 
+...
+*/
+
+LSD.Module.Container = new Class({
+  options: {
+    container: {
+      enabled: false,
+      position: null,
+      inline: true,
+      attributes: {
+        'class': 'container'
+      }
+    },
+    
+    proxies: {
+      container: {
+        container: function() {
+          return document.id(this.getContainer()) //creates container, once condition is true
+        },
+        condition: function() {         //turned off by default
+          return this.options.container.enabled; 
+        },      
+        priority: -1,                   //lowest priority
+        rewrite: false                  //does not rewrite parent
+      }
+    }
+  },
+  
+  getContainer: Macro.getter('container', function() {
+    var options = this.options.container;
+    if (!options.enabled) return;
+    var tag = options.tag || (options.inline ? 'span' : 'div');
+    return new Element(tag, options.attributes).inject(this.element, options.position);
+  }),
+  
+  getWrapper: function() {
+    return this.getContainer() || this.toElement();
+  }
+});
+/*
+---
+
+script: Proxies.js
+
+description: Dont adopt children, pass them to some other widget
+
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Module.DOM
+
+provides: 
+  - LSD.Module.Proxies
+
+...
+*/
+  
+LSD.Module.Proxies = new Class({
+  constructors: {
+    proxies: function() {
+      this.proxies = [];
+    }
+  },
+  
+  addProxy: function(name, proxy) {
+    for (var i = 0, other; (other = this.proxies[i]) && ((proxy.priority || 0) < (other.priority || 0)); i++);
+    this.proxies.splice(i, 0, proxy);
+  },
+  
+  removeProxy: function(name, proxy) {
+    this.proxies.erase(proxy);
+  },
+  
+  proxyChild: function(child) {
+    for (var i = 0, proxy; proxy = this.proxies[i++];) {
+      if (!proxy.condition.call(this, child)) continue;
+      var self = this;
+      var reinject = function(target) {
+        var where = proxy.where && proxy.where.call ? proxy.where.call(self, child) : proxy.where;
+        if (proxy.rewrite === false) {
+          self.appendChild(child, function() {
+            target.grab(child, where);
+          }, true);
+        } else {
+          child.inject(target, where);
+        }
+      };
+      var container = proxy.container;
+      if (container.call) {
+        if ((container = container.call(this, reinject))) reinject(container);
+      } else {
+        this.use(container, reinject)
+      }
+      return true;
+    }
+  },
+  
+  appendChild: function(widget, adoption, proxy) {
+    var element = widget.element || widget;
+    var parent = element.parentNode;
+    if (proxy !== true && !this.canAppendChild(widget)) {
+      if (element == parent) {
+        if (widget.parentNode) widget.dispose();
+        else if (widget.element.parentNode) widget.element.dispose();
+      }
+      return false;
+    };
+    return LSD.Module.DOM.prototype.appendChild.call(this, widget, adoption);
+  },
+  
+  canAppendChild: function(child) {
+    return !this.proxyChild(child);
+  }
+  
+});
+
+LSD.Options.proxies = {
+  add: 'addProxy',
+  remove: 'removeProxy',
+  iterate: true
+};
+/*
+---
+ 
+script: Element.js
+ 
+description: Attach and detach a widget to/from element
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Module
+  - LSD.Module.Events
+
+provides: 
+  - LSD.Module.Element
+ 
+...
+*/
+
+LSD.Module.Element = new Class({
+  options: {
+    key: 'node',
+    reusable: true,
+    inline: null
+  },
+  
+  constructors: {
+    element: function() {
+      LSD.uid(this);
+    }
+  },
+  
+  /*
+    Attaches widget to a DOM element. If a widget was
+    attached to some other element, it deattaches that first
+  */
+  
+  attach: function(element) {
+    if (element) {
+      if (this.element) {
+        if (this.built && this.element != element) this[this.options.reusable ? 'detach' : 'destroy']();
+      } else this.element = document.id(element);
+    }
+    if (!this.built) this.build();
+    this.fireEvent('register', ['element', this.element]);
+    if (this.options.key) this.element.store(this.options.key, this).fireEvent('attach', this);
+    return this.element;
+  },
+
+  detach: function(element) {
+    this.fireEvent('unregister', ['element', this.element]);
+    if (this.options.key) this.element.eliminate(this.options.key, this).fireEvent('detach', this)
+    delete this.element;
+  },
+  
+  toElement: function(){
+    if (!this.built) this.build(this.origin);
+    return this.element;
+  },
+  
+  build: function(query) {
+    if (query) {
+      if (query.localName) {
+        var element = query; 
+        query = {};
+      }
+    } else query = {};
+    element = query.element = element || this.element;
+    var options = this.options;
+    this.fireEvent('beforeBuild', query);
+    if (this.parentNode) this.parentNode.dispatchEvent('beforeNodeBuild', [query, this]);
+    var build = query.build;
+    delete query.element, delete query.build;
+    var attrs = Object.merge({}, this.attributes, options.element, query.attributes);
+    var tag = query.tag || attrs.tag || this.getElementTag();
+    delete attrs.tag; delete query.tag;
+    if (query.attributes || query.classes || query.pseudos) this.setOptions(query);
+    if (!element || build) {
+      this.element = new Element(tag, attrs);
+    } else var element = this.element = document.id(element).set(attrs);
+    var classes = new FastArray;
+    if (this.tagName != tag) classes.push('lsd', this.tagName);
+    classes.concat(this.classes);
+    if (Object.getLength(classes)) this.element.className = classes.join(' ');
+
+    if (this.style) for (var property in this.style.element) this.element.setStyle(property, this.style.element[property]);
+    return this.element;
+  },
+  
+  getElementTag: function(soft) {
+    var options = this.options, element = options.element;
+    if (element && element.tag) return element.tag;
+    if (!soft) switch (options.inline) {
+      case null:
+        return this.tagName;
+      case true:
+        return "span";
+      case false:
+        return "div"
+      default:
+        return options.inline;
+    }
+  },
+  
+  destroy: function() {
+    this.fireEvent('beforeDestroy');
+    this.element.destroy();
+    return this;
+  },
+  
+  $family: function() {
+    return this.options.key || 'widget';
+  }
+});
+
+/* 
+  Extracts options from a DOM element.
+*/
+LSD.Module.Element.extract = function(element, widget) {
+  var options = {
+    attributes: {},
+    tag: LSD.toLowerCase(element.tagName)
+  }, attrs = options.attributes;
+  for (var i = 0, attribute, name; attribute = element.attributes[i++];) {
+    name = attribute.name;
+    attrs[name] = LSD.Attributes.Boolean[name] || attribute.value || "";
+  }
+  var klass = attrs['class'];
+  if (klass) {
+    options.classes = klass.split(/\s+/).filter(function(name) {
+      switch (name.substr(0, 3)) {
+        case "is-":
+          if (!options.pseudos) options.pseudos = [];
+          options.pseudos.push(name.substr(3, name.length - 3));
+          break;
+        case "id-":
+          i++;
+          options.attributes.id = name.substr(3, name.length - 3);
+          break;
+        default:
+          return true;
+      }
+    })
+    delete attrs['class'];
+    i--;
+  }
+  if (widget) {
+    if (widget.tagName) delete options.tag;
+    for (var name in attrs) if (widget.attributes[name]) {
+      delete attrs[name];
+      i--;
+    }
+  }
+  if (i == 1) delete options.attributes;
+  return options;
+}
+
+LSD.Module.Element.events = {
+  /*
+    A lazy widget will not attach to element until it's built or attached
+  */
+  prepare: function(options, element) {
+    if (options.lazy) this.origin = element;
+    else if (element) this.build(element);
+  },
+  /*
+    If a the widget was built before it was attached, attach it after the build
+  */
+  build: function() {
+    this.attach.apply(this, arguments);
+  },
+  /*
+    Detaches element when it's destroyed
+  */
+  destroy: function() {
+    this.detach.apply(this, arguments);
+  },
+  /*
+    Extracts and sets layout options from attached element
+  */
+  attach: function(element) {
+    if (!this.extracted && this.options.extract !== false) {
+      this.extracted = LSD.Module.Element.extract(element, this);
+      this.setOptions(this.extracted);
+    }
+  },
+  /*
+    Unsets options previously extracted from the detached element
+  */
+  detach: function() {
+    if (!this.extracted) return;
+    this.unsetOptions(this.extracted);
+    delete this.extracted, delete this.origin;
+  },
+  /*
+    Extract options off from widget and makes it rebuild element if it doesnt fit.
+  */
+  beforeBuild: function(query) {
+    if (!query.element) return;
+    if (this.options.extract !== false || this.options.clone) {
+      this.extracted = LSD.Module.Element.extract(query.element, this);
+      this.setOptions(this.extracted);
+      Object.merge(query, this.extracted);
+    }
+    var tag = this.getElementTag(true);
+    if (this.options.clone || (tag && LSD.toLowerCase(query.element.tagName) != tag)) {
+      this.origin = query.element;
+      query.tag = tag;
+      query.build = true;
+    }
+  }
+};
+
+LSD.Options.origin = {
+  add: function(object) {
+    if (object.localName) {
+      if (this.built) this.attach(object);
+      else this.origin = object;
+    }
+  },
+  remove: function(object) {
+    if (object.localName) {
+      if (this.origin == object) {
+        delete this.origin;
+        if (this.attached) this.detach(object);
+      }
+    }
+  }
+};
+
+LSD.Module.Events.addEvents.call(LSD.Module.Element.prototype, LSD.Module.Element.events);
+/*
+---
+ 
+script: Shortcuts.js
+ 
+description: Add command key listeners to the widget
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - Ext/Shortcuts
+  - LSD.Module
+  - LSD.Module.Events
+  
+provides: 
+  - LSD.Module.Shortcuts
+
+...
+*/
+LSD.Module.Shortcuts = new Class({
+  Implements: Shortcuts,
+  
+  addShortcut: function() {
+    LSD.Module.Events.setEventsByRegister.call(this, 'shortcuts', LSD.Module.Shortcuts.events);
+    return Shortcuts.prototype.addShortcut.apply(this, arguments);
+  },
+  
+  removeShortcut: function() {
+    LSD.Module.Events.setEventsByRegister.call(this, 'shortcuts', LSD.Module.Shortcuts.events);
+    return Shortcuts.prototype.removeShortcut.apply(this, arguments);
+  }
+});
+
+LSD.Module.Events.addEvents.call(LSD.Module.Shortcuts.prototype, {
+  focus: 'enableShortcuts',
+  blur: 'disableShortcuts'
+});
+
+LSD.Options.shortcuts = {
+  add: 'addShortcut',
+  remove: 'removeShortcut',
+  //process: 'bindEvents',
+  iterate: true
+};
+/*
+---
+ 
+script: Expectations.js
+ 
+description: A trait that allows to wait for related widgets until they are ready
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Module
+  - LSD.Module.Events
+  - LSD.Module.Attributes
+
+provides: 
+  - LSD.Module.Expectations
+ 
+...
+*/
+
+!function() {
+  
+var Expectations = LSD.Module.Expectations = new Class({
+  
+  constructors: {
+    expectations: function() {
+      if (!this.expectations) this.expectations = {tag: {}}
+    }
+  },
+  
+  getElementsByTagName: function(tag) {
+    return (this.expectations.tag && this.expectations.tag[LSD.toLowerCase(tag)]) || [];
+  },
+  
+  /*
+    Expect processes a single step in a complex selector.
+    
+    Each of those bits (e.g. strong.important) consists 
+    pieces that can not be cnahged in runtime (tagname)
+    and other dynamic parts (classes, pseudos, attributes).
+    
+    The idea is to split the selector bit to static and dynamic
+    parts. The widget that is *expect*ing the selector, groups
+    his expectations by tag name. Every node inserted into
+    that element or its children will pick up expectations
+    related to it, thus matching static part of a selector
+    - tag name and combinator. 
+    
+    It's only a matter of matching a dynamic part then. 
+    - classes, pseudos and attributes.
+  */
+  expect: function(selector, callback, self) {
+    if (selector.indexOf) selector = Slick.parse(selector);
+    if (selector.expressions) selector = selector.expressions[0][0];
+    if (!this.expectations) this.expectations = {};
+    var id = selector.id;
+    var index = self ? 'self' : (selector.combinator == ' ' && id) ? 'id' : selector.combinator || 'self'; 
+    var expectations = this.expectations[index];
+    if (!expectations) expectations = this.expectations[index] = {};
+    if (selector.combinator && !self) {
+      /*
+        Given selector has combinator.
+        Finds related elements and passes expectations to them.
+      */
+      if (!selector.structure) {
+        var separated = separate(selector);
+        selector.structure = { Slick: true, expressions: [[separated.structure]] }
+        if (separated.state) selector.state = separated.state;
+      }
+      var key = (index == 'id') ? id : selector.tag;
+      var group = expectations[key];
+      if (!group) group = expectations[key] = [];
+      group.push([selector, callback]);
+      var state = selector.state;
+      if (this.document && this.document.documentElement) this.getElements(selector.structure).each(function(widget) {
+        if (state) widget.expect(state, callback);
+        else callback(widget, true);
+      });
+    } else {
+      /*
+        Selector without combinator,
+        depends on state of current widget.
+      */
+      for (var types = ['pseudos', 'classes', 'attributes'], type, i = 0; type = types[i++];) {
+        var values = selector[type];
+        if (values) values: for (var j = 0, value; (value = values[j++]) && (value = value.key || value.value);) {
+          var kind = expectations[type];
+          if (!kind) kind = expectations[type] = {};
+          var group = kind[value];
+          if (!group) group = kind[value] = [];
+          for (var k = group.length, expectation; expectation = group[--k];) if (expectation[0] == selector) continue values;
+          group.push([selector, callback]);
+        }
+      }
+      if (this.tagName && this.match(selector)) callback(this, true);
+    }
+  },
+  
+  unexpect: function(selector, callback, self, iterator) {
+    if (selector.indexOf) selector = Slick.parse(selector);
+    if (selector.expressions) selector = selector.expressions[0][0];
+    if (iterator === true) iterator = function(widget) {
+      if (widget.match(selector)) callback(widget, false);
+    };
+    if (selector.combinator && !self) {
+      var id = selector.id;
+      var index = (selector.combinator == ' ' && id) ? 'id' : selector.combinator;
+      remove(this.expectations[index][index == 'id' ? id : selector.tag], callback);
+      if (this.document) this.getElements(selector.structure).each(function(widget) {
+        if (selector.state) widget.unexpect(selector.state, callback);
+        if (iterator) iterator(widget)
+      });
+    } else {
+      if (iterator) iterator(this);
+      for (var types = ['pseudos', 'classes', 'attributes'], type, i = 0; type = types[i++];) {
+        var bits = selector[type], group = this.expectations.self[type];
+        if (bits) for (var j = 0, bit; bit = bits[j++];) remove(group[bit.key || bit.value], callback);
+      }
+    }
+  },
+  
+  watch: function(selector, callback, depth) {
+    if (selector.indexOf) selector = Slick.parse(selector);
+    if (!depth) depth = 0;
+    selector.expressions.each(function(expressions) {
+      var watcher = function(widget, state) {
+        if (expressions[depth + 1]) widget[state ? 'watch' : 'unwatch'](selector, callback, depth + 1)
+        else callback(widget, state)
+      };
+      watcher.callback = callback;
+      this.expect(expressions[depth], watcher);
+    }, this);
+  },
+  
+  unwatch: function(selector, callback, depth) {
+    if (selector.indexOf) selector = Slick.parse(selector);
+    if (!depth) depth = 0;
+    selector.expressions.each(function(expressions) {
+      this.unexpect(expressions[depth], callback, false, function(widget) {
+        if (expressions[depth + 1]) widget.unwatch(selector, callback, depth + 1)
+        else callback(widget, false)
+      });
+    }, this);
+  },
+  
+  use: function() {
+    var selectors = Array.flatten(arguments);
+    var widgets = []
+    var callback = selectors.pop();
+    var unresolved = selectors.length;
+    selectors.each(function(selector, i) {
+      var watcher = function(widget, state) {
+        if (state) {
+          if (!widgets[i]) {
+            widgets[i] = widget;
+            unresolved--;
+            if (!unresolved) callback.apply(this, widgets.concat(state))
+          }
+        } else {
+          if (widgets[i]) {
+            if (!unresolved) callback.apply(this, widgets.concat(state))
+            delete widgets[i];
+            unresolved++;
+          }
+        }
+      }
+      this.watch(selector, watcher)
+    }, this)
+  }
+});
+
+var check = function(type, value, state, target) {
+  var expectations = this.expectations
+  if (!target) {
+    expectations = expectations.self;
+    target = this;
+  }
+  expectations = expectations && expectations[type] && expectations[type][value];
+  if (expectations) for (var i = 0, expectation; expectation = expectations[i++];) {
+    var selector = expectation[0];
+    if (selector.structure && selector.state) {
+      if (target.match(selector.structure)) {
+        if (!state) {
+          if (target.match(selector.state)) {
+            target.unexpect(selector.state, expectation[1]);
+            expectation[1](target, !!state)
+          }
+        } else target.expect(selector.state, expectation[1])
+      }
+    } else if (target.match(selector)) expectation[1](target, !!state)
+  }
+}
+
+var notify = function(type, tag, state, widget, single) {
+  check.call(this, type, tag, state, widget);
+  if (!single) check.call(this, type, '*', state, widget);
+}
+
+var update = function(widget, tag, state, single) {
+  notify.call(this, ' ', tag, state, widget, single);
+  var options = widget.options, id = widget.id;
+  if (id) check.call(this, 'id', id, state, widget);
+  if (this.previousSibling) {
+    notify.call(this.previousSibling, '!+', widget.tagName, state, widget, single);
+    notify.call(this.previousSibling, '++', widget.tagName, state, widget, single);
+    for (var sibling = this; sibling = sibling.previousSibling;) {
+      notify.call(sibling, '!~', tag, state, widget, single);
+      notify.call(sibling, '~~', tag, state, widget, single);
+    }
+  }
+  if (this.nextSibling) {
+    notify.call(this.nextSibling, '+',  tag, state, widget, single);
+    notify.call(this.nextSibling, '++', tag, state, widget, single);
+    for (var sibling = this; sibling = sibling.nextSibling;) {
+      notify.call(sibling, '~',  tag, state, widget, single);
+      notify.call(sibling, '~~', tag, state, widget, single);
+    }
+  }
+  if (widget.parentNode == this) notify.call(this, '>', widget.tagName, state, widget, single);
+}
+
+var remove = function(array, callback) {
+  if (array) for (var i = array.length; i--;) {
+    var fn = array[i][1]; 
+    if (fn == callback || fn.callback == callback) {
+      array.splice(i, 1);
+      break;
+    }
+  }
+}
+
+var separate = function(selector) {
+  if (selector.state || selector.structure) return selector
+  var separated = {};
+  for (var criteria in selector) {
+    switch (criteria) {
+      case 'tag': case 'combinator': case 'id':
+        var type = 'structure';
+        break;
+      default:
+        var type = 'state';
+    }
+    var group = separated[type];
+    if (!group) group = separated[type] = {};
+    group[criteria] = selector[criteria]
+  };
+  return separated;
+};
+
+Expectations.events = {
+  nodeInserted: function(widget) {
+    var expectations = this.expectations, type = expectations.tag, tag = widget.tagName;
+    if (!type) type = expectations.tag = {};
+    var group = type[tag];
+    if (!group) group = type[tag] = [];
+    group.push(widget);
+    group = type['*'];
+    if (!group) group = type['*'] = [];
+    group.push(widget);
+    update.call(this, widget, tag, true);
+  },
+  nodeRemoved: function(widget) {
+    var expectations = this.expectations, type = expectations.tag, tag = widget.tagName;
+    if (tag) type[tag].erase(widget);
+    type['*'].erase(widget);
+    update.call(this, widget, tag, false);
+  },
+  nodeTagChanged: function(widget, tag, old) {
+    var expectations = this.expectations, type = expectations.tag;
+    var index = type[old].indexOf(widget);
+    if (index == -1) return;
+    type[old].splice(index, 1);
+    update.call(this, widget, old, false);
+    if (!tag) return;
+    var group = type[tag];
+    if (!group) group = type[tag] = [];
+    group.push(widget);
+    update.call(this, widget, tag, true);
+  },
+  relate: function(widget, tag) {
+    var expectations = widget.expectations, type = expectations['!::'];
+    if (!type) type = expectations['!::'] = {};
+    var group = type[tag];
+    if (!group) group = type[tag] = [];
+    group.push(this);
+    notify.call(this, '::', tag, true, widget);
+  },
+  unrelate: function(widget, tag) {
+    notify.call(this, '::', tag, false, widget);
+    widget.expectations['!::'][tag].erase(this);
+  },
+  setParent: function(parent) {
+    notify.call(this, '!>', parent.tagName, true, parent);
+    for (; parent; parent = parent.parentNode) notify.call(this, '!', parent.tagName, true, parent);
+  },
+  unsetParent: function(parent) {
+    notify.call(this, '!>', parent.tagName, false, parent);
+    for (; parent; parent = parent.parentNode) notify.call(this, '!', parent.tagName, false, parent);
+  },
+  selectorChange: check,
+  tagChanged: function(tag, old) {
+    check.call(this, 'tag', old, false);
+    if (tag) check.call(this, 'tag', tag, true);
+    if (old && this.parentNode && !this.removed) this.parentNode.dispatchEvent('nodeTagChanged', [this, tag, old]);
+  }
+};
+
+LSD.Module.Events.addEvents.call(Expectations.prototype, Expectations.events);
+
+LSD.Module.Events.Targets.expected = function() {
+  var self = this, Targets = LSD.Module.Events.Targets;
+  return {
+    addEvent: function(key, value) {
+      if (!self.watchers) self.watchers = {};
+      self.watchers[key] = function(widget, state) {
+        value = Object.append({}, value)
+        for (var name in value) {
+          if (typeof value[name] == 'object') continue;
+          widget.addEvent(name, value[name]);
+          delete value[name];
+        }
+        for (var name in value) {
+          target = (Targets[name] || Targets.expected).call(widget);
+          target[state ? 'addEvents' : 'removeEvents'](value);
+          break;
+        }
+      };
+      self.watch(key, self.watchers[key]);
+    },
+    removeEvent: function(key, event) {
+      self.unwatch(key, self.watchers[key]);
+    }
+  }
+};
+
+LSD.Options.expects = {
+  add: function(selector, callback) {
+    this.expect(selector, callback, true);
+  },
+  remove: function(callback) {
+    this.unexpect(selector, callback, true);
+  },
+  iterate: true,
+  process: 'bindEvents'
+};
+
+LSD.Options.watches = Object.append({}, LSD.Options.expects, {
+  add: function(selector, callback) {
+    this.watch(selector, callback);
+  },
+  remove: function(callback) {
+    this.watch(selector, callback);
+  }
+});
+
+}();
+/*
+---
+ 
+script: Mutations.js
+ 
+description: Mutate elements into structures in one pass
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Module.Expectations
+
+provides: 
+  - LSD.Module.Mutations
+ 
+...
+*/
+
+LSD.Module.Mutations = new Class({
+  constructors: {
+    mutations: function() {
+      this.mutations = {};
+    }
+  },
+  
+  mutate: function(selector, callback, object) {
+    if (selector.indexOf) selector = Slick.parse(selector);
+    if (selector.expressions) selector = selector.expressions[0][0];
+    if (!object) object = this.mutations;
+    if (!object) object = this.mutations = {};
+    var mutations = this.mutations[selector.combinator];
+    if (!mutations) mutations = this.mutations[selector.combinator] = {};
+    var group = mutations[selector.tag];
+    if (!group) group = mutations[selector.tag] = [];
+    group.push([selector, callback]);
+  },
+  
+  unmutate: function(selector, callback, iterator) {
+    if (selector.indexOf) selector = Slick.parse(selector);
+    if (selector.expressions) selector = selector.expressions[0][0];
+    if (iterator === true) iterator = function(widget) {
+      if (widget.match(selector)) callback(widget, false);
+    };
+    var group = this.mutations[selector.combinator][selector.tag];
+    for (var i = group.length; i--;) {
+      var fn = group[i][1]; 
+      if (fn == callback || fn.callback == callback) {
+        group.splice(i, 1);
+        break;
+      }
+    };
+    group.push([selector, callback]);
+  },
+  
+  addMutation: function(selector, callback) {
+    if (selector.indexOf) selector = Slick.parse(selector);
+    if (this.document && !this.document.building) Slick.search(this.element, selector).each(function(node) {
+      var parent = LSD.Module.DOM.find(node);
+      var mutated = new LSD.Widget(node, callback.indexOf ? LSD.Layout.parse(callback) : callback);
+      if (parent) parent.appendChild(mutated, false)
+      mutated.setDocument(this.document);
+    }, this);
+    selector.expressions.each(function(expressions) {
+      var expression = expressions[1];
+      if (expression) {
+        var watcher = function(widget, state, depth) {
+          if (!depth) depth = 0;
+          var expression = expressions[depth + 1];
+          if (expression) {
+            var obj = {};
+            obj[expression.tag] = [[expression, function() {
+              return expressions[depth + 2] ? watcher(selector, callback, depth + 1) : callback;
+            }]];
+            return [expression.combinator, obj]
+          } else return callback;
+          watcher.callback = callback;
+        };
+      }
+      this.mutate(expressions[0], watcher || callback);
+    }, this);
+  },
+  
+  removeMutation: function(selector, callback, depth) {
+    if (selector.indexOf) selector = Slick.parse(selector);
+    if (!depth) depth = 0;
+    selector.expressions.each(function(expressions) {
+      this.unmutate(expressions[depth], callback, function(widget) {
+        if (expressions[depth + 1]) widget.unwatch(selector, callback, depth + 1)
+        else callback(widget, false)
+      });
+    }, this);
+  }
+})
+
+LSD.Options.mutations = {
+  add: 'addMutation',
+  remove: 'removeMutation',
+  iterate: true
+};
+/*
+---
+ 
+script: Command.js
+ 
+description: A command getter that watches attributes to redefine command
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires: 
+  - LSD.Module.Expectations
+  - LSD.Command
+  
+provides: 
+  - LSD.Mixin.Command
+ 
+...
+*/
+
+/*
+  Usually a widget that does something interactive defines command
+  automatically. 
+  
+  The default type is 'command', but there are possible values of 
+  'radio' and 'checkbox'.
+  
+  Type type can be changed via *options.command.type* 
+  (equals to 'command-type' attribute).
+  
+  You can specify a command id in *command* attribute
+  to link a widget to already initialized command.
+*/
+
+LSD.Mixin.Command = new Class({
+  options: {
+    chain: {
+      commandaction: function() {
+        var action = this.getCommandAction.apply(this, arguments);
+        if (action) return {action: action, priority: 10}
+      }
+    },
+    events: {
+      _command: {
+        'setDocument': 'getCommand'
+      }
+    }
+  },
+  
+  getCommand: function() {
+    if (this.command) return this.command;
+    var options = Object.append(this.getCommandOptions(), this.options.command || {});
+    this.command = new LSD.Command(this.document, options).attach(this);
+    return this.command;
+  },
+  
+  click: function() {
+    if (this.disabled) return false;
+    this.fireEvent('click');
+    this.getCommand().click();
+    this.callChain();
+  },
+  
+  setCommandType: function(type) {
+    this.getCommand().setType(type);
+    this.commandType = type;
+  },
+  
+  unsetCommandType: function(type) {
+    this.getCommand().unsetType(type);
+    delete this.commandType
+  },
+  
+  getCommandType: function() {
+    return this.commandType || (this.pseudos.checkbox && 'checkbox') || (this.pseudos.radio && 'radio') || 'command';
+  },
+  
+  getCommandAction: function() {
+    return this.attributes.commandaction || this.options.commandAction || this.captureEvent('getCommandAction', arguments);
+  },
+  
+  getCommandOptions: function() {
+    return {id: this.lsd, name: this.attributes.name, radiogroup: this.getCommandRadioGroup(), type: this.getCommandType()};
+  },
+  
+  getCommandRadioGroup: function() {
+    return this.attributes.radiogroup || this.attributes.name || this.options.radiogroup || this.captureEvent('getCommandRadioGroup');
+  }
+  
+});
+
+LSD.Options.commandType = {
+  add: 'setCommandType',
+  remove: 'unsetCommandType'
+};
+
+LSD.Behavior.define(':command, :radio, :checkbox, [accesskey]', LSD.Mixin.Command);
+/*
+---
+ 
+script: Element.js
+ 
+description: Turns generic widget into specific by mixing in the tag class
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Module
+  - LSD.Module.Options
+  - LSD.Module.Events
+
+provides: 
+  - LSD.Module.Tag
+ 
+...
+*/
+
+LSD.Module.Tag = new Class({
+  options: {
+    context: 'element',
+    namespace: 'LSD'
+  },
+  
+  constructors: {
+    tag: function(options) {
+      if (options.context) this.setContext(options.context)
+      this.nodeType = options.nodeType;
+    }
+  },
+  
+  getSource: function(raw) {
+    var source = this.options.source;
+    if (source) return source;
+    source = LSD.Layout.getSource(this.attributes, this.tagName);
+    return raw || !source.join ? source : source.join('-');
+  },
+  
+  setSource: function(source) {
+    if (!source) source = this.getSource(true);
+    if (this.source != source) {
+      if (source.length) {
+        var role = this.context.find(source);
+        if (role && role != this.role) {
+          var kind = this.attributes.kind
+          if (kind) role = role[LSD.toClassName(kind)] || role;
+          if (this.role) this.unmix(this.role);
+          this.role = role;
+          this.mixin(role);
+          if ((this.sourced = this.captureEvent('setRole', role))) this.setOptions(this.sourced);
+        }
+      }
+      this.source = source && source.length ? (source.join ? source.join('-') : source) : false; 
+    }
+    return this;
+  },
+  
+  unsetSource: function(source) {
+    if (source != this.source) return;
+    if (this.role) this.unmix(this.role);
+    if (this.sourced) this.unsetOptions(this.sourced);
+    delete this.source;
+    delete this.role;
+    return this;
+  },
+  
+  setContext: function(name) {
+    name = LSD.toClassName(name);
+    if (this.context && this.context.name == name) return;
+    if (this.source) {
+      var source = this.source;
+      this.unsetSource();
+    }
+    this.context = window[this.options.namespace][LSD.toClassName(name)];
+    if (source) this.setSource(source);
+    return this;
+  },
+  
+  setTag: function(tag) {
+    var old = this.tagName;
+    if (old) {
+      if (old == tag) return;
+      this.unsetTag(old, true);
+    }
+    this.nodeName = this.tagName = tag;
+    this.fireEvent('tagChanged', [this.tagName, old]);
+  },
+  
+  unsetTag: function(tag, light) {
+    if (tag ? !this.tagName : this.tagName != tag) return;
+    delete this.tagName;
+    if (!light) this.fireEvent('tagChanged', [null, this.tagName]);
+    this.unsetSource();
+    delete this.nodeName;
+  },
+
+  mixin: function(mixin, light) {
+    if (typeof mixin == 'string') mixin = LSD.Mixin[LSD.capitalize(mixin)];
+    Class.mixin(this, mixin, light);
+    this.setOptions(this.construct(mixin.prototype));
+    return this;
+  },
+
+  unmix: function(mixin, light) {
+    if (typeof mixin == 'string') mixin = LSD.Mixin[LSD.capitalize(mixin)];
+    this.unsetOptions(this.destruct(mixin.prototype));
+    Class.unmix(this, mixin, light);
+    return this;
+  }
+  
+});
+
+LSD.Module.Events.addEvents.call(LSD.Module.Tag.prototype, {
+  tagChanged: function(tag) {
+    if (tag) this.setSource();
+    else this.unsetSource();
+  },
+  initialize: function() {
+    this.setSource();
+  },
+  beforeBuild: function() {
+    if (this.source == null) this.setSource();
+  }
+});
+
+Object.append(LSD.Options, {
+  tag: {
+    add: 'setTag',
+    remove: 'unsetTag'
+  },
+  
+  context: {
+    add: 'setContext',
+    remove: 'unsetContext'
+  },
+  
+  source: {
+    add: 'setSource',
+    remove: 'unsetSource'
+  }
+});
+/*
+---
+
+script: URI.js
+
+name: URI
+
+description: Provides methods useful in managing the window location and uris.
+
+license: MIT-style license
+
+authors:
+  - Sebastian Markbåge
+  - Aaron Newton
+
+requires:
+  - Core/Object
+  - Core/Class
+  - Core/Class.Extras
+  - Core/Element
+  - /String.QueryString
+
+provides: [URI]
+
+...
+*/
+
+(function(){
+
+var toString = function(){
+	return this.get('value');
+};
+
+var URI = this.URI = new Class({
+
+	Implements: Options,
+
+	options: {
+		/*base: false*/
+	},
+
+	regex: /^(?:(\w+):)?(?:\/\/(?:(?:([^:@\/]*):?([^:@\/]*))?@)?([^:\/?#]*)(?::(\d*))?)?(\.\.?$|(?:[^?#\/]*\/)*)([^?#]*)(?:\?([^#]*))?(?:#(.*))?/,
+	parts: ['scheme', 'user', 'password', 'host', 'port', 'directory', 'file', 'query', 'fragment'],
+	schemes: {http: 80, https: 443, ftp: 21, rtsp: 554, mms: 1755, file: 0},
+
+	initialize: function(uri, options){
+		this.setOptions(options);
+		var base = this.options.base || URI.base;
+		if (!uri) uri = base;
+
+		if (uri && uri.parsed) this.parsed = Object.clone(uri.parsed);
+		else this.set('value', uri.href || uri.toString(), base ? new URI(base) : false);
+	},
+
+	parse: function(value, base){
+		var bits = value.match(this.regex);
+		if (!bits) return false;
+		bits.shift();
+		return this.merge(bits.associate(this.parts), base);
+	},
+
+	merge: function(bits, base){
+		if ((!bits || !bits.scheme) && (!base || !base.scheme)) return false;
+		if (base){
+			this.parts.every(function(part){
+				if (bits[part]) return false;
+				bits[part] = base[part] || '';
+				return true;
+			});
+		}
+		bits.port = bits.port || this.schemes[bits.scheme.toLowerCase()];
+		bits.directory = bits.directory ? this.parseDirectory(bits.directory, base ? base.directory : '') : '/';
+		return bits;
+	},
+
+	parseDirectory: function(directory, baseDirectory){
+		directory = (directory.substr(0, 1) == '/' ? '' : (baseDirectory || '/')) + directory;
+		if (!directory.test(URI.regs.directoryDot)) return directory;
+		var result = [];
+		directory.replace(URI.regs.endSlash, '').split('/').each(function(dir){
+			if (dir == '..' && result.length > 0) result.pop();
+			else if (dir != '.') result.push(dir);
+		});
+		return result.join('/') + '/';
+	},
+
+	combine: function(bits){
+		return bits.value || bits.scheme + '://' +
+			(bits.user ? bits.user + (bits.password ? ':' + bits.password : '') + '@' : '') +
+			(bits.host || '') + (bits.port && bits.port != this.schemes[bits.scheme] ? ':' + bits.port : '') +
+			(bits.directory || '/') + (bits.file || '') +
+			(bits.query ? '?' + bits.query : '') +
+			(bits.fragment ? '#' + bits.fragment : '');
+	},
+
+	set: function(part, value, base){
+		if (part == 'value'){
+			var scheme = value.match(URI.regs.scheme);
+			if (scheme) scheme = scheme[1];
+			if (scheme && this.schemes[scheme.toLowerCase()] == null) this.parsed = { scheme: scheme, value: value };
+			else this.parsed = this.parse(value, (base || this).parsed) || (scheme ? { scheme: scheme, value: value } : { value: value });
+		} else if (part == 'data'){
+			this.setData(value);
+		} else {
+			this.parsed[part] = value;
+		}
+		return this;
+	},
+
+	get: function(part, base){
+		switch (part){
+			case 'value': return this.combine(this.parsed, base ? base.parsed : false);
+			case 'data' : return this.getData();
+		}
+		return this.parsed[part] || '';
+	},
+
+	go: function(){
+		document.location.href = this.toString();
+	},
+
+	toURI: function(){
+		return this;
+	},
+
+	getData: function(key, part){
+		var qs = this.get(part || 'query');
+		if (!(qs || qs === 0)) return key ? null : {};
+		var obj = qs.parseQueryString();
+		return key ? obj[key] : obj;
+	},
+
+	setData: function(values, merge, part){
+		if (typeof values == 'string'){
+			var data = this.getData();
+			data[arguments[0]] = arguments[1];
+			values = data;
+		} else if (merge){
+			values = Object.merge(this.getData(), values);
+		}
+		return this.set(part || 'query', Object.toQueryString(values));
+	},
+
+	clearData: function(part){
+		return this.set(part || 'query', '');
+	},
+
+	toString: toString,
+	valueOf: toString
+
+});
+
+URI.regs = {
+	endSlash: /\/$/,
+	scheme: /^(\w+):/,
+	directoryDot: /\.\/|\.$/
+};
+
+URI.base = new URI(Array.from(document.getElements('base[href]', true)).getLast(), {base: document.location});
+
+String.implement({
+
+	toURI: function(options){
+		return new URI(this, options);
+	}
+
+});
+
+})();
+
 /*
 ---
  
@@ -17331,7 +17870,6 @@ provides:
 */
 
 Request.Auto = new Class({
-  
 	Extends: Request,
 	
 	options: {
@@ -17499,7 +18037,7 @@ Resource = new Class({
   },
 
   getRequest: function() {
-    return new Request.Auto(this.options.request)
+    return this.options.getRequest ? this.options.getRequest.call(this, this.options.request) : new Request.Auto(this.options.request)
   },
   
   create: function(a, b) { //Ruby-style Model#create backward compat
@@ -17517,8 +18055,9 @@ Resource = new Class({
   
   request: function(options, callback, model) {
     if (options.route) options.url = this.getFormattedURL(options.route, options);
-    if (options.data && options.data.call) options.data = options.data.call(model)
-    
+    if (options.data && options.data.call) options.data = options.data.call(model);
+    if (options.attributes) 
+      options.data = options.data ? Object.merge(options.data, model.getData()) : model.getData();
     var req = this.getRequest();
     ['success', 'failure', 'request', 'complete'].each(function(e) {
       var cc = 'on' + e.capitalize()
@@ -17539,7 +18078,6 @@ Resource = new Class({
             }
           }
         }
-
         if (options[cc]) options[cc](data);
         if (e == 'success') this.callChain(data);
         model.fireEvent(e, data);
@@ -17588,7 +18126,7 @@ Resource = new Class({
   
   getURL: function(route, thing) {
     var prefix = thing.prefix || (this.options.prefix && this.options.prefix.call ? this.options.prefix(thing) : this.options.prefix);
-    var route = (this.options.urls[route] || route);
+    var route = (this.options.urls[route] || (this.options.urls.show + '/' + route));
     if (route.charAt(0) == '/' && prefix.charAt(prefix.length - 1) == '/') prefix = prefix.substring(0, prefix.length - 1);
     return Resource.interpolate(prefix + route, thing, this.options)
   },
@@ -17598,7 +18136,7 @@ Resource = new Class({
   },
    
   getFormattedURL: function(route, thing) {
-    return this.format(this.getURL(route, thing))
+    return this.format(this.getURL(route, thing || {}))
   },
   
   format: function(string) {
@@ -17832,7 +18370,7 @@ provides:
 Resource.Model.Actions = {
   save: function() {
     if (!this._new_record) return Resource.Model.Actions.update.call(this)
-    return {method: 'post', route: 'list', data: this.getData, onComplete: this.set.bind(this), onFailure: this.onFailure.bind(this)}
+    return {method: 'post', route: 'list', attributes: true, onComplete: this.set.bind(this), onFailure: this.onFailure.bind(this)}
   },
   
   destroy: function() {
@@ -17840,7 +18378,7 @@ Resource.Model.Actions = {
   },
   
   update: function() {
-    return {method: 'put', data: this.getPrefixedClean, route: 'show'}
+    return {method: 'put', attributes: true, route: 'show'}
   },
   
   reload: function() {
@@ -17849,7 +18387,7 @@ Resource.Model.Actions = {
   },
   
   'new': function() {
-    return {method: 'get', route: 'new', data: this.getPrefixedClean}
+    return {method: 'get', route: 'new', attributes: true}
   }
 };
 
@@ -17860,8 +18398,20 @@ Resource.Model.extend({
     if (!options.action) options.action = Resource.Model.Actions[name];
     return function() {
       var args = Array.prototype.slice.call(arguments, 0);
-      if (args.getLast()) var callback = args.pop();
+      if (typeof args[args.length - 1] == 'function') var callback = args.pop();
       Object.append(options, options.action.apply(this, args));
+      if (options.arguments !== false) {
+        for (var i = 0, arg, j = args.length; i < j; i++) {
+          if ((arg = args[i])) {
+            if (arg.parseQueryString) {
+              if (!options.data) options.data = {};
+              Object.append(options.data, arg.parseQueryString())
+            } else {
+              this.set(arg);
+            }
+          }
+        }
+      }
       this.fireEvent('before' + name.capitalize());
       var req = this.request(options, callback);
       return req.chain(function(data) {
@@ -17880,11 +18430,10 @@ Resource.Model.extend({
     }
     if (!this.options.urls[name]) this.options.urls[name] = '/:plural/:id/' + name
     return Resource.Model.createAction(name, Object.append({
-      action: function (data) {
-        return {
-          onComplete: method == 'put' ? this.set.bind(this) : $lambda,
-          data: data
-        }
+      action: function () {
+        var options = {}
+        if (method == 'put') options.onComplete = this.set.bind(this);
+        return options;
       },
       route: name, 
       method: method
@@ -18045,7 +18594,7 @@ provides:
 Resource.Parser.HTML = new Class({
   Extends: Resource.Parser,
   
-  parse: function(c, c, html) {
+  parse: function(a, b, html) {
     return html;
   }
 });
@@ -18080,6 +18629,87 @@ Resource.Parser.XML = new Class({
     return obj
   }
 });
+/*
+---
+ 
+script: Resource.js
+ 
+description: Make various requests to back end
+ 
+license: Public domain (http://unlicense.org).
+ 
+requires:
+  - LSD.Mixin
+  - Resource/*
+  - More/URI
+  
+provides: 
+  - LSD.Mixin.Resource
+ 
+...
+*/
+
+LSD.Mixin.Resource = new Class({
+  options: {
+    resource: {
+      prefix: null,
+      name: null
+    },
+    request: {
+      type: 'xhr'
+    }
+  },
+  
+  getResource: function(options) {
+    if (!options) options = this.options.resource
+    if (!this.resource) {
+      var name = options.name;
+      var prefix = options.prefix;
+      if (!name || !prefix) {
+        var uri = this.attributes.itemtype.split(/\s+/).getLast();
+        if (uri) {
+          if (uri.toURI) uri = uri.toURI();
+          prefix = uri.get('directory');
+          name = uri.get('file');
+          /*
+            Parses the last URL bit that can be singularized 
+          */
+          while (!name || !(name = name.singularize())) {
+            var dirs = prefix.split('/');
+            name = dirs.pop();
+            prefix = dirs.join('/')
+          }
+        }
+      }
+      var options = Object.clone(this.options.resource);
+      if (prefix) options.prefix = prefix;
+      options.getRequest = this.bindEvent('getRequest');
+      this.resource = new Resource(name, options);
+      if (!this.getRequest) this.setAttribute('href', this.resource.getFormattedURL('plural'));
+    }
+    return this.resource;
+  },
+  
+  getResourceID: function() {
+    return this.attributes.itemid;
+  },
+  
+  getModel: function() {
+    return this.getResource().init(this.getResourceID() || this.element);
+  },
+  
+  submit: function() {
+    var model = this.getModel();
+    return model.save.apply(model, arguments);
+  },
+  
+  'delete': function() {
+    this.dispose()
+    return this.getModel().destroy();
+  }
+});
+
+LSD.Behavior.define(':resource, [itemscope]', LSD.Mixin.Resource);
 /*
 ---
 
@@ -18144,7 +18774,7 @@ provides:
     
     getOptions: function(options) {
       options = Object.merge({}, this.options, options)
-      var data = this.getData(options.data);
+      var data = this.getData(options.data, options);
       if (this.options.emulation && !['get', 'post'].contains(options.method)) {
         if (!data) data = {};
         data._method = options.method
@@ -18211,65 +18841,65 @@ provides:
 */
 
 LSD.Mixin.Request = new Class({
-  behaviour: '[action], [src], [href]',
-  
   options: {
     request: {
       method: 'get'
     },
-    states: {
-      working: {
-        enabler: 'busy',
-        disabler: 'idle'
-      }
-    },
-    actions: {
-      request: {
-        enable: function() {
-          if (this.attributes.autosend) this.send();
-        },
-        disable: function() {
-          
-        }
-      }
-    },
+    states: Array.fast('working'),
     events: {
       self: {
+        submit: function() {
+          return this.send.apply(this, arguments);
+        },
+        
+        cancel: function() {
+          return this.stop()
+        },
+        
         getCommandAction: function() {
-          if (!this.isRequestURLLocal()) return 'send';
+          if (!this.isRequestURLLocal()) return 'submit';
         },
 
         getTargetAction: function() {
-          if (this.getCommandAction() == 'send') return 'update';
+          if (this.getCommandAction() == 'submit') return 'update';
         }
+      },
+      request: {
+        request: 'busy',
+        complete: 'idle'
       }
     }
   },
   
   send: function() {
-    var options = Object.merge({}, this.options.request, {data: this.getRequestData(), url: this.getRequestURL(), method: this.getRequestMethod()});
+    var data = this.getRequestData && this.getRequestData() || null;
+    var options = Object.merge({}, this.options.request, {data: data, url: this.getRequestURL(), method: this.getRequestMethod()});
     for (var i = 0, j = arguments.length, arg, opts; i < j; i++) {
       var arg = arguments[i];
       if (!arg) continue;
-      if (typeof arg == 'object' && !arg.event) {
+      if (typeof arg == 'object' && !arg.event && !arg.indexOf) {
         if (("url" in arg) || ("method" in arg) || ("data" in arg)) Object.merge(options, arg)
         else options.data = Object.merge(options.data || {}, arg);
       } else if (arg.call) var callback = arg;
     }
     var request = this.getRequest(options);
-    if (callback) request.addEvent('complete:once', callback);
+    request.addEvent('complete:once', function() {
+      if (callback) callback();
+      if (request.isSuccess() && this.getCommandAction && this.getCommandAction() == 'submit')
+        if (this.chainPhase == -1 || (this.chainPhase == this.getActionChain().length - 1))  
+          this.eachLink('optional', arguments, true);
+    }.bind(this));
     return request.send(options);
   },
   
-  getRequest: function(options) {
-    var type = this.getRequestType();
-    if (!this.request || this.request.type != type) {
-      if (!this.request) this.addEvent('request', {
-        request: 'onRequest',
-        complete: 'onRequestComplete',
-        success: 'onRequestSuccess',
-        failure: 'onRequestFailure'
-      });
+  stop: function() {
+    if (this.request) this.request.cancel();
+    return this;
+  },
+  
+  getRequest: function(options, fresh) {
+    var type = (options && options.type) || this.getRequestType();
+    if (fresh || !this.request || this.request.type != type) {
       this.request = this[type == 'xhr' ? 'getXHRRequest' : 'getFormRequest'](options);
       if (!this.request.type) {
         this.request.type = type;
@@ -18278,22 +18908,6 @@ LSD.Mixin.Request = new Class({
     }
     return this.request;
   },
-  
-  onRequestSuccess: function() {
-    if (this.chainPhase == -1 && this.getCommandAction() == 'send') this.callOptionalChain.apply(this, arguments);
-  },
-  
-  onRequest: function() {
-    this.busy();
-  },
-  
-  onRequestComplete: function() {
-    this.idle();
-  },
-  
-  getRequestData: Macro.defaults(function() {
-    return null;
-  }),
   
   getXHRRequest: function(options) {
     return new Request.Auto(options);
@@ -18319,653 +18933,917 @@ LSD.Mixin.Request = new Class({
     if (!host) host = location.host;
     if (!base) base = location.pathname;
     var url = this.getRequestURL();
-    return (url.charAt(0) == "#") || url.match(new RegExp('(?:' + host + ')?' + base + '/?#'));
+    return !url || (url.charAt(0) == "#") || url.match(new RegExp('(?:' + host + ')?' + base + '/?#'));
   }
 });
+
+LSD.Behavior.define(':form[action], [src], [href]', LSD.Mixin.Request);
 /*
 ---
- 
-script: Form.js
- 
-description: Act as a form to submit data
- 
-license: Public domain (http://unlicense.org).
- 
-requires:
-  - LSD.Trait
-  - LSD.Mixin.Request
- 
-provides: 
-  - LSD.Trait.Form
- 
+name : sg-regex-tools
+description : A few super-handy tools for messing around with RegExp
+
+authors   : Thomas Aylott
+copyright : © 2010 Thomas Aylott
+license   : MIT
+
+provides : [combineRegExp]
 ...
 */
+;(function(exports){
 
-LSD.Trait.Form = new Class({
-  
-  options: {
-    pseudos: Array.fast('submittable')
-  },
-  
-  initialize: function() {
-    this.addEvents({
-      nodeInserted: function(node) {
-        if (!node.form && (node.pseudos['read-write'] || node.pseudos['form-associated'])) node.form = this;
-      }
-    });
-    this.parent.apply(this, arguments);
-  },
-  
-  submit: function(event) {
-    this.fireEvent('submit', arguments);
-    if (event && event.type == 'submit') {
-      event.preventDefault();
-      return this.callChain();
-    } else return this.send.apply(this, arguments);
-  },
-  
-  getRequestURL: function() {
-    return this.attributes.action || location.pathname;
-  }
-}); 
-/*
----
-
-script: URI.js
-
-name: URI
-
-description: Provides methods useful in managing the window location and uris.
-
-license: MIT-style license
-
-authors:
-  - Sebastian Markbåge
-  - Aaron Newton
-
-requires:
-  - Core/Object
-  - Core/Class
-  - Core/Class.Extras
-  - Core/Element
-  - /String.QueryString
-
-provides: [URI]
-
-...
-*/
-
-(function(){
-
-var toString = function(){
-	return this.get('value');
-};
-
-var URI = this.URI = new Class({
-
-	Implements: Options,
-
-	options: {
-		/*base: false*/
-	},
-
-	regex: /^(?:(\w+):)?(?:\/\/(?:(?:([^:@\/]*):?([^:@\/]*))?@)?([^:\/?#]*)(?::(\d*))?)?(\.\.?$|(?:[^?#\/]*\/)*)([^?#]*)(?:\?([^#]*))?(?:#(.*))?/,
-	parts: ['scheme', 'user', 'password', 'host', 'port', 'directory', 'file', 'query', 'fragment'],
-	schemes: {http: 80, https: 443, ftp: 21, rtsp: 554, mms: 1755, file: 0},
-
-	initialize: function(uri, options){
-		this.setOptions(options);
-		var base = this.options.base || URI.base;
-		if (!uri) uri = base;
-
-		if (uri && uri.parsed) this.parsed = Object.clone(uri.parsed);
-		else this.set('value', uri.href || uri.toString(), base ? new URI(base) : false);
-	},
-
-	parse: function(value, base){
-		var bits = value.match(this.regex);
-		if (!bits) return false;
-		bits.shift();
-		return this.merge(bits.associate(this.parts), base);
-	},
-
-	merge: function(bits, base){
-		if ((!bits || !bits.scheme) && (!base || !base.scheme)) return false;
-		if (base){
-			this.parts.every(function(part){
-				if (bits[part]) return false;
-				bits[part] = base[part] || '';
-				return true;
-			});
+exports.combineRegExp = function(regex, group){
+	if (regex.source) regex = [regex]
+	
+	var names = [], i, source = '', this_source
+	
+	for (i = 0; i < regex.length; ++i){ if (!regex[i]) continue
+		this_source = regex[i].source || ''+regex[i]
+		if (this_source == '|') source += '|'
+		else {
+			source += (group?'(':'') + this_source.replace(/\s/g,'') + (group?')':'')
+			if (group) names.push(group)
 		}
-		bits.port = bits.port || this.schemes[bits.scheme.toLowerCase()];
-		bits.directory = bits.directory ? this.parseDirectory(bits.directory, base ? base.directory : '') : '/';
-		return bits;
-	},
-
-	parseDirectory: function(directory, baseDirectory){
-		directory = (directory.substr(0, 1) == '/' ? '' : (baseDirectory || '/')) + directory;
-		if (!directory.test(URI.regs.directoryDot)) return directory;
-		var result = [];
-		directory.replace(URI.regs.endSlash, '').split('/').each(function(dir){
-			if (dir == '..' && result.length > 0) result.pop();
-			else if (dir != '.') result.push(dir);
-		});
-		return result.join('/') + '/';
-	},
-
-	combine: function(bits){
-		return bits.value || bits.scheme + '://' +
-			(bits.user ? bits.user + (bits.password ? ':' + bits.password : '') + '@' : '') +
-			(bits.host || '') + (bits.port && bits.port != this.schemes[bits.scheme] ? ':' + bits.port : '') +
-			(bits.directory || '/') + (bits.file || '') +
-			(bits.query ? '?' + bits.query : '') +
-			(bits.fragment ? '#' + bits.fragment : '');
-	},
-
-	set: function(part, value, base){
-		if (part == 'value'){
-			var scheme = value.match(URI.regs.scheme);
-			if (scheme) scheme = scheme[1];
-			if (scheme && this.schemes[scheme.toLowerCase()] == null) this.parsed = { scheme: scheme, value: value };
-			else this.parsed = this.parse(value, (base || this).parsed) || (scheme ? { scheme: scheme, value: value } : { value: value });
-		} else if (part == 'data'){
-			this.setData(value);
-		} else {
-			this.parsed[part] = value;
-		}
-		return this;
-	},
-
-	get: function(part, base){
-		switch (part){
-			case 'value': return this.combine(this.parsed, base ? base.parsed : false);
-			case 'data' : return this.getData();
-		}
-		return this.parsed[part] || '';
-	},
-
-	go: function(){
-		document.location.href = this.toString();
-	},
-
-	toURI: function(){
-		return this;
-	},
-
-	getData: function(key, part){
-		var qs = this.get(part || 'query');
-		if (!(qs || qs === 0)) return key ? null : {};
-		var obj = qs.parseQueryString();
-		return key ? obj[key] : obj;
-	},
-
-	setData: function(values, merge, part){
-		if (typeof values == 'string'){
-			var data = this.getData();
-			data[arguments[0]] = arguments[1];
-			values = data;
-		} else if (merge){
-			values = Object.merge(this.getData(), values);
-		}
-		return this.set(part || 'query', Object.toQueryString(values));
-	},
-
-	clearData: function(part){
-		return this.set(part || 'query', '');
-	},
-
-	toString: toString,
-	valueOf: toString
-
-});
-
-URI.regs = {
-	endSlash: /\/$/,
-	scheme: /^(\w+):/,
-	directoryDot: /\.\/|\.$/
-};
-
-URI.base = new URI(Array.from(document.getElements('base[href]', true)).getLast(), {base: document.location});
-
-String.implement({
-
-	toURI: function(options){
-		return new URI(this, options);
+		if (regex[i].names)	names = names.concat(regex[i].names)
 	}
+	try {
+		regex = new RegExp(source,'gm')
+	}
+	catch (e){
+		throw new SyntaxError('Invalid Syntax: ' + source +'; '+ e)
+	}
+	// [key] → 1
+	for (i = -1; i < names.length; ++i) names[names[i]] = i + 1
+	// [1] → key
+	regex.names = names
+	return regex
+}
 
-});
-
-})();
+}(typeof exports != 'undefined' ? exports : this))
 
 /*
 ---
- 
-script: Resource.js
- 
-description: Make various requests to back end
- 
-license: Public domain (http://unlicense.org).
- 
-requires:
-  - LSD.Mixin
-  - Resource/*
-  - More/URI
-  
-provides: 
-  - LSD.Mixin.Resource
- 
+name    : SheetParser.CSS
+
+authors   : Thomas Aylott
+copyright : © 2010 Thomas Aylott
+license   : MIT
+
+provides : SheetParser.CSS
+requires : combineRegExp
+...
+*/
+;(function(exports){
+	
+
+/*<depend>*/
+var UNDEF = {undefined:1}
+if (!exports.SheetParser) exports.SheetParser = {}
+
+/*<CommonJS>*/
+var combineRegExp = (UNDEF[typeof module] || !module.exports)
+	?	exports.combineRegExp
+	:	require('./sg-regex-tools').combineRegExp
+var SheetParser = exports.SheetParser
+/*</CommonJS>*/
+
+/*<debug>*/;if (UNDEF[typeof combineRegExp]) throw new Error('Missing required function: "combineRegExp"');/*</debug>*/
+/*</depend>*/
+
+
+var CSS = SheetParser.CSS = {version: '1.0.2 dev'}
+
+CSS.trim = trim
+function trim(str){
+	// http://blog.stevenlevithan.com/archives/faster-trim-javascript
+	var	str = (''+str).replace(/^\s\s*/, ''),
+		ws = /\s/,
+		i = str.length;
+	while (ws.test(str.charAt(--i)));
+	return str.slice(0, i + 1);
+}
+
+CSS.camelCase = function(string){
+	return ('' + string).replace(camelCaseSearch, camelCaseReplace)
+}
+var camelCaseSearch = /-\D/g
+function camelCaseReplace(match){
+	return match.charAt(1).toUpperCase()
+}
+
+CSS.parse = function(cssText){
+	var	found
+	,	rule
+	,	rules = {length:0}
+	,	keyIndex = -1
+	,	regex = this.parser
+	,	names = CSS.parser.names
+	,	i,r,l
+	,	ruleCount
+	
+	rules.cssText = cssText = trim(cssText)
+	
+	// strip comments
+	cssText = cssText.replace(CSS.comment, '');
+	
+	regex.lastIndex = 0
+	while ((found = regex.exec(cssText))){
+		// avoid an infinite loop on zero-length keys
+		if (regex.lastIndex == found.index) ++ regex.lastIndex
+		
+		// key:value
+		if (found[names._key]){
+			rules[rules.length ++] = found[names._key]
+			rules[found[names._key]] = found[names._value]
+			rules[CSS.camelCase(found[names._key])] = found[names._value]
+			continue
+		}
+		
+		rules[rules.length++] = rule = {}
+		for (i = 0, l = names.length; i < l; ++i){
+			if (!(names[i-1] && found[i])) continue
+			rule[names[i-1]] = trim(found[i])
+		}
+	}
+	
+	var atKey, atRule, atList, atI
+	for (i = 0, l = rules.length; i < l; ++i){
+		if (!rules[i]) continue
+		
+		if (rules[i]._style_cssText){
+			rules[i].style = CSS.parse(rules[i]._style_cssText)
+			delete rules[i]._style_cssText
+		}
+		
+		// _atKey/_atValue
+		if (atKey = rules[i]._atKey){
+			atKey = CSS.camelCase(atKey)
+			atRule = {length:0}
+			rules[i][atKey] = atRule
+			atRule["_source"] =
+			atRule[atKey + "Text"] = rules[i]._atValue
+			atList = ('' + rules[i]._atValue).split(/,\s*/)
+			for (atI = 0; atI < atList.length; ++atI){
+				atRule[atRule.length ++] = atList[atI]
+			}
+			rules[i].length = 1
+			rules[i][0] = atKey
+			delete rules[i]._atKey
+			delete rules[i]._atValue
+		}
+		
+		if (rules[i].style)
+		for (ruleCount = -1, r = -1, rule; rule = rules[i].style[++r];){
+			if (typeof rule == 'string') continue
+			rules[i][r] = (rules[i].cssRules || (rules[i].cssRules = {}))[++ ruleCount]  = rule
+			rules[i].cssRules.length = ruleCount + 1
+			rules[i].rules = rules[i].cssRules
+		}
+	}
+	
+	return rules
+}
+
+var x = combineRegExp
+var OR = '|'
+
+;(CSS.at = x(/\s*@([-a-zA-Z0-9]+)\s+(([\w-]+)?[^;{]*)/))
+.names=[         '_atKey',           '_atValue', 'name']
+
+CSS.atRule = x([CSS.at, ';'])
+
+;(CSS.keyValue_key = x(/([-a-zA-Z0-9]+)/))
+.names=[                '_key']
+
+;(CSS.keyValue_value_end = x(/(?:;|(?=\})|$)/))
+
+;(CSS.notString = x(/[^"']+/))
+;(CSS.stringSingle = x(/"(?:[^"]|\\")*"/))
+;(CSS.stringDouble = x(/'(?:[^']|\\')*'/))
+;(CSS.string = x(['(?:',CSS.stringSingle ,OR, CSS.stringDouble,')']))
+;(CSS.propertyValue = x([/[^;}]+/, CSS.keyValue_value_end]))
+
+var rRound = "(?:[^()]|\\((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*\\))"
+
+;(CSS.keyValue_value = x(
+[
+	x(['((?:'
+	,	CSS.stringSingle
+	,	OR
+	,	CSS.stringDouble
+	,	OR
+	,	"\\("+rRound+"*\\)"
+	,	OR
+	,	/[^;}()]/ // not a keyValue_value terminator
+	,	')*)'
+	])
+,	CSS.keyValue_value_end
+])).names = ['_value']
+
+;(CSS.keyValue = x([CSS.keyValue_key ,/\s*:\s*/, CSS.keyValue_value]))
+
+;(CSS.comment = x(/\/\*\s*((?:[^*]|\*(?!\/))*)\s*\*\//))
+.names=[                   'comment']
+
+;(CSS.selector = x(['(',/\s*(\d+%)\s*/,OR,'(?:',/[^{}'"()]|\([^)]*\)|\[[^\]]*\]/,')+',')']))
+.names=[    'selectorText','keyText']
+
+var rCurly = "(?:[^{}]|\\{(?:[^{}]|\\{(?:[^{}]|\\{(?:[^{}]|\\{[^{}]*\\})*\\})*\\})*\\})"
+var rCurlyRound = "(?:[^{}()]+|\\{(?:[^{}()]+|\\{(?:[^{}()]+|\\{(?:[^{}()]+|\\{[^{}()]*\\})*\\})*\\})*\\})"
+
+;(CSS.block = x("\\{\\s*((?:"+"\\("+rRound+"*\\)|"+rCurly+")*)\\s*\\}"))
+.names=[              '_style_cssText']
+
+CSS.selectorBlock = x([CSS.selector, CSS.block])
+
+CSS.atBlock = x([CSS.at, CSS.block])
+
+CSS.parser = x
+(
+	[	x(CSS.comment)
+	,	OR
+	,	x(CSS.atBlock)
+	,	OR
+	,	x(CSS.atRule)
+	,	OR
+	,	x(CSS.selectorBlock)
+	,	OR
+	,	x(CSS.keyValue)
+	]
+,	'cssText'
+);
+
+
+})(typeof exports != 'undefined' ? exports : this);
+
+/*
+---
+name    : SheetParser.Value
+
+authors   : Yaroslaff Fedin
+
+license   : MIT
+
+requires : SheetParser.CSS
+
+provides : SheetParser.Value
 ...
 */
 
-LSD.Mixin.Resource = new Class({
-  behaviour: ":resourceful, [itemscope]",
+
+(function(exports) {
+  /*<CommonJS>*/
+  var combineRegExp = (typeof module === 'undefined' || !module.exports)
+    ?  exports.combineRegExp
+    :  require('./sg-regex-tools').combineRegExp
+  var SheetParser = exports.SheetParser
+  /*</CommonJS>*/
   
-  options: {
-    resource: {
-      prefix: null,
-      name: null
-    }
-  },
+  var Value = SheetParser.Value = {version: '1.2.2 dev'};
   
-  getResource: function(options) {
-    if (!options) options = this.options.resource
-    if (!this.resource) {
-      var name = options.name;
-      var prefix = options.prefix;
-      if (!name || !prefix) {
-        var uri = this.attributes.itemtype.split(/\s+/).getLast();
-        if (uri) {
-          if (uri.toURI) uri = uri.toURI();
-          prefix = uri.get('directory');
-          name = uri.get('file');
-          while (!name || !(name = name.singularize())) {
-            var dirs = prefix.split('/');
-            name = dirs.pop();
-            prefix = dirs.join('/')
+  Value.translate = function(value, expression) {
+    var found, result = [], matched = [], scope = result
+    var regex = Value.tokenize, names = regex.names;
+    var chr, unit, number, func, text, operator;
+    while (found = regex.exec(value)) matched.push(found);
+    for (var i = 0; found = matched[i++];) {
+      if ((text = found[names._arguments])) {
+        var translated = Value.translate(text, true), func = found[names['function']];
+        for (var j = 0, bit; bit = translated[j]; j++) if (bit && bit.length == 1) translated[j] = bit[0];
+        if (func && ((operator = operators[func]) == null)) {
+          var obj = {};
+          obj[func] = translated;
+          scope.push(obj);
+        } else {
+          if (isFinite(translated)) {
+            scope.push((operator ? 1 : -1) * translated)
+          } else {
+            if (operator != null) scope.push(func);
+            scope.push(translated);
           }
         }
+      } else if ((text = (found[names.number]))) {
+        number = parseFloat(text), unit = found[names.unit];
+        if (expression && scope.length) {
+          chr = text.charAt(0);
+          if ((operator = operators[chr]) != null) {
+            var last = scope[scope.length - 1];
+            if (!last || !last.match || !last.match(Value.operator)) {
+              scope.push(chr);
+              if (!operator) number = - number;
+            }
+          };
+        }
+        scope.push(unit ? {number: number, unit: unit} : number);
+      } else if (found[names.comma]) {
+        if (!result[0].push) result = [result];
+        result.push(scope = []);
+      } else if (found[names.whitespace]) {
+        var length = !expression && scope.length;
+        if (length && (scope == result) && !scope[length - 1].push) scope = scope[length - 1] = [scope[length - 1]];
+      } else if (text = (found[names.dstring] || found[names.sstring] || found[names.token])) {
+        scope.push(text);
+      } else if (text = (found[names.operator])) {
+        expression = true;
+        scope.push(text);
       }
-      var options = Object.clone(this.options.resource);
-      if (prefix) options.prefix = prefix;
-      this.resource = new Resource(name, options);
+    } 
+    return result.length == 1 ? result[0] : result;
+  };
+  var operators = {'-': false, '+': true};
+  var x = combineRegExp
+  var OR = '|'
+  var rRound = "(?:[^()]|\\((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*\\))";
+
+  ;(Value['function'] = x("([-_a-zA-Z0-9]*)\\((" + rRound + "*)\\)"))
+  .names = [               'function',       '_arguments']
+  
+  ;(Value.integer = x(/[-+]?\d+/))
+  ;(Value['float'] = x(/[-+]?(?:\d+\.\d*|\d*\.\d+)/))
+  ;(Value.length = x(['(', Value['float'],  OR, Value['integer'], ')', '(em|px|pt|%|fr|deg|(?=$|[^a-zA-Z0-9.]))']))
+  .names = [           'number',                                        'unit'];
+  
+  ;(Value.comma = x(/\s*,\s*/, 'comma'))
+  ;(Value.whitespace = x(/\s+/, 'whitespace'))
+  ;(Value.operator = x(/[-+]|[\/%^~=><*\^]+/, 'operator'))
+
+  ;(Value.stringDouble = x(/"((?:[^"]|\\")*)"/)).names = ['dstring']
+  ;(Value.stringSingle = x(/'((?:[^']|\\')*)'/)).names = ['sstring']
+  ;(Value.string = x([Value.stringSingle, OR, Value.stringDouble]))
+  ;(Value.token = x(/[^$,\s\/())]+/, "token"))
+  
+  Value.tokenize = x
+  (
+    [ x(Value['function']),
+    , OR
+    , x(Value.comma)
+    , OR
+    , x(Value.whitespace)
+    , OR
+    , x(Value.string)
+    , OR
+    , x(Value.length)
+    , OR
+    , x(Value.operator)
+    , OR
+    , x(Value.token)
+    ]
+  )
+})(typeof exports != 'undefined' ? exports : this);
+/*
+---
+ 
+script: Interpolation.js
+ 
+description: A logic to render (and nest) widgets out of the key-value hash or dom tree
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD
+  - Sheet/SheetParser.Value
+  - String.Inflections/String.pluralize
+
+provides: 
+  - LSD.Interpolation
+ 
+...
+*/
+
+
+!function() {
+  LSD.Interpolation = {}
+  var helpers = LSD.Interpolation.helpers = {
+    pluralize: function(count, singular, plural) {
+      var value = (count == 1) ? singular : (plural || (singular.pluralize()));
+      return value.replace("%", count);
+    },
+    auto_pluralize: function(count, singular, plural) {
+      return count + " " + helpers.pluralize(count, singular, plural);
     }
-    return this.resource;
+  }
+  
+  var regex = SheetParser.Value.tokenize;
+  var parsed = {};
+  
+  var interpolate = LSD.Interpolation.execute = function(name, callback, simple) {
+    if (!simple || (name.indexOf('(') > -1)) return run(translate(name), callback);
+    return callback(name);
+  }
+  
+  var translate = LSD.Interpolation.translate = function(value) {
+    var cached = parsed[name];
+    if (cached) return cached;
+    var found, result = [], matched = [], scope = result, func, text;
+    var names = regex.names;
+    while (found = regex.exec(value)) matched.push(found);
+    for (var i = 0; found = matched[i++];) {
+      if (func = found[names['function']]) {
+        var translated = translate(found[names._arguments]);
+        for (var j = 0, bit; bit = translated[j]; j++) if (bit && bit.length == 1) translated[j] = bit[0];
+        scope.push({fn: func, arguments: translated});
+      } else if (text = (found[names.dstring] || found[names.sstring])) {
+        scope.push(text)
+      } else if (text = found[names.token]) {
+        scope.push({fn: interpolate, arguments: [text, true], callback: true})
+      }
+    }
+    return (parsed[value] = (result.length == 1 ? result[0] : result));
+  };
+  
+  var run = LSD.Interpolation.run = function(command, callback) {
+    var fn = command.fn;
+    if (fn) {
+      var func = fn.indexOf ? (helpers[fn] || (callback(fn))) : fn;
+      if (!func) {
+        console.error(fn, ' interpoaltion function is not found');
+        return "";
+      }
+      var args = Array.prototype.slice.call(command.arguments, 0);
+      for (var i = 0, j = args.length; i < j; i++) args[i] = run(args[i], callback);
+      if (command.callback) args.splice(1, 0, callback);
+      return func.apply(this, args);
+    }
+    return command;
+  };
+  
+  var attempt = LSD.Interpolation.attempt = function(string) {
+    var count = 0, args = arguments;
+    string = string.replace(/\\?\{([^{}]+)\}/g, function(match, name){
+      count++;
+      if (match.charAt(0) == '\\') return match.slice(1);
+      for (var arg, value, callback, element, i = 1, j = args.length; i < j; i++) {
+        if (!(arg = args[i])) continue;
+        if (arg.call) callback = call;
+        else if (arg.localName) element = arg;
+        else if (arg[match]) return arg[match];
+      }
+      return interpolate(match, callback) || (element && element.getAttribute('data-' + match.dasherize)) || "";
+    });
+    return count ? string : false;
+  };
+  
+  var from = LSD.Interpolation.from = function() {
+    var args = Array.prototype.slice(arguments, 0);
+    return function(string) {
+      return attempt.apply([string].concat(args));
+    };
+  };
+  
+}();
+/*
+---
+ 
+script: Layout.js
+ 
+description: A logic to render (and nest) widgets out of the key-value hash or dom tree
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD
+  - More/Object.Extras
+  - LSD.Interpolation
+  - Sheet/SheetParser.Value
+
+provides: 
+  - LSD.Layout
+ 
+...
+*/
+
+/* 
+  Layout takes any tree-like structure and tries
+  to build layout that representats that structure.
+  
+  The structure can be an objects with keys as selectors
+  and values with other objects, arrays and strings.
+  
+  You can also build a widget tree from DOM. Layout will
+  extract attributes and classes from elements. 
+*/
+
+LSD.Layout = function(widget, layout, options) {
+  this.origin = widget;
+  this.setOptions(options);
+  this.context = LSD[this.options.context.capitalize()];
+  if (widget) if (!layout && !widget.lsd) {
+    layout = widget;
+    widget = null;
+  } else if (!widget.lsd) widget = this.convert(widget);
+  if (layout) this.render(layout, widget);
+};
+
+LSD.Layout.prototype = Object.append(new Options, {
+  
+  options: {
+    clone: false,
+    context: 'element',
+    interpolate: null
   },
   
-  getResourceID: function() {
-    return this.attributes.itemid;
+  $family: Function.from('layout'),
+  
+  render: function(layout, parent, opts) {
+    var type = layout.push ? 'array' : layout.nodeType ? LSD.Layout.NodeTypes[layout.nodeType] : layout.indexOf ? 'string' : 'object';
+    if (type) {
+      var result = this[type](layout, parent, opts);
+      if (!this.result) this.result = result;
+      return result;
+    }
   },
   
-  getModel: function() {
-    return this.getResource().init(this.getResourceID() || this.element);
+  // type handlers
+  
+  array: function(array, parent, opts) {
+    for (var i = 0, result = [], length = array.length; i < length; i++) 
+      result[i] = this.render(array[i], parent, opts)
+    return result;
+  },
+  
+  element: function(element, parent, opts, stack, last) {
+    var converted = element.uid && Element.retrieve(element, 'widget');
+    var children = LSD.slice(element.childNodes);
+    var cloning = (opts && opts.clone) || this.options.clone, group;
+    var ascendant = parent[0] || parent, container = parent[1] || parent.toElement();
+    // Retrieve the stack if the render was not triggered from the root of the layout
+    if (!stack) {
+      stack = [];
+      if ((group = ascendant.mutations['>'])) stack.push(group);
+      for (var node = ascendant; node; node = node.parentNode)
+        if ((group = node.mutations[' '])) stack.push(group);
+      //for (var node = ascendant; node; node = node.previousSibling) {
+      //  if ((group = node.mutations['+'])) stack.push(group);
+      //  if ((group = node.mutations['-'])) stack.push(group);
+      //}
+    }
+    // Match all selectors in the stack and find a right mutation
+    var index = stack.length;
+    if (index) {
+      var mutation, advanced, tagName = LSD.toLowerCase(element.tagName);
+      for (var i = index, item, result, ary = ['*', tagName]; item = stack[--i];)
+        for (var j = 0, value = item[1] || item, tag; tag = ary[j++];)
+          if ((group = value[tag]))
+            for (var k = 0, possibility, sel; possibility = group[k++];) {
+              var result = possibility[1];
+              if ((!mutation || (result && !result.indexOf)) && (sel = possibility[0])) {
+                if ((!sel.id && !sel.classes && !sel.attributes && !sel.pseudos) ? (tagName == sel.tag || j == 0) :
+                  (Slick.matchSelector(element, sel.tag, sel.id, sel.classes, sel.attributes, sel.pseudos)))
+                  if (!result || !result.call || (result = result(element)))
+                    if (!result || !result.push) {
+                      mutation = result || true;
+                    } else (advanced || (advanced = [])).push(result);
+              }
+            }
+    }
+    // prepare options (once)
+    if (!opts || !opts.lazy) {
+      opts = Object.append({lazy: true}, opts);
+      if (this.options.context && LSD.Widget.prototype.options.context != this.options.context)
+        opts.context = this.options.context;
+      if (this.options.interpolation) opts.interpolation = this.options.interpolation;
+      var prepared = true;
+    }
+    // Create, clone or reuse a widget.
+    if (!converted) {
+      if (mutation) {
+        var options = Object.append({}, opts, mutation.indexOf ? LSD.Layout.parse(mutation) : mutation);
+        var widget = this.context.create(element, options);
+      } else {
+        var widget = this.context.convert(element, opts);
+      }
+    } else {
+      var widget = cloning ? converted.cloneNode(false, opts) : converted;
+    }
+    // Append widget into parent widget without moving elements
+    if (widget) {
+      if (!widget.parentNode) {
+        var override = function() {
+          if (widget.toElement().parentNode == container) return;
+          if (cloning)
+            this.appendChild(container, widget.element)
+          else if (widget.origin == element && element.parentNode && element.parentNode == container)
+            element.parentNode.replaceChild(widget.element, element);
+        }.bind(this);
+        this.appendChild(ascendant, widget, opts, override)
+      }
+    } else {
+      if (cloning) var clone = element.cloneNode(false);
+      if (cloning || (ascendant.origin == element.parentNode)) this.appendChild(container, clone || element, opts);
+    }    
+    var newParent = [widget || ascendant, clone || (widget && widget.element) || element];
+    // Put away selectors in the stack that should not be matched again widget children
+    var group, direct, following;
+    for (var i = stack.length; group = stack[--i];) {
+      switch (group[0]) {
+        case '+':
+          stack.pop();
+          break;
+        case '~':
+          (following || (following = [])).push(stack.pop());
+          break;
+        case '>':
+          (direct || (direct = [])).push(stack.pop());
+      }
+    }
+    if (opts && opts.before) {
+      var before = opts.before; 
+      delete opts.before;
+    }
+    // Collect mutations from a widget
+    if (widget) {
+      if ((group = widget.mutations[' '])) stack.push([' ', group]);
+      if ((group = widget.mutations['>'])) stack.push(['>', group]);
+    }
+    // Collect mutations that advanced with this element AND are looking for children
+    if (advanced) for (var i = 0, group; group = advanced[i]; i++) {
+      switch (group[0]) {
+        case ' ': case '>':
+          advanced.splice(i--, 1);
+          stack.push(group);
+          break;
+      }
+    }
+    // Cleanup options if they prepared on this iteration
+    if (prepared) {
+      options = {};
+      for (var option in opts) if (LSD.Layout.Inheritable[option]) options[option] = opts[option];
+      opts = options;
+    }
+    // Render children
+    for (var j = children.length - 1, child; j > -1 && (child = children[j]) && child.nodeType != 1; j--);
+    for (var i = 0, child, previous, result, following; child = children[i]; i++) {
+      // Pick up selectors targetting on a node's next siblings
+      if (previous && i) {
+        if ((group = previous.mutations['~'])) stack.push(['~', group]);
+        if ((group = previous.mutations['+'])) stack.push(['+', group]);
+      }
+      previous = this[LSD.Layout.NodeTypes[child.nodeType]](child, newParent, opts, stack, i == j);
+      if (!previous.lsd) previous = null;
+    }
+    // Put advanced selectors back to the stack
+    if (advanced) for (var i = 0; group = advanced[i++];)
+      if (group[0] != '+' || !last) stack.push(group);
+    // Put back selectors for next siblings
+    if (!last) {
+      if (following) for (var i = 0; group = following[i++];) stack.push(group);
+      if (direct) for (var i = 0; group = direct[i++];) stack.push(group);
+    }
+    if (before) opts.before = before;
+    
+    return widget || clone || element;
+  },
+  
+  textnode: function(element, parent, opts) {
+    var value = element.textContent;
+    if (this.options.interpolate) var interpolated = this.interpolate(value);
+    var cloning = (opts && opts.clone || this.options.clone);
+    if (interpolated != null || cloning) {
+      var textnode = element.ownerDocument.createTextNode(interpolated || value);
+      if (!cloning) element.parentNode.replaceChild(textnode, element);
+      this.appendChild(parent[1] || parent.toElement(), textnode || element)
+    }
+    return textnode || element;
+  },
+  
+  comment: function(element, parent) {
+    //var text = element.innerText;
+  },
+  
+  fragment: function(element, parent, opts) {
+    for (var nodes = LSD.slice(element.childNodes, 0), i = 0, node; node = nodes[i++];)
+      this[LSD.Layout.NodeTypes[node.nodeType]](node, parent, opts);
+  },
+  
+  string: function(string, parent, opts) {
+    var element = parent[1];
+    var interpolated = this.interpolate(string);
+    if (interpolated != null) string = interpolated;
+    if (!element || element == parent[0].element) {
+      var textnode = parent[0].write(string);
+    } else {
+      var textnode = element.ownerDocument.createTextNode(element);
+      element.appendChild(textnode);
+    }
+    return textnode;
+  },
+  
+  object: function(object, parent, opts) {
+    var result = {}, parsed, layout, branch;
+    for (var selector in object) {
+      layout = object[selector] === true ? null : object[selector];
+      if ((parsed = LSD.Layout.extractKeyword(selector))) {
+        branch = result[selector] = this.keyword(parsed.keyword, parsed.expressions, branch, layout, parent, opts);
+      } else {
+        branch = null;
+        var result = this.selector(selector, parent, opts);
+        result[selector] = !layout || [result, this.render(layout, result.lsd ? result : [parent[0] || parent, result], null, opts)];
+      }
+    }
+    return result;
+  },
+  
+  selector: function(string, parent, opts) {
+    var options = Object.append({context: this.options.context}, opts, LSD.Layout.parse(string, parent[0] || parent));
+    if (options.tag != '*' && (options.source || this.context.find(options.tag) || !LSD.Layout.NodeNames[options.tag])) {
+      var allocation = options.allocation;
+      if (allocation) (parent[0] || parent).allocate(allocation.type, allocation.kind, allocation.options);
+      var widget = this.context.create(options), self = this;
+      if (widget.element && widget.element.childNodes.length) var nodes = widget.element.childNodes;
+      this.appendChild(parent[0] || parent, widget, opts, function() {
+        self.appendChild(parent[1] || parent.toElement(), widget.toElement());
+      });
+      options = {};
+      for (var option in opts) if (LSD.Layout.Inheritable[option]) options[option] = opts[option];
+      opts = options;
+      if (nodes) this.array(nodes, [widget.element, widget], opts);
+    } else {  
+      var props = {}, tag = (options.tag == '*') ? 'div' : options.tag;
+      if (options.id) props.id = options.id;
+      var attributes = options.attributes;
+      if (attributes) for (var attr, i = 0, l = attributes.length; i < l; i++){
+        attr = attributes[i];
+        if (props[attr.key] != null) continue;
+        if (attr.value != null && attr.operator == '=') props[attr.key] = attr.value;
+        else if (!attr.value && !attr.operator) props[attr.key] = props[attr.key];
+      }
+      var element = document.createElement(tag);
+      for (var name in props) element.setAttribute(name, props[name]);
+      if (options.classes) element.className = options.classes.join(' ');
+      if (parent) this.appendChild(parent[1] || parent.toElement(), element);
+    }
+    return widget || element;
+  },
+  
+  interpolate: function(string, object) {
+    if (!object) object = this.options.interpolate;
+    var interpolated = LSD.Interpolation.attempt(string, object);
+    if (interpolated !== false) {
+      this.interpolated = true;
+      return interpolated;
+    }
+  },
+  
+  keyword: function(keyword, expression, holder, layout, parent, opts) {
+    var options = {keyword: keyword, holder: holder, layout: layout, parent: parent, options: opts}
+    switch (keyword) {
+      case "if":
+        options.expression = expression;
+        break;
+      case "unless":  
+        options.expression = expression;
+        options.inversed = true;
+        break;
+      case "elsif": case "elseif": case "else if":
+        options.expression = expression;
+        options.link = true;
+        break;
+      case "else":
+        options.link = true;
+    }
+    return new LSD.Layout.Branch(options);
+  },
+  
+  appendChild: function(parent, child, opts, override) {
+    if (child.parentNode != parent) {
+      if (opts && opts.before) {
+        var before = !parent.lsd && opts.before.toElement ? opts.before.toElement() : opts.before;
+        parent.insertBefore(child, before, override);
+      } else {
+        parent.appendChild(child, override);
+      }
+      if (child.lsd) {
+        var doc = child.parentNode.document;
+        if (child.document != doc) child.setDocument(doc);
+      }
+      return true;
+    }
+  },
+  
+  removeChild: function(parent, child, override) {
+    if (child.parentNode != parent) {
+      parent.removeChild(child, override);
+      return true;
+    }
+  }
+});
+
+LSD.Layout.Branch = function(options) {
+  this.options = options;
+  if (options.link) {
+    if (!options.holder) throw "Alternative branch is missing its original branch"
+    options.holder.addEvents({
+      check: this.unmatch.bind(this),
+      uncheck: this.match.bind(this)
+    });
+  }
+  this.addEvents({
+    check: this.show.bind(this),
+    uncheck: this.hide.bind(this)
+  });
+};
+
+LSD.Layout.Branch.prototype = Object.append({
+  match: function() {
+    if (!this.checked && this.condition()) this.fireEvent('check', arguments);
+  },
+  unmatch: function() {
+    if (this.checked) this.fireEvent('uncheck', arguments);
+  },
+  condition: function() {
+    return (this.options.expression) ^ this.options.inverse;
+  },
+  show: function() {
+    return this.layout.add(this.options.layout, this.options.parent, this.options.options);
+  },
+  hide: function() {
+    return this.layout.remove(this.options.layout, this.options.parent, this.options.options);
+  }
+}, Events.prototype);
+
+LSD.Layout.NodeTypes = {1: 'element', 3: 'textnode', 8: 'comment', 11: 'fragment'};
+LSD.Layout.NodeNames = Array.fast('!doctype', 'a', 'abbr', 'acronym', 'address', 'applet', 'area', 
+'article', 'aside', 'audio', 'b', 'base', 'bdo', 'big', 'blockquote', 'body', 'br', 'button', 'canvas', 
+'caption', 'center', 'cite', 'code', 'col', 'colgroup', 'command', 'datalist', 'dd', 'del', 'details',
+'dfn', 'div', 'dl', 'dt', 'em', 'embed', 'fieldset', 'figcaption', 'figure', 'footer', 'form', 'frame',
+'frameset', 'h1', 'head', 'header', 'hgroup', 'hr', 'html', 'i', 'iframe', 'img', 'input', 'ins', 
+'keygen', 'kbd', 'label', 'legend', 'li', 'link', 'map', 'mark', 'menu', 'meta', 'meter', 'nav', 
+'noscript', 'object', 'ol', 'optgroup', 'option', 'output', 'p', 'param', 'pre', 'progress', 'q', 
+'rp', 'rt', 'ruby', 's', 'samp', 'script', 'section', 'select', 'small', 'source', 'span', 'strike', 
+'strong', 'style', 'sub', 'summary', 'sup', 'table', 'tbody', 'td', 'textarea', 'tfoot', 'th', 'thead', 
+'time', 'title', 'tr', 'ul', 'var', 'video', 'wbr');
+LSD.Layout.Inheritable = Array.fast('context', 'interpolation', 'clone', 'lazy');
+
+LSD.Layout.rExpressions = /^\s*(if|else|call|els[e ]*if|unless)(?:$|\s+(.*?)\s*$)/
+Object.append(LSD.Layout, {
+  extractKeyword: function(input) {
+    var match = input.match(LSD.Layout.rExpressions);
+    if (match) return {keyword: match[1], expression: SheetParser.Value.translate(match[2])};
+  },
+  
+  /* 
+    Parsers selector and generates options for layout 
+  */
+  parse: function(selector, parent) {
+    var options = {};
+    var expressions = (selector.Slick ? selector : Slick.parse(selector)).expressions[0];
+    var parsed = expressions[0];
+    if (parsed.combinator != ' ') {
+      if (parsed.combinator == '::') {
+        if (LSD.Allocations[parsed.tag]) {
+          options.allocation = LSD.Module.Allocations.prepare(options, parsed.tag, parsed.classes, parsed.attributes, parsed.pseudos);
+        } else {
+          var relation = (parent[0] || parent).relations[parsed.tag];
+          if (!relation) throw "Unknown pseudo element ::" + parsed.tag;
+          var source = relation.getSource();
+          if (source) Object.append(options, LSD.Layout.parse(source, parent[0] || parent));
+        }
+      } else options.combinator = parsed.combinator;
+    } 
+    if (parsed.tag != '*' && parsed.combinator != '::')
+      if (parsed.tag.indexOf('-') > -1) 
+        options.source = parsed.tag.split('-');
+      else
+        options.tag = parsed.tag;
+    if (parsed.id) (options.attributes || (options.attributes = {})).id = parsed.id
+    if (parsed.attributes) for (var all = parsed.attributes, attribute, i = 0; attribute = all[i++];) {
+      var value = attribute.value || LSD.Attributes.Boolean[attribute.key] || "";
+      (options.attributes || (options.attributes = {}))[attribute.key] = value;
+    }
+    if (parsed.classes) options.classes = parsed.classes.map(Macro.map('value'));
+    if (parsed.pseudos) for (var all = parsed.pseudos, pseudo, i = 0; pseudo = all[i++];) 
+      (options.pseudos || (options.pseudos = {})).push(pseudo.key);
+    return options;
+  },
+  
+  getSource: function(options, tagName) {
+    if (options && options.localName) {
+      var source = LSD.toLowerCase(options.tagName);
+      var type = options.getAttribute('type');
+      if (type) (source.push ? source : [source]).push(type);
+    } else {
+      var source;
+      if (tagName) (source ? (source.push ? source : (source = [source])).push(tagName) : (source = tagName));
+      if (options) {
+        var type = options.type;
+        if (type) (source ? (source.push ? source : (source = [source])).push(type) : (source = type));
+        var kind = options.kind;
+        if (kind) (source ? (source.push ? source : (source = [source])).push(kind) : (source = kind));
+      }
+    }
+    return source;
   }
 });
 /*
 ---
-
-name: Events.Pseudos
-
-description: Adds the functionality to add pseudo events
-
-license: MIT-style license
-
-authors:
-  - Arian Stolwijk
-
-requires: [Core/Class.Extras, Core/Slick.Parser, More/MooTools.More]
-
-provides: [Events.Pseudos]
-
-...
-*/
-
-Events.Pseudos = function(pseudos, addEvent, removeEvent){
-
-	var storeKey = 'monitorEvents:';
-
-	var storageOf = function(object){
-		return {
-			store: object.store ? function(key, value){
-				object.store(storeKey + key, value);
-			} : function(key, value){
-				(object.$monitorEvents || (object.$monitorEvents = {}))[key] = value;
-			},
-			retrieve: object.retrieve ? function(key, dflt){
-				return object.retrieve(storeKey + key, dflt);
-			} : function(key, dflt){
-				if (!object.$monitorEvents) return dflt;
-				return object.$monitorEvents[key] || dflt;
-			}
-		};
-	};
-
-	var splitType = function(type){
-		if (type.indexOf(':') == -1 || !pseudos) return null;
-
-		var parsed = Slick.parse(type).expressions[0][0],
-			parsedPseudos = parsed.pseudos,
-			l = parsedPseudos.length,
-			splits = [];
-
-		while (l--) if (pseudos[parsedPseudos[l].key]){
-			splits.push({
-				event: parsed.tag,
-				value: parsedPseudos[l].value,
-				pseudo: parsedPseudos[l].key,
-				original: type
-			});
-		}
-
-		return splits.length ? splits : null;
-	};
-
-	var mergePseudoOptions = function(split){
-		return Object.merge.apply(this, split.map(function(item){
-			return pseudos[item.pseudo].options || {};
-		}));
-	};
-
-	return {
-
-		addEvent: function(type, fn, internal){
-			var split = splitType(type);
-			if (!split) return addEvent.call(this, type, fn, internal);
-
-			var storage = storageOf(this),
-				events = storage.retrieve(type, []),
-				eventType = split[0].event,
-				options = mergePseudoOptions(split),
-				stack = fn,
-				eventOptions = options[eventType] || {},
-				args = Array.slice(arguments, 2),
-				self = this,
-				monitor;
-
-			if (eventOptions.args) args.append(Array.from(eventOptions.args));
-			if (eventOptions.base) eventType = eventOptions.base;
-			if (eventOptions.onAdd) eventOptions.onAdd(this);
-
-			split.each(function(item){
-				var stackFn = stack;
-				stack = function(){
-					(eventOptions.listener || pseudos[item.pseudo].listener).call(self, item, stackFn, arguments, monitor, options);
-				};
-			});
-			monitor = stack.bind(this);
-
-			events.include({event: fn, monitor: monitor});
-			storage.store(type, events);
-
-			addEvent.apply(this, [type, fn].concat(args));
-			return addEvent.apply(this, [eventType, monitor].concat(args));
-		},
-
-		removeEvent: function(type, fn){
-			var split = splitType(type);
-			if (!split) return removeEvent.call(this, type, fn);
-
-			var storage = storageOf(this),
-				events = storage.retrieve(type);
-			if (!events) return this;
-
-			var eventType = split[0].event,
-				options = mergePseudoOptions(split),
-				eventOptions = options[eventType] || {},
-				args = Array.slice(arguments, 2);
-
-			if (eventOptions.args) args.append(Array.from(eventOptions.args));
-			if (eventOptions.base) eventType = eventOptions.base;
-			if (eventOptions.onRemove) eventOptions.onRemove(this);
-
-			removeEvent.apply(this, [type, fn].concat(args));
-			events.each(function(monitor, i){
-				if (!fn || monitor.event == fn) removeEvent.apply(this, [eventType, monitor.monitor].concat(args));
-				delete events[i];
-			}, this);
-
-			storage.store(type, events);
-			return this;
-		}
-
-	};
-
-};
-
-(function(){
-
-var pseudos = {
-
-	once: {
-		listener: function(split, fn, args, monitor){
-			fn.apply(this, args);
-			this.removeEvent(split.event, monitor)
-				.removeEvent(split.original, fn);
-		}
-	},
-
-	throttle: {
-		listener: function(split, fn, args){
-			if (!fn._throttled){
-				fn.apply(this, args);
-				fn._throttled = setTimeout(function(){
-					fn._throttled = false;
-				}, split.value || 250);
-			}
-		}
-	},
-
-	pause: {
-		listener: function(split, fn, args){
-			clearTimeout(fn._pause);
-			fn._pause = fn.delay(split.value || 250, this, args);
-		}
-	}
-
-};
-
-Events.definePseudo = function(key, listener){
-	pseudos[key] = Type.isFunction(listener) ? {listener: listener} : listener;
-	return this;
-};
-
-Events.lookupPseudo = function(key){
-	return pseudos[key];
-};
-
-var proto = Events.prototype;
-Events.implement(Events.Pseudos(pseudos, proto.addEvent, proto.removeEvent));
-
-['Request', 'Fx'].each(function(klass){
-	if (this[klass]) this[klass].implement(Events.prototype);
-});
-
-})();
-
-/*
----
-
-name: Element.Event.Pseudos
-
-description: Adds the functionality to add pseudo events for Elements
-
-license: MIT-style license
-
-authors:
-  - Arian Stolwijk
-
-requires: [Core/Element.Event, Events.Pseudos]
-
-provides: [Element.Event.Pseudos]
-
-...
-*/
-
-(function(){
-
-var pseudos = {},
-	copyFromEvents = ['once', 'throttle', 'pause'],
-	count = copyFromEvents.length;
-
-while (count--) pseudos[copyFromEvents[count]] = Events.lookupPseudo(copyFromEvents[count]);
-
-Event.definePseudo = function(key, listener){
-	pseudos[key] = Type.isFunction(listener) ? {listener: listener} : listener;
-	return this;
-};
-
-var proto = Element.prototype;
-[Element, Window, Document].invoke('implement', Events.Pseudos(pseudos, proto.addEvent, proto.removeEvent));
-
-})();
-
-/*
----
-
-script: Element.Delegation.js
-
-name: Element.Delegation
-
-description: Extends the Element native object to include the delegate method for more efficient event management.
-
-credits:
-  - "Event checking based on the work of Daniel Steigerwald. License: MIT-style license. Copyright: Copyright (c) 2008 Daniel Steigerwald, daniel.steigerwald.cz"
-
-license: MIT-style license
-
-authors:
-  - Aaron Newton
-  - Daniel Steigerwald
-
-requires: [/MooTools.More, Element.Event.Pseudos]
-
-provides: [Element.Delegation]
-
-...
-*/
-
-(function(){
-
-var eventListenerSupport = !(window.attachEvent && !window.addEventListener),
-	nativeEvents = Element.NativeEvents;
-
-nativeEvents.focusin = 2;
-nativeEvents.focusout = 2;
-
-var check = function(split, target, event){
-	var elementEvent = Element.Events[split.event], condition;
-	if (elementEvent) condition = elementEvent.condition;
-	return Slick.match(target, split.value) && (!condition || condition.call(target, event));
-};
-
-var bubbleUp = function(split, event, fn){
-	for (var target = event.target; target && target != this; target = document.id(target.parentNode)){
-		if (target && check(split, target, event)) return fn.call(target, event, target);
-	}
-};
-
-var formObserver = function(eventName){
-
-	var $delegationKey = '$delegation:';
-
-	return {
-		base: 'focusin',
-
-		onRemove: function(element){
-			element.retrieve($delegationKey + 'forms', []).each(function(el){
-				el.retrieve($delegationKey + 'listeners', []).each(function(listener){
-					el.removeEvent(eventName, listener);
-				});
-				el.eliminate($delegationKey + eventName + 'listeners')
-					.eliminate($delegationKey + eventName + 'originalFn');
-			});
-		},
-
-		listener: function(split, fn, args, monitor, options){
-			var event = args[0],
-				forms = this.retrieve($delegationKey + 'forms', []),
-				target = event.target,
-				form = (target.get('tag') == 'form') ? target : event.target.getParent('form');
-				
-			if (!form) return;
-				
-			var formEvents = form.retrieve($delegationKey + 'originalFn', []),
-				formListeners = form.retrieve($delegationKey + 'listeners', []),
-				self = this;
-
-			forms.include(form);
-			this.store($delegationKey + 'forms', forms);
-
-			if (!formEvents.contains(fn)){
-				var formListener = function(event){
-					bubbleUp.call(self, split, event, fn);
-				};
-				form.addEvent(eventName, formListener);
-
-				formEvents.push(fn);
-				formListeners.push(formListener);
-
-				form.store($delegationKey + eventName + 'originalFn', formEvents)
-					.store($delegationKey + eventName + 'listeners', formListeners);
-			}
-		}
-	};
-};
-
-var inputObserver = function(eventName){
-	return {
-		base: 'focusin',
-		listener: function(split, fn, args){
-			var events = {blur: function(){
-				this.removeEvents(events);
-			}}, self = this;
-			events[eventName] = function(event){
-				bubbleUp.call(self, split, event, fn);
-			};
-			args[0].target.addEvents(events);
-		}
-	};
-};
-
-var eventOptions = {
-	mouseenter: {
-		base: 'mouseover'
-	},
-	mouseleave: {
-		base: 'mouseout'
-	},
-	focus: {
-		base: 'focus' + (eventListenerSupport ? '' : 'in'),
-		args: [true]
-	},
-	blur: {
-		base: eventListenerSupport ? 'blur' : 'focusout',
-		args: [true]
-	}
-};
-
-if (!eventListenerSupport) Object.append(eventOptions, {
-	submit: formObserver('submit'),
-	reset: formObserver('reset'),
-	change: inputObserver('change'),
-	select: inputObserver('select')
-});
-
-Event.definePseudo('relay', {
-	listener: function(split, fn, args){
-		bubbleUp.call(this, split, args[0], fn);
-	},
-	options: eventOptions
-});
-
-})();
-
-/*
----
  
-script: Events.js
+script: Expression.js
  
-description: A mixin that adds support for declarative events assignment
+description: Adds layout capabilities to widget (parse and render widget trees from objects)
  
 license: Public domain (http://unlicense.org).
 
@@ -18973,291 +19851,701 @@ authors: Yaroslaff Fedin
  
 requires:
   - LSD.Module
-  - Core/Events
-  - Core/Element.Event
-  - More/Element.Delegation
-  - More/Events.Pseudos
-  - Ext/Element.Properties.widget
-
-provides:
   - LSD.Module.Events
+  - LSD.Layout
+
+provides: 
+  - LSD.Module.Layout
+ 
+...
+*/
+  
+LSD.Module.Layout = new Class({
+  /*
+  options: {
+    traverse: true,
+    extract: true
+  },
+  */
+  
+  constructors: {
+    layout: function(options) {
+      this.rendered = {};
+    }
+  },
+  
+  setLayout: function(layout) {
+    if (typeOf(layout) == 'layout') this.layout = this;
+    else this.options.layout = layout;
+  },
+  
+  unsetLayout: function(layout) {
+    if (this.layout == layout) delete this.layout;
+    else delete this.options.layout;
+  },
+  
+  getLayout: Macro.getter('layout', function() {
+    var options = { interpolate: this.options.interpolate, clone: this.options.clone };
+    if (this.options.context) options.context = this.options.context;
+    return new LSD.Layout(this, null, options);
+  }),
+  
+  buildLayout: function(layout, parent, options) {
+    var method = layout.charAt ? 'selector' : 'render';
+    return this.getLayout()[method](layout, (parent === false || parent) ? parent : this, options);
+  }
+});
+
+LSD.Module.Layout.events = {
+  /*
+    Builds children after element is built
+  */
+  build: function() {
+    this.getLayout();
+    if (!this.options.lazy && this.layout.origin == this && this.options.traverse !== false) {
+      if (this.origin && !this.options.clone) this.element.replaces(this.origin);
+      var nodes = (this.origin || this.element).childNodes;
+      this.layout.array(nodes, [this, this.getWrapper()], this.options.clone ? {clone: true} : null);
+    }
+    if (this.options.layout) this.buildLayout(this.options.layout);
+  },
+  /*
+    Augments all parsed HTML that goes through standart .write() interface
+  */
+  write: function(node) {
+    this.buildLayout(node, [this, this.getWrapper()]);
+  },
+  /*
+    Augments all inserted nodes that come from partial html updates
+  */
+  DOMNodeInserted: function(node) {
+    this.buildLayout(node, [this, this.getWrapper()]);
+  },
+  
+  DOMNodeInsertedBefore: function(node, target) {
+    this.buildLayout(node, [this, this.getWrapper()], {before: target});
+  }
+};
+
+LSD.Module.Events.addEvents.call(LSD.Module.Layout.prototype, LSD.Module.Layout.events);
+
+Object.append(LSD.Options, {
+  layout: {
+    add: 'setLayout',
+    remove: 'unsetLayout'
+  }
+});
+/*
+---
+
+script: Ambient.js
+
+description: When it needs to know what's going on around 
+
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Module.DOM
+  - LSD.Module.Layout
+  - LSD.Module.Expectations
+  - LSD.Module.Mutations
+  - LSD.Module.Allocations
+  - LSD.Module.Relations
+  - LSD.Module.Proxies
+  - LSD.Module.Container
+
+provides: 
+  - LSD.Module.Ambient
 
 ...
 */
 
-LSD.Module.Events = new Class({
-  Implements: [Events],
+LSD.Module.Ambient = new Class({
+  Implements: [
+    LSD.Module.DOM, 
+    LSD.Module.Layout,
+    LSD.Module.Expectations,
+    LSD.Module.Mutations,
+    LSD.Module.Allocations,
+    LSD.Module.Relations,
+    LSD.Module.Proxies,
+    LSD.Module.Container
+  ]
+});
+/*
+---
+name    : SheetParser.Property
+
+authors   : Yaroslaff Fedin
+
+license   : MIT
+
+requires : SheetParser.CSS
+
+provides : SheetParser.Property
+...
+*/
+
+
+(function(exports) {
+  /*<CommonJS>*/
+  var combineRegExp = (typeof module === 'undefined' || !module.exports)
+    ?  exports.combineRegExp
+    :  require('./sg-regex-tools').combineRegExp
+  var SheetParser = exports.SheetParser
+  /*</CommonJS>*/
   
-  initializers: {
-    events: function() {
-      this.events = {};
-      return {
-        events: {
-          register: function(name, object) {
-            var events = this.events[name];
-            if (events) LSD.Module.Events.setStoredEvents.call(object, events, true);
-          },
-          unregister: function(name, object) {
-            var events = this.events[name];
-            if (events) LSD.Module.Events.setStoredEvents.call(object, events, false);
-          }
-        }
-      }
-    }
-  },
-  
-  addEvent: function(name, fn) {
-    return LSD.Module.Events.setEvent.call(this, name, fn)
-  },
-  
-  removeEvent: function(name, fn) {
-    return LSD.Module.Events.setEvent.call(this, name, fn, true)
-  },
+  var Property = SheetParser.Property = {version: '0.2 dev'};
   
   /*
-    The functions takes events object defined in options
-    and binds all functions to the widget.
+    Finds optional groups in expressions and builds keyword
+    indecies for them. Keyword index is an object that has
+    keywords as keys and values as property names.
+    
+    Index only holds keywords that can be uniquely identified
+    as one of the properties in group.
+  */
+  
+  Property.index = function(properties, context) {
+    var index = {};
+    for (var i = 0, property; property = properties[i]; i++) {
+      if (property.push) {
+        var group = index[i] = {};
+        for (var j = 0, prop; prop = property[j]; j++) {
+          var keys = context[prop].keywords;
+          if (keys) for (var key in keys) {
+            if (group[key] == null) group[key] = prop;
+            else group[key] = false;
+          }
+        }
+        for (var keyword in group) if (!group[keyword]) delete group[keyword];
+      }
+    }
+    return index;
+  };
+  
+  /*
+    Simple value 
   */
 
-  bindEvents: function(events, bind, args) {
-    var result = {};
-    for (var name in events) {
-      var value = events[name];
-      if (!value || value.call) result[name] = value;
-      else if (value.indexOf) result[name] = this.bindEvent(value, bind, args);
-      else result[name] = this.bindEvents(value);
+  Property.simple = function(types, keywords) {
+    return function(value) {
+      if (keywords && keywords[value]) return true;
+      if (types) for (var i = 0, type; type = types[i++];) if (Type[type](value)) return true;
+      return false;
+    }
+  };
+  
+  /*
+    Links list of inambigous arguments with corresponding properties keeping
+    the order.
+  */
+  
+  Property.shorthand = function(properties, keywords, context) {
+    var index, r = 0;
+    for (var i = 0, property; property = properties[i++];) if (!property.push) r++;
+    return function() {
+      var result = [], used = {}, start = 0, group, k = 0, l = arguments.length;
+      for (var i = 0, argument; argument = arguments[i]; i++) {
+        var property = properties[k];
+        if (!property) return false;
+        if ((group = (property.push && property))) property = properties[k + 1];
+        if (property) {
+          if (context[property](argument)) k++
+          else property = false
+        }
+        if (group) {
+          if (!property) {
+            if (!index) index = Property.index(properties, context)
+            if (property = index[k][argument])
+              if (used[property]) return false;
+              else used[property] = 1;
+          }
+          if ((property && !used[property]) || (i == l - 1)) {
+            if (i - start > group.length) return false;
+            for (var j = start; j < (i + +!property); j++) 
+              if (!result[j])
+                for (var m = 0, optional; optional = group[m++];) {
+                  if (!used[optional] && context[optional](arguments[j])) {
+                    result[j] = optional;
+                    used[optional] = true
+                    break;
+                  }
+                }
+            start = i;
+            k++;
+          }
+        }
+        if (result[i] == null) result[i] = property;
+      }
+      if (i < r) return false
+      for (var i = 0, j = arguments.length, object = {}; i < j; i++) {
+        var value = result[i];
+        if (!value) return false;
+        object[value] = arguments[i];
+      }
+      return object;
+    };
+  }
+
+  /*
+    A shorthand that operates on collection of properties. When given values
+    are not enough (less than properties in collection), the value sequence
+    is repeated until all properties are filled.     
+  */
+
+  Property.collection = function(properties, keywords, context) {
+    var first = context[properties[0]];
+    if (first.type != 'simple') 
+      return function(arg) {
+        var args = (!arg || !arg.push) ? [Array.prototype.slice.call(arguments)] : arguments;
+        var length = args.length;
+        var result = {};
+        for (var i = 0, property; property = properties[i]; i++) {
+          var values = context[property].apply(1, args[i] || args[i % 2] || args[0]);
+          if (!values) return false;
+          for (var prop in values) result[prop] = values[prop];
+        }
+        return result;
+      }
+    else
+      return function() {
+        var length = arguments.length;
+        var result = {};
+        for (var i = 0, property; property = properties[i]; i++) {
+          var values = arguments[i] || arguments[i % 2] || arguments[0];
+          if (!context[property].call(1, values)) return false;
+          result[property] = values;
+        }
+        return result;
+      }
+  };
+  
+  /* 
+    Multiple value property accepts arrays as arguments
+    as well as regular stuff
+  */
+  
+  Property.multiple = function(arg) {
+    //if (arg.push)
+  }
+  
+  Property.compile = function(definition, context) {
+    var properties, keywords, types;
+    for (var i = 0, bit; bit = definition[i++];) {
+      if (bit.push) properties = bit;
+      else if (bit.indexOf) {
+        if (!Type[bit]) {
+          if (!keywords) keywords = {};
+          keywords[bit] = 1;
+        } else types ? types.push(bit) : (types = [bit]);
+      } else options = bit;
+    }
+    var type = properties ? (keywords && keywords.collection ? "collection" : "shorthand") : 'simple'
+    var property = Property[type](properties || types, keywords, context);
+    if (keywords) property.keywords = keywords;
+    if (properties) {
+      var props = [];
+      for (var i = 0, prop; prop = properties[i++];) prop.push ? props.push.apply(props, prop) : props.push(prop);
+      property.properties = props;
+    }
+    property.type = type;
+    return property;
+  };
+  
+  
+  var Type = Property.Type = {
+    length: function(obj) {
+      return typeof obj == 'number' || (!obj.indexOf && ('number' in obj) && obj.unit && (obj.unit != '%'))
+    },
+  
+    color: function(obj) {
+      return obj.match? obj.match(/^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/) : (obj.isColor || obj.rgba || obj.rgb || obj.hsb)
+    },
+    
+    number: function(obj) {
+      return typeof obj == 'number'
+    },
+    
+    integer: function(obj) {
+      return obj % 1 == 0 && ((0 + obj).toString() == obj)
+    },
+  
+    keyword: function(keywords) {
+      var storage;
+      for (var i = 0, keyword; keyword = keywords[i++];) storage[keyword] = 1;
+      return function(keyword) {
+        return !!storage[keyword]
+      }
+    },
+    
+    strings: function(obj) {
+      return !!obj.indexOf
+    },
+    
+    url: function(obj) {
+      return !obj.match && ("url" in obj);
+    },
+    
+    position: function(obj) {        
+      var positions = Type.position.positions;
+      if (!positions) positions = Type.position.positions = {left: 1, top: 1, bottom: 1, right: 1, center: 1}
+      return positions[obj]
+    },
+    
+    percentage: function(obj) {
+      return obj.unit == '%'
+    }
+  };
+  
+})(typeof exports != 'undefined' ? exports : this);
+/*
+---
+name    : SheetParser.Styles
+
+authors   : Yaroslaff Fedin
+
+license   : MIT
+
+requires : SheetParser.Property
+
+provides : SheetParser.Styles
+...
+*/
+
+(function() {
+   
+var SheetParser = (typeof exports == 'undefined') ? window.SheetParser : exports.SheetParser;
+var CSS = SheetParser.Properties = {
+  background:           [[['backgroundColor', 'backgroundImage', 'backgroundRepeat', 
+                          'backgroundAttachment', 'backgroundPositionX', 'backgroundPositionY']], 'multiple'],
+  backgroundColor:      ['color', 'transparent', 'inherit'],
+  backgroundImage:      ['url', 'none', 'inherit'],
+  backgroundRepeat:     ['repeat', 'no-repeat', 'repeat-x', 'repeat-y', 'inherit', 'space', 'round'],
+  backgroundAttachment: ['fixed', 'scroll', 'inherit', 'local', 'fixed'],
+  backgroundPosition:   [['backgroundPositionX', 'backgroundPositionY']],
+  backgroundPositionX:  ['percentage', 'center', 'left', 'right', 'length', 'inherit'],
+  backgroundPositionY:  ['percentage', 'center', 'top', 'bottom', 'length', 'inherit'],
+   
+  textShadow:           [['textShadowBlur', 'textShadowOffsetX', 'textShadowOffsetY', 'textShadowColor'], 'multiple'],
+  textShadowBlur:       ['length'],
+  textShadowOffsetX:    ['length'],
+  textShadowOffsetY:    ['length'],
+  textShadowColor:      ['color'],
+                        
+  boxShadow:            [['boxShadowBlur', 'boxShadowOffsetX', 'boxShadowOffsetY', 'boxShadowColor'], 'multiple'],
+  boxShadowBlur:        ['length'],
+  boxShadowOffsetX:     ['length'],
+  boxShadowOffsetY:     ['length'],
+  boxShadowColor:       ['color'], 
+  
+  outline:              ['outlineWidth', 'outlineStyle', 'outlineColor'],
+  outlineWidth:         ['length'],
+  outlineStyle:         ['dotted', 'dashed', 'solid', 'double', 'groove', 'reidge', 'inset', 'outset'],
+  outlineColor:         ['color'],
+                        
+  font:                 [[
+                          ['fontStyle', 'fontVariant', 'fontWeight'], 
+                          'fontSize', 
+                          ['lineHeight'], 
+                          'fontFamily'
+                        ]],
+  fontStyle:            ['normal', 'italic', 'oblique', 'inherit'],
+  fontVariant:          ['normal', 'small-caps', 'inherit'],
+  fontWeight:           ['normal', 'number', 'bold', 'inherit'],
+  fontFamily:           ['strings', 'inherit'],
+  fontSize:             ['length', 'percentage', 'inherit', 
+                         'xx-small', 'x-small', 'small', 'medium', 'large', 'x-large', 'xx-large', 'smaller', 'larger'],
+                        
+  color:                ['color'],
+  letterSpacing:        ['normal', 'length', 'inherit'],
+  textDecoration:       ['none', 'capitalize', 'uppercase', 'lowercase'],
+  textAlign:            ['left', 'right', 'center', 'justify'],
+  textIdent:            ['length', 'percentage'],                 
+  lineHeight:           ['normal', 'length', 'number', 'percentage'],
+  
+  height:               ['length', 'auto'],
+  maxHeight:            ['length', 'auto'],
+  minHeight:            ['length', 'auto'],
+  width:                ['length', 'auto'],
+  maxWidth:             ['length', 'auto'],
+  minWidth:             ['length', 'auto'],
+                        
+  display:              ['inline', 'block', 'list-item', 'run-in', 'inline-block', 'table', 'inline-table', 'none', 
+                         'table-row-group', 'table-header-group', 'table-footer-group', 'table-row', 
+                         'table-column-group', 'table-column', 'table-cell', 'table-caption'],
+  visibility:           ['visible', 'hidden'],
+  'float':              ['none', 'left', 'right'],
+  clear:                ['none', 'left', 'right', 'both', 'inherit'],
+  overflow:             ['visible', 'hidden', 'scroll', 'auto'],
+  position:             ['static', 'relative', 'absolute', 'fixed'],
+  top:                  ['length', 'auto'],
+  left:                 ['length', 'auto'],
+  right:                ['length', 'auto'],
+  bottom:               ['length', 'auto'],
+  zIndex:               ['integer'],
+  cursor:               ['auto', 'crosshair', 'default', 'hand', 'move', 'e-resize', 'ne-resize', 'nw-resize', 
+                         'n-resize', 'se-resize', 'sw-resize', 's-resize', 'w-resize', 'text', 'wait', 'help']
+};
+
+var expanded = ['borderWidth', 'borderColor', 'borderStyle', 'padding', 'margin', 'border'];
+for (var side, sides = ['Top', 'Right', 'Bottom', 'Left'], i = 0; side = sides[i++];) {
+  CSS['border' + side]           = [['border' + side + 'Width', 'border' + side + 'Style', 'border' + side + 'Color']];
+  
+  CSS['border' + side + 'Width'] = ['length', 'thin', 'thick', 'medium'];
+  CSS['border' + side + 'Style'] = ['none', 'dotted', 'dashed', 'solid', 'double', 'groove', 'ridge', 'inset', 'outset', 'inherit', 'none'];
+  CSS['border' + side + 'Color'] = ['color'];
+  
+  CSS['margin' + side]           = ['length', 'percentage', 'auto'];
+  CSS['padding' + side]          = ['length', 'percentage', 'auto'];
+
+  for (var j = 0, prop; prop = expanded[j++];) {
+    if (!CSS[prop]) CSS[prop] = [[]];
+    CSS[prop][0].push(prop.replace(/^([a-z]*)/, '$1' + side));
+    if (i == 4) CSS[prop].push('collection')
+  }
+
+  if (i % 2 == 0) 
+    for (var j = 1, adj; adj = sides[j+=2];) 
+      CSS['borderRadius' + side + adj] = ['length', 'none'];
+};
+
+var Styles = SheetParser.Styles = {}
+for (var property in CSS) Styles[property] = SheetParser.Property.compile(CSS[property], Styles);
+
+})();
+/*
+---
+ 
+script: Styles.js
+ 
+description: Set, get and render different kind of styles on widget
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Module
+  - LSD.Module.Events
+  - Core/Element.Style
+  - Ext/FastArray
+  - Sheet/SheetParser.Styles
+
+provides: 
+  - LSD.Module.Styles
+
+...
+*/
+
+!function() {
+  
+var CSS = SheetParser.Styles, Paint = LSD.Styles;
+var setStyle = function(element, property, value, type) {
+  delete this.style.expressed[property];
+  delete this.style.calculated[property];
+  if (value === false) {
+    if (element && this.element) delete this.element.style[property];
+    delete this.style[element ? 'element' : 'paint'][property], delete this.style.current[property];
+    if (type) delete this.style[type][property];
+  } else {
+    if (element && this.element) this.element.style[property] = (typeof value == 'number') ? value + 'px' : value;
+    this.style[element ? 'element' : 'paint'][property] = this.style.current[property] = value;
+    if (type) this.style[type][property] = value;
+  }
+}
+
+LSD.Module.Styles = new Class({
+  constructors: {
+    style: function() {
+      this.rules = [];
+      this.style = {    // Styles that...
+        current: {},    // ... widget currently has
+        found: {},      // ... were found in stylesheets
+        given: {},      // ... were manually assigned
+
+        changed: {},    // ... came from stylesheet since last render
+        calculated: {}, // ... are calculated in runtime
+        computed: {},   // ... are already getStyled
+        expressed: {},  // ... are expressed through function
+        implied: {},    // ... are assigned by environment
+
+        element: {},    // ... are currently assigned to element
+        paint: {}       // ... are currently used to paint
+      };
+    }
+  },
+
+  setStyle: function(property, value) {
+    var paint, css;
+    if (!(paint = Paint[property]) && !(css = CSS[property])) return false;
+    var length = arguments.length;
+    if (length > 2) {
+      var last = arguments[length - 1];
+      if (this.style[last || 'given']) {
+        var type = last;
+        length--;
+      }
+      if (length > 2) value = Array.prototype.splice.call(arguments, 1, length);
+    }
+    if (value.call) {
+      var expression = value;
+      value = value.call(this, property);
+    }
+    var result = (css || paint)[value.push ? 'apply' : 'call'](this, value);
+    if (result === true || result === false) setStyle.call(this, css, property, value, type);
+    else for (var prop in result) setStyle.call(this, css, prop, result[prop], type);
+    if (expression) {
+      this.style.expressed[property] = expression
+      this.style.computed[property] = value
     }
     return result;
   },
-  
-  bindEvent: function(name, bind, args) {
-    if (name.map) {
-      var args = name.slice(1);
-      name = name[0];
-    }
-    if (!this.$bound) this.$bound = {};
-    if (!this.$bound[name]) this.$bound[name] = LSD.Module.Events.bind(name, bind || this, args);
-    return this.$bound[name];
+
+  setStyles: function(style, type) {
+    for (var key in style) this.setStyle(key, style[key], type)
   },
 
-  dispatchEvent: function(type, args){
+  getStyle: function(property) {
+    if (this.style.computed[property]) return this.style.computed[property];
+    var value;
+    var definition = Paint[property] || CSS[property];
+    if (!definition) return;
+    if (definition.properties) return definition.properties.map(this.getStyle.bind(this));
+    var expression = this.style.expressed[property];    
+    if (expression) {
+      value = this.style.current[property] = this.calculateStyle(property, expression);
+    } else {  
+      value = this.style.current[property];
+      if (property == 'height') {
+        if (typeof value !== 'number') value = this.getClientHeight();
+      } else if (property == 'width') {
+        if (typeof value !== 'number') value = this.getClientWidth();
+      } else {
+        if (value == "inherit") value = this.inheritStyle(property);
+        if (value == "auto") value = this.calculateStyle(property);
+      }
+    }
+    this.style.computed[property] = value;
+    return value;
+  },
+
+  getStyles: function(properties) {
+    var result = {};
+    for (var i = 0, property, args = arguments; property = args[i++];) result[property] = this.getStyle(property);
+    return result;
+  },
+  
+  renderStyles: function(styles) {
+    var style = this.style, 
+        current = style.current,
+        paint = style.paint, 
+        element = style.element,  
+        found = style.found,
+        implied = style.implied,
+        calculated = style.calculated,
+        given = Object.append(style.given, styles),
+        changed = style.changed;
+    this.setStyles(given, 'given')
+    for (var property in found) if ((property in changed) && !(property in given)) this.setStyle(property, found[property]);
+    Object.append(style.current, style.implied);
+    for (var property in element)  {
+      if (!(property in given) && !(property in found) && !(property in calculated) && !(property in implied)) {
+        this.element.style[property] = '';
+        delete element[property]
+      }
+    }
+    for (var property in current)  {
+      if (!(property in given) && !(property in found) && !(property in calculated) && !(property in implied)) {
+        delete current[property];
+        delete paint[property];
+      }
+    }
+  },
+  
+  combineRules: function(rule) {
+    var rules = this.rules, style = this.style, found = style.found = {}, implied = style.implied = {}, changed = style.changed;
+    for (var j = rules.length, other; other = rules[--j];) {
+      var setting = other.style, implying = other.implied, self = (rule == other);
+      if (setting) for (var property in setting) if (!(property in found)) {
+        if (self) changed[property] = setting[property];
+        found[property] = setting[property];
+      }
+      if (implying) for (var property in implying) if (!(property in implied)) implied[property] = implying[property];
+    }
+  },
+  
+  addRule: function(rule) {
+    var rules = this.rules;
+    if (rules.indexOf(rule) > -1) return
+    for (var i = 0, other;  other = rules[i++];) {
+      if ((other.specificity > rule.specificity) || (other.specificity == rule.specificity)) 
+        if (other.index > rule.index) break;
+    }
+    rules.splice(--i, 0, rule);
+    this.combineRules(rule);
+  },
+  
+  removeRule: function(rule) {
+    var rules = this.rules, index = rules.indexOf(rule)
+    if (index == -1) return
+    rules.splice(index, 1);
+    this.combineRules();
+    var style = this.style, found = style.found, changed = style.changed, setting = rule.style;
+    for (var property in setting) if (!Object.equals(found[property], setting[property])) changed[property] = found[property];
+ },
+  
+  inheritStyle: function(property) {
     var node = this;
-    type = type.replace(/^on([A-Z])/, function(match, letter) {
-      return letter.toLowerCase();
-    });
-    while (node) {
-      var events = node.$events;
-      if (events && events[type]) events[type].each(function(fn){
-        return fn[args.push ? 'apply' : 'call'](node, args);
-      }, node);
-      node = node.parentNode;
-    }
-    return this;
+    var style = node.style.current[property];
+    while ((style == 'inherit' || !style) && (node = node.parentNode)) style = node.style.current[property];
+    return style;
   },
   
-  captureEvent: function(type, args) {
-		var events = this.$events[type];
-		if (!events) return;
-		for (var i = 0, event; event = events[i++];) {
-		  var result = event.apply(this, arguments);
-		  if (result) return result;
-		}
-  }
-});
-
-Object.append(LSD.Module.Events, {
-  setStoredEvents: function(events, state) {
-    for (var evt in events)
-      for (var i = 0, fn, group = events[evt]; fn = group[i++];)
-        this[state ? 'addEvent' : 'removeEvent'](evt, fn.indexOf ? this.bindEvent(fn) : fn);
-  },
-  setEvent: function(name, fn, revert) {
-    if (fn.indexOf) fn = this.bindEvent(fn);
-    var method = revert ? 'removeEvent' : 'addEvent';
-    if (fn.call) {
-      return Events.prototype[method].call(this, name, fn);
+  calculateStyle: function(property, expression) {
+    if (this.style.calculated[property]) return this.style.calculated[property];
+    var value;
+    if (expression) {
+      value = expression.call(this, property);
     } else {
-      if (name.charAt(0) == '_') {
-        for (var event in fn) this[method](event, fn[event]);
-        return this;
+      switch (property) {
+        case "height":
+          value = this.getClientHeight();
+        case "width":
+          value = this.inheritStyle(property);
+          if (value == "auto") value = this.getClientWidth();
+        case "height": case "width":  
+          //if dimension size is zero, then the widget is not in DOM yet
+          //so we wait until the root widget is injected, and then try to repeat
+          if (value == 0 && (this.redraws == 0)) this.halt();
       }
-      var target = LSD.Module.Events.Targets[name];
-      var events = this.events[name];
-      if (target) {
-        if (!target.addEvent && !(target.call && (target = target.call(this)))) {
-          if (target.events && !events) Object.each(target.events, function(value, event) {
-            this.addEvent(event, function(object) {
-              if (target.getter === false) object = this;
-              LSD.Module.Events.setStoredEvents.call(object, events, value);
-            });
-          }, this);
-          if (target.condition && target.condition.call(this)) target = this;
-          else if (target.getter && this[target.getter]) target = this[target.getter];
-        }
-      }
-      if (!events) events = this.events[name] = {};
-      var bound = this.bindEvents(fn);
-      if (target && target[method]) for (var event in bound) target[method](event, bound[event]);
-      for (event in bound) {
-        var group = (events[event] || (events[event] = []));
-        if (revert) {
-          var i = group.indexOf(bound[event]);
-          if (i > -1) group.slice(i, 1);
-        } else group.include(bound[event])
-      }
-      return this;
     }
+    this.style.calculated[property] = value;
+    return value;
   },
   
-  setEventsByRegister: function(name, state, events) {
-    var register = this.$register;
-    if (!register) register = this.$register = {};
-    if (register[name] == null) register[name] = 0;
-    switch (register[name] += (state ? 1 : -1)) {
-      case 1:
-        if (events) this.addEvents(events)
-        else LSD.Module.Events.setStoredEvents.call(this, this.events[name], true);
-        return true;
-      case 0:
-        if (events) this.removeEvents(events)
-        else LSD.Module.Events.setStoredEvents.call(this, this.events[name], false);
-        return false;
-    }
-  },
-  
-  bind: function(method, bind, args) {
-    return function() {
-      if (bind[method]) bind[method].apply(bind, args || arguments);
-    }
+  render: function(style) {
+    this.renderStyles(style);
+    this.parent.apply(this, arguments);
   }
 });
 
-/*
-  Target system re-routes event groups to various objects.  
-  
-  Combine them for fun and profit.
-  
-  | Keyword    |  Object that recieves events       |
-  |-------------------------------------------------|
-  | *self*     | widget itself (no routing)         |
-  | *element*  | widget element (when built)        |
-  | *parent*   | parent widget                      |
-  | *document* | LSD document                       |
-  | *window*   | window element                     |
-  
-  | State      | Condition                          |
-  |-------------------------------------------------|
-  | *enabled*  | widget is enabled                  |
-  | *disabled* | widget is disabled                 |
-  | *focused*  | widget is focused                  |
-  | *blured*   | widget is blured                   |
-  | *target*   | first focusable parent is focused  |
-  
-  | Extras     | Description                        |
-  |-------------------------------------------------|
-  | *expected* | Routes events to widgets, selected |
-  |            | by selectors (keys of event group).|
-  |            | Provided by Expectations module    |
-  | _\w        | An event group which name starts   |
-  |            | with underscore is auto-applied    |
-                 
-                 
-  
-  
-  Advanced example:
-  
-  events: {
-    self: {
-      focus: 'onFocus'
-    },
-    window: {
-      resize: 'onWindowResize'
-    },
-    parent: {
-      element: { //event delegation
-        'click:relay(.button)': 'onButtonClick' 
-      }
-    },
-    expected: { 
-      'button:first-child': { //waits for widgets
-        parent: {}
-      }
-    }
-  }
-*/
-LSD.Module.Events.Targets = {
-  element: {
-    getter: 'element',
-    events: {
-      'attach': true,
-      'detach': false
-    }
-  },
-  parent: {
-    getter: 'parentNode',
-    events: {
-      'setParent': true,
-      'unsetParent': false
-    }
-  },
-  document: {
-    getter: 'document',
-    events: {
-      'setDocument': true,
-      'unsetDocument  ': false
-    }
-  },
-  self: function() { 
-    return this
-  },
-  window: function() {
-    return window;
-  },
-  mobile: function() {
-    return this;
+LSD.Module.Styles.events = {
+  update: function() {
+    this.style.calculated = {};
+    this.style.computed = {};
   }
 };
 
-!function(Events, Known, Positive, Negative) {
-  Object.each(Object.append({}, Positive, Negative), function(name, condition) {
-    var events = {}, positive = !!Positive[name], state = Known[name];
-    events[state[!positive ? 'enabler' : 'disabler']] = true;
-    events[state[ positive ? 'enabler' : 'disabler']] = false;
-    LSD.Module.Events.Targets[condition] = {
-      getter: false,
-      condition: function() {
-        return positive ^ this[state.property || name]
-      },
-      events: events
-    }
-  });
-}(LSD.Module.Events, LSD.States.Known, LSD.States.Positive, LSD.States.Negative)
+LSD.Module.Events.addEvents.call(LSD.Module.Styles.prototype, LSD.Module.Styles.events);
 
-
-/*
-  Defines special *on* pseudo class for events used for
-  event delegation. The difference between usual event 
-  delegation (which is :relay in mootools) and this, is
-  that with :on you can use LSD selectors and it fires 
-  callbacks in context of widgets.
-  
-  element.addEvent('mouseover:on(button)', callback)
-*/
-
-Event.definePseudo('on', function(split, fn, args){
-  var event = args[0];
-  var widget = Element.get(event.target, 'widget');
-  if (widget && widget.match(split.value)) {
-    fn.call(widget, event, widget, event.target);
-    return;        
-  }
-});
-
-LSD.Options.events = {
-  add: 'addEvent',
-  remove: 'removeEvent',
-  iterate: true
+LSD.Options.styles = {
+  add: 'setStyles',
+  remove: 'unsetStyles'
 };
+}();
 /*
 ---
 
@@ -19279,6 +20567,10 @@ requires:
   - LSD.Module.Shortcuts
   - LSD.Module.Element
   - LSD.Module.Selectors
+  - LSD.Module.Tag
+  - LSD.Module.Chain
+  - LSD.Module.Actions
+  
 provides: 
   - LSD.Module.Accessories
 
@@ -19294,496 +20586,431 @@ LSD.Module.Accessories = new Class({
     LSD.Module.Dimensions,
     LSD.Module.Styles,
     LSD.Module.Shortcuts,
+    LSD.Module.Tag,
     LSD.Module.Element,
-    LSD.Module.Selectors
+    LSD.Module.Selectors,
+    LSD.Module.Chain,
+    LSD.Module.Actions
   ]
 });
 /*
 ---
  
-script: Expectations.js
+script: Layer.js
  
-description: A trait that allows to wait for related widgets until they are ready
+description: Adds a piece of SVG that can be drawn with widget styles
  
 license: Public domain (http://unlicense.org).
 
 authors: Yaroslaff Fedin
  
 requires:
-  - LSD.Module
-  - LSD.Module.Events
-  - LSD.Module.Attributes
-
+  - ART/ART.Shape
+  - LSD.Module.Styles
+  - Sheet/SheetParser.Styles
+ 
 provides: 
-  - LSD.Module.Expectations
+  - LSD.Layer
+  - LSD.Layer.Shaped
  
 ...
 */
 
 !function() {
   
-var Expectations = LSD.Module.Expectations = new Class({
-  
-  initializers: {
-    expectations: function() {
-      this.expectations = {}
-      return {
-        events: Expectations.events
+LSD.Layer = function(name, styles, painters) {
+  this.name = name;
+  this.styles = styles;
+  this.painters = painters;
+}
+
+LSD.Layer.prototype = {
+  render: function(widget, commands) {
+    var canvas = widget.getCanvas();
+    var shape = commands.shape;
+    if (shape == 'none') return;
+    if (!shape) shape = widget.getStyle('shape') || 'rectangle';
+    var layer = widget.shapes[this.name];
+    if (shape.glyph) {
+      var glyph = ART.Glyphs[shape.glyph];
+      if (!glyph) return;    
+      var path = new ART.Path(glyph);
+      var box = path.measure();
+      if (!layer) layer = new ART.Shape(path, box.width, box.height);
+      if (commands.size && !Object.equals(previous ? previous.size : box, commands.size))
+        layer.resizeTo(commands.size.width, commands.size.height)
+        
+    } else if (!shape.indexOf){
+      for (var name in shape) {
+        var values = shape[name];
+        if (!values.push) values = [values];
+        shape = name;
       }
     }
-  },
-  
-  getElementsByTagName: function(tag) {
-    var cache = this.expectations.tag;
-    return (cache && cache[tag.toLowerCase()]) || [];
-  },
-  
-  match: function(selector) {
-    if (typeof selector == 'string') selector = Slick.parse(selector);
-    if (selector.expressions) selector = selector.expressions[0][0];
-    if (selector.tag && (selector.tag != '*') && (this.options.tag != selector.tag)) return false;
-    if (selector.id && (this.attributes.id != selector.id)) return false;
-    if (selector.attributes) for (var i = 0, j; j = selector.attributes[i]; i++) 
-      if (j.operator ? !j.test(this.attributes[j.key] && this.attributes[j.key].toString()) : !(j.key in this.attributes)) return false;
-    if (selector.classes) for (var i = 0, j; j = selector.classes[i]; i++) if (!this.classes[j.value]) return false;
-    if (selector.pseudos) {
-      for (var i = 0, j; j = selector.pseudos[i]; i++) {
-        var name = j.key;
-        if (this.pseudos[name]) continue;
-        var pseudo = pseudos[name];
-        if (pseudo == null) pseudos[name] = pseudo = Slick.lookupPseudo(name) || false;
-        if (pseudo === false || (pseudo && !pseudo.call(this, this, j.value))) return false;
-      }
-    }
-    return true;
-  },
-  
-  /*
-    Expect processes a single step in a complex selector.
-    
-    Each of those bits (e.g. strong.important) consists 
-    pieces that can not be cnahged in runtime (tagname)
-    and other dynamic parts (classes, pseudos, attributes).
-    
-    The idea is to split the selector bit to static and dynamic
-    parts. The widget that is *expect*ing the selector, groups
-    his expectations by tag name. Every node inserted into
-    that element or its children will pick up expectations
-    related to it, thus matching static part of a selector.
-    Then it's time to match the dynamic part. 
-  */
-  expect: function(selector, callback) {
-    var combinator = selector.combinator || 'self';
-    var id = selector.id;
-    var index = (combinator == ' ' && id) ? 'id' : combinator; 
-    var expectations = this.expectations[index];
-    if (!expectations) expectations = this.expectations[index] = {};
-    if (selector.combinator) {
-      /*
-        Given selector has combinator.
-        Finds related elements and passes expectations to them.
-      */
-      if (!selector.structure) {
-        var separated = separate(selector);
-        selector.structure = { Slick: true, expressions: [[separated.structure]] }
-        if (separated.state) selector.state = separated.state;
-      }
-      var key = (index == 'id') ? id : selector.tag;
-      var group = expectations[key];
-      if (!group) group = expectations[key] = [];
-      group.push([selector, callback]);
-      var state = selector.state;
-      if (this.document && this.document.documentElement) this.getElements(selector.structure).each(function(widget) {
-        if (state) widget.expect(state, callback);
-        else callback(widget, true);
-      });
+    if (!layer) {
+      var path = ART.Shape[shape.capitalize()];
+      if (!path) return;
+      var layer = new path;
+      layer.render(commands)
     } else {
-      /*
-        Selector without combinator,
-        depends on state of current widget.
-      */
-      for (var types = ['pseudos', 'classes', 'attributes'], type, i = 0; type = types[i++];) {
-        var values = selector[type];
-        if (values) values: for (var j = 0, value; (value = values[j++]) && (value = value.key || value.value);) {
-          var kind = expectations[type];
-          if (!kind) kind = expectations[type] = {};
-          var group = kind[value];
-          if (!group) group = kind[value] = [];
-          for (var k = group.length, expectation; expectation = group[--k];) if (expectation[0] == selector) continue values;
-          group.push([selector, callback]);
-        }
-      }
-      if (this.match(selector)) callback(this, true);
+      var previous = layer.commands;
+      if (layer.draw && layer.render) layer.render(commands)
     }
-  },
-  
-  unexpect: function(selector, callback, iterator) {
-    if (selector.expressions) selector = selector.expressions[0][0];
-    if (selector.combinator) {
-      remove(this.expectations[selector.combinator][selector.tag], callback);
-      if (!selector.state) return;
-      this.getElements(selector.structure).each(function(widget) {
-        widget.unexpect(selector.state, callback);
-        if (iterator) iterator(widget)
-      });
-    } else {
-      if (iterator) iterator(widget)
-      for (var types = ['pseudos', 'classes', 'attributes'], type, i = 0; type = types[i++];) {
-        var values = selector[type], self = this.expectations.self;
-        if (values) for (var j = 0, value; (value = values[j++]) && (value = value.key || value.value);) {
-          remove(self[type][value], callback);
-        }
+    layer.commands = commands;
+    widget.shapes[this.name] = layer;
+    for (command in commands) {
+      var value = commands[command];
+      if (layer[command] && command != 'move') {
+        if (!value || !previous || !Object.equals(previous[command], value)) layer[command][value && value.push ? 'apply' : 'call'](layer, value);
       }
     }
+    var translate = commands.translate = {x: 0, y: 0}
+    if (commands.inside) {
+      translate.x += commands.inside.left
+      translate.y += commands.inside.top;
+    };
+    //if (commands.outside) {
+    //  top += commands.outside.top;
+    //  left += commands.outside.left
+    //};
+    if (commands.move) {
+      translate.x += commands.move.x;
+      translate.y += commands.move.y;
+    }
+    if (!previous || !Object.equals(previous.translate, translate)) layer.moveTo(translate.x, translate.y)
   },
   
-  watch: function(selector, callback, depth) {
-    if (typeof selector == 'string') selector = Slick.parse(selector);
-    if (!depth) depth = 0;
-    selector.expressions.each(function(expressions) {
-      var watcher = function(widget, state) {
-        if (expressions[depth + 1]) widget[state ? 'watch' : 'unwatch'](selector, callback, depth + 1)
-        else callback(widget, state)
-      };
-      watcher.callback = callback;
-      this.expect(expressions[depth], watcher);
-    }, this);
-  },
-  
-  unwatch: function(selector, callback, depth) {
-    if (typeof selector == 'string') selector = Slick.parse(selector);
-    if (!depth) depth = 0;
-    selector.expressions.each(function(expressions) {
-      this.unexpect(expressions[depth], callback, function(widget) {
-        if (expressions[depth + 1]) widget.unwatch(selector, callback, depth + 1)
-        else callback(widget, false)
-      });
-    }, this);
-  },
-  
-  use: function() {
-    var selectors = Array.flatten(arguments);
-    var widgets = []
-    var callback = selectors.pop();
-    var unresolved = selectors.length;
-    selectors.each(function(selector, i) {
-      var watcher = function(widget, state) {
-        if (state) {
-          if (!widgets[i]) {
-            widgets[i] = widget;
-            unresolved--;
-            if (!unresolved) callback.apply(this, widgets.concat(state))
-          }
+  draw: function(widget, context, previous) {
+    context = Object.append({size: widget.size, style: widget.style.current}, context || {});
+    if (context.style.cornerRadiusTopLeft !== null) {
+      context.radius = widget.getStyle('cornerRadius')
+    }
+    var inherited = {}, overwritten = {};
+    for (var painter, i = 0; painter = this.painters[i++];) {
+      var commands = painter.paint.apply(context, painter.keys.map(function(prop) { return widget.getStyle(prop)}));
+      for (var name in commands) {
+        var value = commands[name];
+        if (Inherit[name]) {;
+          inherited[name] = merge(value, context[name])
         } else {
-          if (widgets[i]) {
-            if (!unresolved) callback.apply(this, widgets.concat(state))
-            delete widgets[i];
-            unresolved++;
+          if (!Accumulate[name]) overwritten[name] = context[name]
+          context[name] = (Accumulate[name] || Merge[name]) ? merge(value, context[name]) : value;
+        }
+      }
+      //for (var command in value) this[command](command[value]);
+    }    
+    this.render(widget, context);
+    return Object.append(context, overwritten, inherited);;
+  }
+}
+
+var merge = function(value, old) {
+  if (typeof value == "object") {
+    if (value.push) {
+      for (var j = 0, k = value.length; j < k; j++) {
+        var item = value[j] || 0;
+        if (old) old[j] = (old[j] || 0) + item;
+        else old = [item]
+      }
+      return old;
+    } else if (!value.indexOf) {
+      for (var prop in value) {
+        var item = value[prop] || 0;
+        if (!old) old = {}
+        old[prop] = (old[prop] || 0) + item;
+      }
+      return old;
+    }
+  }  
+  return value;
+}
+
+var Accumulate = LSD.Layer.accumulated = new FastArray('translate', 'radius');
+var Inherit = LSD.Layer.inherited = new FastArray('inside', 'outside')
+var Merge = LSD.Layer.merged = new FastArray('size')
+
+var Property = SheetParser.Property;
+var Styles = LSD.Styles;
+var Map = LSD.Layer.Map = {};
+var Cache = LSD.Layer.Cache = {};
+
+//LSD.Layer.getProperty = function(property, properties)
+ 
+LSD.Layer.generate = function(name, layers) {
+  if (arguments.length > 2) layers = Array.prototype.splice.call(arguments, 1);
+  var painters = [];
+  var styles = LSD.Layer.prepare(name, layers, function(painter) {
+    painters.push(painter)
+  })
+  return new LSD.Layer(name, styles, painters);
+};
+
+LSD.Layer.prepare = function(name, layers, callback) {
+  var properties = [], styles = {};
+  for (var i = 0, layer; layer = layers[i++];) {
+    var definition = LSD.Layer[layer.capitalize()];
+    if (!definition ) continue;
+    var properties = definition.properties && Object.clone(definition.properties);
+    if (!properties) continue;
+    definition = Object.append({styles: {}, keys: []}, definition);
+    var prefix = definition.prefix;
+    if (prefix === false || layer == name) prefix = name;
+    else if (!prefix) prefix = name + layer.capitalize();
+    var length = 0;
+    for (var property in properties) length++
+    var simple = (length == 1);
+    Object.each(properties, function(value, property) {
+      if (property == layer) {
+        if (simple) var style = prefix
+        else return;
+      } else var style = prefix + property.capitalize()
+      definition.styles[style] = styles[style] = Property.compile(value, properties);
+      definition.keys.push(style);
+    });
+    var shorthand = properties[layer];
+    if (shorthand && !simple) {
+      var style = (layer == name) ? name : name + layer.capitalize();
+      if (length) {
+        for (var j = 0, k = 0, l = 0, prop; prop = shorthand[j]; j++) {
+          if (!prop.push) { 
+            if (properties[prop]) {
+              shorthand[j] = prefix + prop.capitalize();
+              k++
+            }
+          } else for (var m = 0, sub; sub = prop[m]; m++) {
+            if (properties[sub]) {
+              prop[m] = prefix + sub.capitalize();
+              l++;
+            }
           }
         }
       }
-      this.watch(selector, watcher)
-    }, this)
-  }
-});
-
-var pseudos = {};
-var check = function(type, value, state, target) {
-  var expectations = this.expectations
-  if (!target) {
-    expectations = expectations.self;
-    target = this;
-  }
-  expectations = expectations && expectations[type] && expectations[type][value];
-  if (expectations) for (var i = 0, expectation; expectation = expectations[i++];) {
-    var selector = expectation[0];
-    if (selector.structure && selector.state) {
-      if (target.match(selector.structure)) {
-        if (!state) {
-          if (target.match(selector.state)) {
-            target.unexpect(selector.state, expectation[1]);
-            expectation[1](target, !!state)
-          }
-        } else target.expect(selector.state, expectation[1])
-      }
-    } else if (target.match(selector)) expectation[1](target, !!state)
-  }
-}
-
-var notify = function(widget, type, tag, state, target) {
-  check.call(widget, type, tag, state, target)
-  check.call(widget, type, "*", state, target)
-}
-
-var update = function(widget, tag, state) {
-  notify(this, ' ', tag, state, widget);
-  var options = widget.options, id = widget.id;
-  if (id) check.call(this, 'id', id, state, widget);
-  if (this.previousSibling) {
-    notify(this.previousSibling, '!+', options.tag, state, widget);
-    notify(this.previousSibling, '++', options.tag, state, widget);
-    for (var sibling = this; sibling = sibling.previousSibling;) {
-      notify(sibling, '!~', tag, state, widget);
-      notify(sibling, '~~', tag, state, widget);
+      definition.styles[style] = styles[style] = Property.compile(((l > 0 && (k > 0 || j == 1)) ) ? [shorthand] : shorthand, styles);
+      definition.shorthand = style;
     }
+    if (definition.onCompile) definition.onCompile(name);
+    if (callback) callback(definition);
   }
-  if (this.nextSibling) {
-    notify(this.nextSibling, '+',  tag, state, widget);
-    notify(this.nextSibling, '++', tag, state, widget);
-    for (var sibling = this; sibling = sibling.nextSibling;) {
-      notify(sibling, '~',  tag, state, widget);
-      notify(sibling, '~~', tag, state, widget);
-    }
+  for (var property in styles) {
+    Styles[property] = styles[property];
+    Map[property] = name;
   }
-  if (widget.parentNode == this) notify(this, '>', options.tag, state, widget);
+  return styles;
 }
 
-var remove = function(array, callback) {
-  if (array) for (var i = array.length; i--;) {
-    var fn = array[i][1]; 
-    if (fn == callback || fn.callback == callback) array.splice(i, 1);
-  }
+LSD.Layer.get = function(name) {
+  var key = name//Array.flatten(arguments).join('');
+  if (Cache[key]) return Cache[key];
+  else return (Cache[key] = LSD.Layer.generate.apply(LSD.Layer, arguments))
 }
 
-var separate = function(selector) {
-  if (selector.state || selector.structure) return selector
-  var separated = {};
-  for (var criteria in selector) {
-    switch (criteria) {
-      case 'tag': case 'combinator': case 'id':
-        var type = 'structure';
-        break;
-      default:
-        var type = 'state';
-    }
-    var group = separated[type];
-    if (!group) group = separated[type] = {};
-    group[criteria] = selector[criteria]
-  };
-  return separated;
-}
-
-
-
-Expectations.events = {
-  nodeInserted: function(widget) {
-    var expectations = this.expectations, type = expectations.tag, tag = widget.tagName;
-    if (!type) type = expectations.tag = {};
-    var group = type[tag];
-    if (!group) group = type[tag] = [];
-    group.push(widget);
-    group = type['*'];
-    if (!group) group = type['*'] = [];
-    group.push(widget);
-    update.call(this, widget, tag, true);
-  },
-  nodeRemoved: function(widget) {
-    var expectations = this.expectations, type = expectations.tag, tag = widget.tagName;
-    type[tag].erase(widget);
-    type["*"].erase(widget);
-    update.call(this, widget, tag, false);
-  },
-  setParent: function(parent) {
-    notify(this, '!>', parent.tagName, true, parent);
-    for (; parent; parent = parent.parentNode) notify(this, '!', parent.tagName, true, parent);
-  },
-  unsetParent: function(parent) {
-    notify(this, '!>', parent.tagName, false, parent);
-    for (; parent; parent = parent.parentNode) notify(this, '!', parent.tagName, false, parent);
-  },
-  selectorChange: check 
-};
-
-LSD.Module.Events.Targets.expected = function() {
-  var self = this, Targets = LSD.Module.Events.Targets;
-  return {
-    addEvent: function(key, value) {
-      if (!self.watchers) self.watchers = {};
-      self.watchers[key] = function(widget, state) {
-        value = Object.append({}, value)
-        for (var name in value) {
-          if (typeof value[name] == 'object') continue;
-          widget.addEvent(name, value[name]);
-          delete value[name];
-        }
-        for (var name in value) {
-          target = (Targets[name] || Targets.expected).call(widget);
-          target[state ? 'addEvents' : 'removeEvents'](value);
-          break;
-        }
-      };
-      self.watch(key, self.watchers[key]);
-    },
-    removeEvent: function(key, event) {
-      self.unwatch(key, self.watchers[key]);
-    }
-  }
-};
-
-
-//LSD.Options.expectations = {
-//  add: 'expect',
-//  remove: 'unexpect',
-//  iterate: true,
-//  process: 'bindEvents'
-//};
-
-var States = LSD.States.Known;
-  
 }();
 /*
 ---
-
-script: Ambient.js
-
-description: When it needs to know what's going on around 
-
+ 
+script: Layers.js
+ 
+description: Make widget use layers for all the SVG
+ 
 license: Public domain (http://unlicense.org).
 
 authors: Yaroslaff Fedin
  
 requires:
-  - LSD.Module.DOM
-  - LSD.Module.Layout
-  - LSD.Module.Expectations
-  - LSD.Module.Relations
-  - LSD.Module.Proxies
-  - LSD.Module.Container
+  - LSD.Trait
+  - LSD.Layer
+  - LSD.Module.Styles
 
 provides: 
-  - LSD.Module.Ambient
-
-...
-*/
-
-LSD.Module.Ambient = new Class({
-  Implements: [
-    LSD.Module.DOM, 
-    LSD.Module.Layout,
-    LSD.Module.Expectations,
-    LSD.Module.Relations,
-    LSD.Module.Proxies,
-    LSD.Module.Container
-  ]
-});
-/*
----
- 
-script: Command.js
- 
-description: A command getter that watches attributes to redefine command
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires: 
-  - LSD.Module.Expectations
-  - LSD.Command.Command
-  - LSD.Command.Radio
-  - LSD.Command.Checkbox
-  
-provides: 
-  - LSD.Module.Command
+  - LSD.Module.Layers
  
 ...
 */
 
-/*
-  Usually a widget that does something interactive defines command
-  automatically. 
-  
-  The default type is 'command', but there are possible values of 
-  'radio' and 'checkbox'.
-  
-  Type type can be changed via *options.command.type* 
-  (equals to 'command-type' attribute).
-  
-  You can specify a command id in *command* attribute
-  to link a widget to already initialized command.
-*/
 
-LSD.Module.Command = new Class({
-  options: {
-    command: {},
-    chain: {
-      commandaction: function() {
-        var action = this.getCommandAction.apply(this, arguments);
-        if (action) return {action: action, priority: 10}
-      }
-    },
-  },
-  
-  initializers: {
-    command: function() {
-      return {
-        expectations: {
-          '[radiogroup]': ['getCommand', true],
-          '[command]': ['getCommand', true],
-        }
-      }
+!function() {
+
+LSD.Module.Layers = new Class({
+  constructors: {
+    layers: function() {
+      this.offset = {
+        inside: {},
+        outside: {},
+        padding: {}
+      };
+      this.shapes = {};
+      this.style.layers = {};
+      this.layers = {}
     }
   },
 
-  getCommand: function(force) {
-    if (!force && this.command) return this.command;
-    if (!this.attributes.command || !this.document.commands) {
-      var options = this.options.command || {};
-      var type = options.type || 'command', command;
-      options = Object.append({id: this.options.id, name: this.attributes.name}, options);
-      if (this.attributes.radiogroup) {
-        options.radiogroup = this.attributes.radiogroup;
-        type = 'radio'
-      };
-      if (!command) command = new LSD.Command[type.capitalize()](this.document, options);
-    } else command = this.document.commands[this.attributes.command];
-    command.attach(this);
-    if (force && this.command) this.command.detach(this);
-    return this.command = command;
+  addLayer: function(name, value) {
+    var slots = this.style.layers || (this.style.layers = {});
+    var layer = this.layers[name] = LSD.Layer.get(name, Array.concat(value));
+    for (var i = 0, painter; painter = layer.painters[i++];) {
+      for (var group = painter.keys, j = 0, property; property = group[j++];) {
+        if (!slots[property]) slots[property] = [];
+        slots[property].push(name);
+      }
+    }
   },
   
-  click: function() {
-    this.fireEvent('click', arguments);
-    this.clearChain.apply(this, arguments);
-    var command = this.getCommand();
-    command.click.apply(command, arguments);
-    return this.callChain.apply(this, arguments);
+  removeLayer: function(name, value) {
+    var slots = this.style.layers || (this.style.layers = {});
+    var layer = this.layers[name] = LSD.Layer.get(name, Array.concat(value));
+    for (var i = 0, painter; painter = layer.painters[i++];) {
+      for (var group = painter.keys, j = 0, property; property = group[j++];) {
+        if (slots[property]) slots[property].erase(name);
+      }
+    }
   },
   
-  getCommandAction: function() {
-    return this.attributes.commandaction || this.captureEvent('getCommandAction', arguments);
+  renderLayers: function(dirty) {
+    var updated = new FastArray, style = this.style, layers = style.layers, offset = this.offset;
+    for (var property in dirty) if (layers[property]) updated.push.apply(updated, layers[property]);
+    
+    var result = {};
+    for (var name in this.layers) {
+      if (!updated[name]) continue;
+      var layer = this.layers[name];
+      var sizes = Object.append({box: this.size}, {size: Object.append({}, this.size)});
+      result = layer.draw(this, Object.append(result.inside ? {inside: result.inside, outside: result.outside} : {}, sizes))
+    }
+    var inside  = offset.inside  = Object.append({left: 0, right: 0, top: 0, bottom: 0}, result.inside);
+    var outside = offset.outside = Object.append({left: 0, right: 0, top: 0, bottom: 0}, result.outside);
+    offset.shape = /*this.shape.getOffset ? this.shape.getOffset(style.current) : */{left: 0, right: 0, top: 0, bottom: 0};
+    
+    for (var name in this.shapes) {
+      var layer = this.shapes[name];
+      if (!layer) continue;
+      if (!layer.injected) {
+        for (var layers = Object.keys(this.layers), i = layers.indexOf(layer.name), key, next; key = layers[++i];) {
+          if ((next = this.layers[key]) && next.injected && next.shape) {
+            layer.inject(next.shape, 'before');
+            break;
+          }
+        }
+        if (!layer.injected) layer.inject(this.getCanvas());
+        layer.injected = true;
+      }
+    }
+  },
+  
+  render: function() {
+    var style = this.style, last = style.last, old = style.size, paint = style.paint, changed = style.changed;
+    this.parent.apply(this, arguments);
+    this.setSize(this.getStyles('height', 'width'));
+    var size = this.size;
+    if (size && (!old || (old.width != size.width || old.height != size.height))) {
+      this.fireEvent('resize', [size, old]);
+      changed = paint;
+    }
+    if (Object.getLength(changed) > 0) this.renderLayers(changed);
+    style.changed = {};
+    style.last = Object.append({}, paint);
+    style.size = Object.append({}, size);
+    this.renderOffsets();
+  },
+  
+  renderStyles: function() {
+    this.parent.apply(this, arguments);
+    var style = this.style, current = style.current;
+    Object.append(this.offset, {
+      padding: {left: current.paddingLeft || 0, right: current.paddingRight || 0, top: current.paddingTop || 0, bottom: current.paddingBottom || 0},
+      margin: {left: current.marginLeft || 0, right: current.marginRight || 0, top: current.marginTop || 0, bottom: current.marginBottom || 0}
+    });
+  },
+  
+  renderOffsets: function() {
+    var element = this.element,
+        current = this.style.current, 
+        offset  = this.offset,         // Offset that is provided by:
+        inside  = offset.inside,       // layers, inside the widget
+        outside = offset.outside,      // layers, outside of the widget
+        shape   = offset.shape,        // shape
+        padding = offset.padding,      // padding style declarations
+        margin  = offset.margin,       // margin style declarations
+        inner   = {},                  // all inside offsets above, converted to padding
+        outer   = {};                  // all outside offsets above, converted to margin
+        
+    for (var property in inside) {
+      var cc = property.capitalize();
+      if (offset.inner) var last = offset.inner[property];
+      inner[property] = padding[property] + inside[property] + shape[property] + outside[property];
+      if (last != null ? last != inner[property] : inner[property]) element.style['padding' + cc] = inner[property] + 'px';
+      if (offset.outer) last = offset.outer[property];
+      outer[property] = margin[property] - outside[property];
+      if (last != null ? last != outer[property] : outer[property]) element.style['margin' + cc] = outer[property] + 'px';
+    }
+    if (inside) Object.append(offset, {inner: inner, outer: outer});
   }
-  
 });
+
+/*
+  Default layer set 
+*/
+
+if (!LSD.Layers) LSD.Layers =  {
+  shadow:     ['size', 'radius', 'shape', 'shadow'],
+  stroke:     [        'radius', 'stroke', 'shape', 'fill'],
+  background: ['size', 'radius', 'stroke', 'offset', 'shape', 'color'],
+  foreground: ['size', 'radius', 'stroke', 'offset', 'shape', 'color'],
+  reflection: ['size', 'radius', 'stroke', 'offset', 'shape', 'color'],
+  icon:       ['size', 'scale', 'color', 'stroke', 'offset', 'shape', 'position','shadow'],
+  glyph:      ['size', 'scale', 'color', 'stroke', 'offset', 'shape', 'position', 'shadow']
+};
+
+/*
+  Pre-generate CSS grammar for layers.
+  
+  It is not required for rendering process itself, because
+  this action is taken automatically when the first
+  widget gets rendered. Declaring layer css styles upfront
+  lets us use it in other parts of the framework
+  (e.g. in stylesheets to validate styles)
+*/
+
+for (var layer in LSD.Layers) LSD.Layer.get(layer, LSD.Layers[layer]);
+
+LSD.Options.layers = {
+  add: 'addLayer',
+  remove: 'removeLayer',
+  iterate: true,
+  process: function(value) {
+    return (value === true) ? LSD.Layers : value;
+  }
+};
+
+}();
+
 /*
 ---
 
-script: Behavior.js
+script: Proxies.js
 
-description: Modules that do interactions 
+description: All visual rendering aspects under one umbrella
 
 license: Public domain (http://unlicense.org).
 
 authors: Yaroslaff Fedin
  
 requires:
-  - LSD.Module.Actions
-  - LSD.Module.Chain
-  - LSD.Module.Command
-  - LSD.Module.Target
+  - LSD.Module.Layers
+  - LSD.Module.Render
+  - LSD.Module.Shape
 
 provides: 
-  - LSD.Module.Behavior
+  - LSD.Module.Graphics
 
 ...
 */
 
-LSD.Module.Behavior = new Class({
+
+LSD.Module.Graphics = new Class({
   Implements: [
-    LSD.Module.Actions, 
-    LSD.Module.Chain, 
-    LSD.Module.Command, 
-    LSD.Module.Target
+    LSD.Module.Layers, 
+    LSD.Module.Render, 
+    LSD.Module.Shape
   ]
 });
 /*
@@ -19801,25 +21028,13 @@ requires:
   - LSD.Type
   - LSD.Module.Accessories
   - LSD.Module.Ambient
-  - LSD.Module.Behavior
   - LSD.Module.Graphics
   - LSD.Mixin.Value
 
 provides: 
   - LSD.Widget
-  - LSD.Widget.create
  
 ...
-*/
-
-/*
-  Pre-generate CSS grammar for layers.
-  
-  It is not required for rendering process itself, because
-  this action is taken automatically when the first
-  widget gets rendered. Declaring layer css styles upfront
-  lets us use it in other parts of the framework
-  (e.g. in stylesheets to validate styles)
 */
 
 LSD.Widget = new Class({
@@ -19827,242 +21042,37 @@ LSD.Widget = new Class({
   Implements: [
     LSD.Module.Accessories,
     LSD.Module.Ambient,
-    LSD.Module.Behavior,
     LSD.Module.Graphics
   ],
   
   options: {
+    /*
+      The key in element storage that widget will use to store itself.
+      When set to false, widget is not written into element storage.
+    */
     key: 'widget',
-    writable: false,
-    layers: true,
-    inline: false
-  },
-  
-  initializers: {
-    widget: function(){
-      return {
-        events: {
-          build: function() {
-            if ((this.options.writable && !this.attributes.tabindex && (this.options.focusable !== false)) || this.options.focusable) 
-              this.setAttribute('tabindex', 0);
-            this.addPseudo(this.options.writable ? 'read-write' : 'read-only');
-          }
-        }
-      }
-    }
+    /*
+      When set to true, layers option will enforce the default layer set.
+    */
+    layers: true
   },
   
   initialize: LSD.Module.Options.initialize
 });
 
+LSD.Module.Events.addEvents.call(LSD.Widget.prototype, {
+  initialize: function() {
+    this.addPseudo(this.pseudos.writable ? 'read-write' : 'read-only');
+  }
+});
+
 LSD.Widget.prototype.addStates('disabled', 'hidden', 'built', 'attached');
 
+LSD.Behavior.attach(LSD.Widget);
+
 new LSD.Type('Widget');
-/*
----
- 
-script: Menu.js
- 
-description: Menu widget base class
- 
-license: Public domain (http://unlicense.org).
 
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD/LSD.Widget
-
-provides: 
-  - LSD.Widget.Menu
- 
-...
-*/
-
-LSD.Widget.Menu = new Class({
-  Extends: LSD.Widget,
-  
-  options: {
-    tag: 'menu',
-    element: {
-      tag: 'menu'
-    }
-  }
-});
-
-LSD.Widget.Menu.Command = new Class({
-  Extends: LSD.Widget,
-  
-  options: {
-    tag: 'command',
-    element: {
-      tag: 'command'
-    },
-    pseudos: Array.fast('item')
-  }
-});
-
-!function(Command) {
-  Command.Command = Command.Checkbox = Command.Radio = Command;
-}(LSD.Widget.Menu.Command);
-/*
----
- 
-script: Context.js
- 
-description: Menu widget to be used as a drop down
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Widget.Menu
-
-provides:
-  - LSD.Widget.Menu.Context
-  - LSD.Widget.Menu.Context.Button
-  - LSD.Widget.Menu.Context.Command
-  - LSD.Widget.Menu.Context.Command.Command
-  - LSD.Widget.Menu.Context.Command.Checkbox
-  - LSD.Widget.Menu.Context.Command.Radio
- 
-...
-*/
-LSD.Widget.Menu.Context = new Class({
-  Extends: LSD.Widget.Menu,
-
-  options: { 
-    attributes: {
-      type: 'context',
-      tabindex: 0
-    }
-  }
-});
-
-LSD.Widget.Menu.Context.Command = new Class({
-  Extends: LSD.Widget.Menu.Command
-});
-
-!function(Context) {
-  Context.Button = Context.Option = Context.Radio = Context.Checkbox = Context.Command.Command = Context.Command;
-}(LSD.Widget.Menu.Context);
-
-    
-
-
-/*
----
- 
-script: Menu.js
- 
-description: Dropdowns should be easy to use.
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Trait
-  - Widgets/LSD.Widget.Menu.Context
-
-provides:
-  - LSD.Trait.Menu
- 
-...
-*/
-
-LSD.Trait.Menu = new Class({      
-  options: {
-    shortcuts: {
-      ok: 'set',
-      cancel: 'cancel'
-    },
-    events: {
-      _menu: {
-        self: {
-          expand: 'makeItems',
-          redraw: 'repositionMenu',
-          focus: 'repositionMenu',
-          blur: 'collapse',
-          next: 'expand',
-          previous: 'expand',
-          cancel: 'collapse'
-        }
-      }
-    },
-    menu: {
-      position: 'top',
-      width: 'auto',
-      origin: null
-    },
-    has: {
-      one: {
-        menu: {
-          selector: 'menu[type=context]',
-          proxy: function(widget) {
-            return widget.pseudos.item;
-          }
-        }
-      }
-    },
-    states: Array.fast('expanded')
-  },
-
-  cancel: function() {
-    this.collapse();
-  },
-
-  set: function() {
-    this.collapse();
-  },
-  
-  repositionMenu: function() {
-    if (!this.menu || this.collapsed) return;
-    var top = 0;
-    var origin = (this.options.menu.origin == 'document') ? this.document : this;
-    if (!origin.size) origin.setSize(true);
-    if (!this.menu.size) this.menu.setSize(true);
-    var position = LSD.position(origin.size, this.menu.size)
-    if (position.x != null) {
-      position.x += (this.offset.padding.left || 0) - (this.offset.inside.left || 0) + (this.offset.outside.left || 0);
-      this.menu.setStyle('left', position.x);
-    }
-    if (position.y != null) {
-      position.y += (this.offset.padding.top || 0) - (this.offset.inside.top || 0) + (this.offset.outside.top || 0);
-      this.menu.setStyle('top', position.y);
-    }
-    switch (this.options.menu.width) {
-      case "adapt": 
-        this.menu.setWidth(this.getStyle('width'));
-        break;
-      case "auto":
-        break;
-    }
-  },
-  
-  buildMenu: function() {
-    return this.buildLayout(this.options.layout.menu);
-  },
-  
-  expand: function() {
-    if (!this.menu) {
-      this.menu = this.buildMenu();
-      this.repositionMenu();
-      if (this.hasItems()) this.refresh();
-    } else {  
-      this.repositionMenu();
-    }
-    this.menu.show();
-  },
-  
-  collapse: function() {
-    if(this.menu) this.menu.hide();
-  },
-  
-  getSelectedOptionPosition: function() {
-    return 0
-  }
-});
+LSD.Element.pool.push(LSD.Widget);
 /*
 ---
  
@@ -20077,6 +21087,7 @@ authors: Yaroslaff Fedin
 requires:
   - LSD/LSD.Widget
   - LSD/LSD.Mixin.Touchable
+  - LSD/LSD.Mixin.Command
 
 provides: 
   - LSD.Widget.Button
@@ -20084,508 +21095,18 @@ provides:
 ...
 */
 
-LSD.Widget.Button = new Class({
-
-  Extends: LSD.Widget,
-
+LSD.Widget.Button = new Class({  
   options: {
     tag: 'button',
-    element: {
-      tag: 'span'
-    },
-    label: '',
-    pseudos: Array.fast('touchable')
+    inline: true,
+    pseudos: Array.fast('touchable', 'clickable', 'command')
   },
   
   write: function(content) {
     this.setState('text');
     return this.parent.apply(this, arguments);
   }
-
 });
-
-/*
----
- 
-script: Native.js
- 
-description: Wrapper for native browser controls
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Widget
-
-provides: 
-  - LSD.Native
- 
-...
-*/
-
-LSD.Native = new Class({
-  Extends: LSD.Widget,
-  options: {
-    inline: null //use widget tag when no element tag specified
-  }
-});
-new LSD.Type('Native');
-
-// Inject native widgets into default widget pool as a fallback
-LSD.Element.pool[LSD.useNative ? 'unshift' : 'push'](LSD.Native);
-/*
----
- 
-script: Input.js
- 
-description: A base class for all kinds of form controls
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
- - LSD/LSD.Native
-
-provides: 
-  - LSD.Native.Input
- 
-...
-*/
-
-LSD.Native.Input = new Class({
-  Extends: LSD.Native,
-  
-  options: {
-    tag: 'input',
-    events: {
-      _input: {
-        element: {
-          change: 'setValue'
-        }
-      }
-    },
-    focusable: false,
-    writable: true
-  },
-  
-  applyValue: function(value) {
-    this.element.set('value', value);
-  },
-  
-  getRawValue: function() {
-    return this.element.get('value');
-  },
-  
-  focus: function() {
-    this.element.focus();
-  }
-  
-});
-/*
----
- 
-script: File.js
- 
-description: Simple text input
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Native.Input
-
-provides: 
-  - LSD.Native.Input.File
- 
-...
-*/
-
-LSD.Native.Input.File = new Class({
-  Extends: LSD.Native.Input
-});
-/*
----
- 
-script: Text.js
- 
-description: Simple text input
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Native.Input
-
-provides: 
-  - LSD.Native.Input.Text
- 
-...
-*/
-
-LSD.Native.Input.Text = new Class({
-  Extends: LSD.Native.Input
-});
-/*
----
- 
-script: Hidden.js
- 
-description: Simple text input
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Native.Input
-
-provides: 
-  - LSD.Native.Input.Hidden
- 
-...
-*/
-
-LSD.Native.Input.Hidden = new Class({
-  Extends: LSD.Native.Input
-});
-/*
----
- 
-script: Password.js
- 
-description: Simple text input
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Native.Input
-
-provides: 
-  - LSD.Native.Input.Password
- 
-...
-*/
-
-LSD.Native.Input.Password = new Class({
-  Extends: LSD.Native.Input,
-  
-  options: {
-    events: {
-      _password: {
-        self: {
-          placehold: function(){
-            this.element.set('type', 'text');
-          },
-          unplacehold: function(){
-            this.element.set('type', 'password');
-          }
-        } 
-      }
-    }
-  }
-  
-});
-/*
----
- 
-script: Checkbox.js
- 
-description: Simple text input
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Native.Input
-
-provides: 
-  - LSD.Native.Input.Checkbox
- 
-...
-*/
-
-LSD.Native.Input.Checkbox = new Class({
-  Extends: LSD.Native.Input,
-  
-  options: {
-    command: {
-      type: 'checkbox'
-    },
-    events: {
-      _checkbox: {
-        element: {
-          click: function() { //do it for ie so onchange is fired
-            this.blur();
-            this.focus()
-          }
-        },
-        self: {
-          'attach': function() {
-            if (this.element.checked) this.click();
-            this.element.addListener('click', this.click.bind(this));
-          },
-          'check': function() {
-            this.element.checked = true;
-            this.getCommand().check();
-          },
-          'uncheck': function() {
-            this.element.checked = false;
-            this.getCommand().uncheck();
-          }
-        }
-      }
-    }
-  }
-});
-
-LSD.Native.Input.Checkbox.prototype.addState('checked');
-/*
----
- 
-script: Radio.js
- 
-description: Simple text input
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Native.Input
-
-provides: 
-  - LSD.Native.Input.Radio
- 
-...
-*/
-
-LSD.Native.Input.Radio = new Class({
-  Extends: LSD.Native.Input,
-
-  options: {
-    command: {
-      type: 'radio'
-    },
-    events: {
-      _checkbox: {
-        self: {
-          'click': 'check',
-          'attach': function() {
-            this.element.addListener('click', this.click.bind(this));
-          },
-          'dominject': function(){
-            if (this.attributes.checked) this.click();
-          },
-          'check': function() {
-            this.element.checked = true;
-          },
-          'uncheck': function() {
-            this.element.checked = false;
-          }
-        }
-      }
-    }
-  }
-});
-
-LSD.Native.Input.Radio.prototype.addState('checked');
-/*
----
- 
-script: Search.js
- 
-description: Search input
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Native.Input
-
-provides: 
-  - LSD.Native.Input.Search
- 
-...
-*/
-
-LSD.Native.Input.Search = new Class({
-  Extends: LSD.Native.Input
-});
-/*
----
- 
-script: Date.js
- 
-description: Date picker input
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Native.Input
-  - LSD/LSD.Trait.Date
-
-provides: 
-  - LSD.Native.Input.Date
-
-...
-*/
-
-LSD.Native.Input.Date = new Class({
-  Includes: [
-    LSD.Native.Input,
-    LSD.Trait.Date
-  ],
-  
-  options: {
-    attributes: {
-      type: 'date'
-    }
-  }
-});
-/*
----
- 
-script: Textarea.js
- 
-description: Multiline text input
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Native.Input
-
-provides: 
-  - LSD.Native.Textarea
- 
-...
-*/
-
-LSD.Native.Textarea = new Class({
-  Extends: LSD.Native.Input,
-  
-  options: {
-    tag: 'textarea'
-  }
-});
-/*
----
- 
-script: Button.js
- 
-description: A button widget. You click it, it fires the event
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD/LSD.Native
-  - LSD/LSD.Mixin.Touchable
-
-provides: 
-  - LSD.Native.Button
- 
-...
-*/
-LSD.Native.Button = new Class({
-
-  Extends: LSD.Native,
-
-  options: {
-    tag: 'button',
-    element: {
-      tag: 'a'
-    },
-    events: {
-      _button: {
-        element: {
-          click: 'click'
-        }
-      }
-    },
-    pseudos: Array.fast('touchable')
-  },
-  
-  click: function(event) {
-    if (event && event.preventDefault) event.preventDefault();
-    if (!this.disabled) return this.parent.apply(this, arguments);
-  }
-});
-
-/*
----
- 
-script: Submit.js
- 
-description: A button that submits form
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD.Native.Input
-  - LSD.Native.Button
-
-provides: 
-  - LSD.Native.Input.Submit
- 
-...
-*/
-
-LSD.Native.Input.Submit = new Class({
-
-  Extends: LSD.Native.Button,
-  
-  options: {
-    events: {
-      _submission: {
-        click: 'submit',
-        dominject: function() {
-          var tag = this.element.get('tag');
-          if (!tag || tag == 'input' || tag == 'button') return;
-          this.shim = new Element('input[type=submit]', {
-            styles: {
-              width: 1,
-              height: 0,
-              display: 'block',
-              border: 0,
-              padding: 0,
-              overflow: 'hidden',
-              position: 'absolute'
-            },
-            events: {
-              click: function(e) {
-                e.preventDefault()
-              }.bind(this)
-            }
-          }).inject(this.element);
-          this.element.addEvent('destroy', this.shim.destroy.bind(this.shim));
-        }
-      }
-    },
-    chain: {
-      submission: function() {
-        var target = this.form || Slick.find(this, '! :submittable') || (this.document && this.document.submit && this.document);
-        if (target) return {action: 'send', target: target};
-      }
-    },
-    pseudos: Array.fast('form-associated')
-  }
-});
-
 /*
 ---
  
@@ -20598,21 +21119,15 @@ license: Public domain (http://unlicense.org).
 authors: Yaroslaff Fedin
  
 requires:
-  - LSD/LSD.Native
-  - LSD/LSD.Trait.List
+  - LSD/LSD.Widget
 
 provides: 
-  - LSD.Native.Table
+  - LSD.Widget.Table
  
 ...
 */
 
-LSD.Native.Table = new Class({
-  Includes: [
-    LSD.Native,
-    LSD.Trait.List
-  ],
-  
+LSD.Widget.Table = new Class({
   options: {
     header: null,
     footer: null,
@@ -20630,7 +21145,8 @@ LSD.Native.Table = new Class({
         }
       }
     },
-    tag: 'table'
+    tag: 'table',
+    pseudos: Array.fast('list')
   },
   
   setTable: function(table) {
@@ -20703,16 +21219,16 @@ license: Public domain (http://unlicense.org).
 authors: Yaroslaff Fedin
  
 requires:
-  - LSD.Native.Table
+  - LSD.Widget.Table
 
 provides: 
-  - LSD.Native.Table.Calendar
+  - LSD.Widget.Table.Calendar
  
 ...
 */
 
-LSD.Native.Table.Calendar = new Class({
-  Extends: LSD.Native.Table,
+LSD.Widget.Table.Calendar = new Class({
+  Extends: LSD.Widget.Table,
   
   options: {
     date: null,
@@ -20821,168 +21337,28 @@ LSD.Native.Table.Calendar = new Class({
 /*
 ---
  
-script: Anchor.js
+script: Body.js
  
-description: A link that does requests and actions
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD/LSD.Native
-  - LSD/LSD.Module.Accessories
-  - LSD/LSD.Module.Layout
-  - LSD/LSD.Mixin.Dialog
-  - LSD/LSD.Mixin.Request
-
-provides: 
-  - LSD.Native.Anchor
- 
-...
-*/
-
-LSD.Native.Anchor = new Class({
-  Includes: [
-    LSD.Module.Accessories,
-    LSD.Module.Behavior,
-    LSD.Module.Layout,
-    LSD.Mixin.Request,
-    LSD.Mixin.Dialog
-  ],
-  
-  options: {
-    request: {
-      type: 'form'
-    },
-    layout: {
-      render: false,
-      extract: true
-    }
-  },
-
-  click: function(event) {
-    if (event && event.preventDefault) event.preventDefault();
-    if (!this.disabled) return this.parent.apply(this, arguments);
-  },
-
-  initialize: LSD.Module.Options.initialize
-
-});
-
-LSD.Native.Anchor.prototype.addStates('disabled', 'built', 'attached');
-/*
----
- 
-script: Label.js
- 
-description: A label for a form field
+description: Lightweight document body wrapper
  
 license: Public domain (http://unlicense.org).
 
 authors: Yaroslaff Fedin
  
-requires:
-  - LSD/LSD.Native
+requires:  
+  - LSD/LSD.Widget
+  - LSD/LSD.Mixin.Root
+  
+provides:
+  - LSD.Widget.Body
 
-provides: 
-  - LSD.Native.Label
- 
 ...
 */
 
-LSD.Native.Label = new Class({
-  Extends: LSD.Native,
-  
+LSD.Widget.Body = new Class({
   options: {
-    tag: 'label',
-    has: {
-      one: {
-        control: {
-          expectation: function() {
-            var id = this.attributes['for'];
-            if (id) return {id: id, combinator: ' ', tag: '*'};
-          },
-          target: 'document',
-          collection: 'labels',
-          states: {
-            get: {
-              invalid: 'invalid'
-            }
-          }
-        }
-      }
-    },
-    pseudos: Array.fast('form-associated'),
-    states: Array.fast('invalid'),
-    events: {
-      _label: {
-        element: {
-          'click': 'click'
-        }
-      }
-    }
-  },
-  
-  click: function(event){
-    if (event && event.preventDefault) event.preventDefault();
-    if (!this.disabled) {
-      this.focusControl();
-      if(this.control && this.control.click) this.control.click();
-      return this.parent.apply(this, arguments);
-    }
-  },
-  
-  focusControl: function() {
-    if (this.control && this.control.focus) {
-      this.control.focus();
-    }
-  }
-});
-/*
----
- 
-script: Form.js
- 
-description: A form widgets. Intended to be submitted.
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - LSD/LSD.Native
-  - LSD/LSD.Trait.Form
-  - LSD/LSD.Trait.Fieldset
-
-provides: 
-  - LSD.Native.Form
- 
-...
-*/
-
-LSD.Native.Form = new Class({
-  Includes: [
-    LSD.Native,
-    LSD.Trait.Fieldset,
-    LSD.Trait.Form
-  ],
-  
-  options: {
-    tag: 'form',
-    events: {
-      element: {
-        submit: 'submit'
-      },
-      self: {
-        build: function() {
-          // novalidate html attribute disables internal form validation 
-          // on form submission. Chrome and Safari will block form 
-          // submission without any visual clues otherwise.
-          if (this.element.get('tag') == 'form') this.element.setProperty('novalidate', true);
-        }
-      }
-    }
+    tag: 'body',
+    pseudos: Array.fast('root')
   }
 });
 /*
@@ -20998,6 +21374,13 @@ authors: Yaroslaff Fedin
 
 requires:
   - LSD.Widget
+  - Core/DomReady
+  - Core/Options
+  - Core/Events
+  - More/String.QueryString
+  - LSD
+  - LSD.Module.Attributes
+  - LSD.Module.Selectors
 
 provides:
   - LSD.Document
@@ -21014,36 +21397,142 @@ provides:
   tree (we use Slick) can work with the widget tree like it usually
   does with the real DOM so we get selector engine for free.
   
+  The document itself is not in the tree, it's a container.
+  
   The class contains a few hacks that allows Slick to initialize.
 */
 
-LSD.Document = new Class({
 
-  Extends: LSD.Widget,
+LSD.Document = new Class({
   
-  options: {
-    tag: 'body',
-    root: false, // topmost widget's parentNode is the document if set to true
-    layout: {
-      method: 'augment'
-    },
-    container: {
-      enabled: false,
-      inline: false
-    },
-    nodeType: 9
+  Implements: [Events, Options, LSD.Module.Attributes],
+  
+  initialize: function(document, options) {
+    if (document && !document.documentElement) options = [document, document = options][0];
+    if (!document) document = window.document;
+    if (!LSD.document) LSD.document = this;
+    this.setOptions(options || {});
+    this.document = this;
+    this.element = document;
+    this.sourceIndex = 1;
+    LSD.uid(this);
+    
+    /*
+      Trick Slick into thinking that LSD elements tree is an XML node 
+      tree (so it won't try speeding up the queries with optimizations)
+    */
+    this.documentElement = this;
+    this.xml = true;
+    this.slickFeatures = LSD.Module.Selectors.Features;
+    this.nodeType = 9;
+    this.attributes = {};
+    
+    this.params = (location.search.length > 1) ? location.search.substr(1, location.search.length - 1).parseQueryString() : {}
+    document.addEvent('domready', function() {
+      this.building = true;
+      if ("benchmark" in this.params) console.profile();
+      this.build();
+      if ("benchmark" in this.params) console.profileEnd();
+      this.building = false;
+    }.bind(this));
+    this.element.addEvent('click', this.onClick.bind(this));
+    this.element.addEvent('mousedown', this.onMousedown.bind(this));
   },
   
-  initialize: function(element, options) {
-    if (!LSD.document.body) LSD.document = Object.append(this, LSD.document);
-    this.body = this;
-    this.document = this.documentElement = this;
-    this.xml = true;
-    this.navigator = {};
-    this.slickFeatures = LSD.Module.Selectors.Features;
-    if (this.nodeType != 9) this.ownerDocument = this;
-    this.parent.apply(this, arguments);
-    this.dominjected = true;
+  /* 
+    Single relay click listener is put upon document.
+    It spies for all clicks on elements and finds out if 
+    any links were clicked. If the link is not widget,
+    the listener creates a lightweight link class instance and
+    calls click on it to trigger commands and interactions.
+    
+    This way there's no need to preinitialize all link handlers, 
+    and only instantiate class when the link was actually clicked.
+  */
+  onClick: function(event) {
+    if (event.target.ownerDocument == document)
+    for (var target = event.target, link, widget; target && target.tagName; target = target.parentNode) {
+      widget = target.uid && Element.retrieve(target, 'widget');
+      var a = (LSD.toLowerCase(target.tagName) == 'a');
+      if (a) {
+        if (!widget) widget = new LSD.Widget(target, {
+          document: this, 
+          pseudos: ['clickable', 'command']
+        });
+        event.preventDefault();
+      }
+      if (widget && widget.pseudos.clickable) {
+        event.stopPropagation();
+        widget.click(event);
+        break;
+      }
+    };
+  },
+  
+  onMousedown: function(event) {
+    if (event.target.ownerDocument == document)
+    for (var target = event.target, widget; target && target.tagName; target = target.parentNode) {
+      widget = target.uid && Element.retrieve(target, 'widget');
+      if (widget && widget.pseudos.activatable) widget.fireEvent('mousedown', event);
+    };
+  },
+  
+  setHead: function(head) {
+    for (var i = 0, el, els = head.getElementsByTagName('meta'); el = els[i++];) {
+      var type = el.getAttribute('rel');
+      if (type) {
+        type += 's';
+        if (!this[type]) this[type] = {};
+        var content = el.getAttribute('content')
+        if (content) this[type][el.getAttribute('name')] = (content.charAt(0) =="{") ? JSON.decode(content) : content;
+      }
+    }
+    // Attach stylesheets, if there are stylesheets loaded
+    if (LSD.Sheet && LSD.Sheet.stylesheets) for (var i = 0, sheet; sheet = LSD.Sheet.stylesheets[i++];) this.addStylesheet(sheet);
+  },
+  
+  build: function(document) {
+    if (!document) document = this.element || window.document;
+    this.setHead(document.head);
+    var element = this.element = document.body;
+    this.setBody(document.body);
+  },
+  
+  setBody: function(element) {
+    if (!element) element = this.getBodyElement()
+    this.fireEvent('beforeBody', element);
+    var options = {
+      document: this, 
+      events: {
+        self: {
+          boot: function() {
+            this.document.body = this;
+          }
+        }
+      },
+      tag: 'body'
+    };
+    if (this.options.mutations) options.mutations = this.options.mutations;
+    if (this.options.context) options.context = this.options.context;
+    new LSD.Widget(element, options);
+    this.fireEvent('body', [this.body, element]);
+    return element;
+  },
+
+  getBodyElement: function() {
+    return this.document.body;
+  },
+  
+  redirect: function(url) {
+    window.location.href = url;
+  },
+  
+  getElements: function() {
+    return this.body.getElements.apply(this.body, arguments);
+  },
+  
+  getElement: function() {
+    return this.body.getElement.apply(this.body, arguments);
   },
   
   addStylesheet: function(sheet) {
@@ -21058,307 +21547,52 @@ LSD.Document = new Class({
     sheet.detach(this);
   },
   
-  createFragment: function(content) {
-    var fragment = document.createFragment(content)
-    this.fireEvent('DOMNodeInserted', fragment);
-    return fragment;
-  }
-});
-
-LSD.Document.prototype.addEvents({
-  build: function() {
-    if (this.watch) {
-      // Attach action expectations
-      LSD.Module.Actions.attach(this);
-    }
-    // Attach stylesheets, if there are stylesheets loaded
-    if (LSD.Sheet && LSD.Sheet.stylesheets) for (var i = 0, sheet; sheet = LSD.Sheet.stylesheets[i++];) this.addStylesheet(sheet);
-  }
-});
-
-// Properties set here will be picked up by first document
-LSD.document = {}; 
-/*
----
- 
-script: Commands.js
- 
-description: Document catches the clicks and creates pseudo-widgets on demand
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires: 
-  - LSD.Document
-  - Native/LSD.Native.Anchor
- 
-provides:
-  - LSD.Document.Commands
- 
-...
-*/
-
-LSD.Document.Commands = new Class({
-  options: {
-    events: {
-      element: {
-        'click': 'onClick'
-      }
-    }
-  },
-  
-  /* 
-    Single relay click listener is put upon document.
-    It spies for all clicks on elements and finds out if 
-    any links were clicked. If the link is not widget,
-    the listener creates a lightweight link class instance and
-    calls click on it to trigger commands and interactions.
-    
-    This way there's no need to preinitialize all link handlers, 
-    and only instantiate class when the link was actually clicked.
-  */
-  onClick: function(event) {
-    var link = (LSD.toLowerCase(event.target.tagName) == 'a') ? event.target : Slick.find(event.target, '! a');
-    if (!link) return;
-    if (link.retrieve('widget')) return;
-    var node = link.retrieve('node')
-    if (!node) link.store('node', node = new LSD.Native.Anchor(link));
-    node.click(event);
-  }
-});
-
-
-/*
----
- 
-script: Resizable.js
- 
-description: Document that redraws children when window gets resized.
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires: 
-  - LSD.Document
-  - LSD.Module.Layout
-  - LSD.Module.Events
-  - Core/Element.Dimensions
- 
-provides:
-  - LSD.Document.Resizable
- 
-...
-*/
-
-LSD.Document.Resizable = new Class({
-	
-	options: {
-  	events: {
-  	  _resizable: {
-  	    window: {
-  	      resize: 'onResize'
-  	    },
-  	    self: {
-  	      build: 'onResize'
-  	    }
-  	  }
-  	},
-  	root: true
-  },
-	
-	onResize: function() {
-	  if (document.getCoordinates) Object.append(this.style.current, document.getCoordinates());
-	  this.render()
-	},
-	
-	render: function() {
-		this.childNodes.each(function(child){
-		  if (child.refresh) child.refresh();
-		});
-	}
+  $family: Function.from('document')
 });
 /*
 ---
  
-script: Body.js
+script: Form.js
  
-description: Lightweight document body wrapper
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:  
-  - LSD/LSD.Native
-  - LSD/LSD.Document
-  - LSD/LSD.Document.Resizable
-  - LSD/LSD.Document.Commands
-
-provides:
-  - LSD.Native.Body
-
-...
-*/
-
-LSD.Native.Body = new Class({
-  Includes: [
-    LSD.Document, 
-    LSD.Document.Resizable, 
-    LSD.Document.Commands
-  ],
-  
-  getSelector: false
-});
-/*
----
- 
-script: Edit.js
- 
-description: Turn element into editable mode
+description: A form widgets. Intended to be submitted.
  
 license: Public domain (http://unlicense.org).
 
 authors: Yaroslaff Fedin
  
 requires:
-  - LSD.Action
-  - Native/LSD.Native.Body
-  - Native/LSD.Native.Form
-  - LSD.Trait.Form
-  - LSD.Trait.Fieldset
-  - LSD.Mixin.Resource
+  - LSD/LSD.Widget
+  - LSD/LSD.Mixin.Submittable
+  - LSD/LSD.Mixin.Fieldset
+  - LSD/LSD.Mixin.Command
 
-provides:
-  - LSD.Action.Edit
-
+provides: 
+  - LSD.Widget.Form
+ 
 ...
 */
 
-LSD.Action.Edit = LSD.Action.build({
-  enable: function(target, content) {
-    var session = this.retrieve(target);
-    if (!session) {
-      $ss = session = new LSD.Native.Form.Edit(target.element || target);
-      this.store(target, session);
-    }
-    session.start(content);
-  },
-  
-  disable: function(target) {
-    var session = this.retrieve(target);
-    if (session) session.hide();
-  }
-});
-
-LSD.Native.Form.Edit = new Class({
-  Includes: [
-    LSD.Native.Body,
-    LSD.Trait.Fieldset,
-    LSD.Trait.Form,
-    LSD.Mixin.Resource
-  ],
-  
+LSD.Widget.Form = new Class({
   options: {
-    key: null,
-    layout: {
-      extract: true,
-      instance: true,
-      children: {
-        '::canceller': 'Cancel',
-        '::submitter': 'Save'
-      }
-    },
+    tag: 'form',
+    pseudos: Array.fast('form', 'fieldset', 'command', 'submittable'),
     events: {
       self: {
-        'cancel': 'finish'
-      }
-    },
-    states: {
-      hidden: true,
-      editing: {
-        enabler: 'start',
-        disabler: 'finish'
-      }
-    },
-    has: {
-      one: {
-        submitter: {
-          selector: 'input[type=submit]'
-        },
-        canceller: {
-          selector: 'button.cancel',
-          events: {
-            click: 'cancel'
-          }
+        build: function() {
+          // novalidate html attribute disables internal form validation 
+          // on form submission. Chrome and Safari will block form 
+          // submission without any visual clues otherwise.
+          if (this.element.get('tag') == 'form') this.element.setProperty('novalidate', true);
         }
       }
     }
   },
-  
-  initialize: function() {
-    this.objects = [];
-    this.parent.apply(this, arguments);
-  },
-  
-  start: function(values) {
-    Element.Item.walk.call(this, this.element, function(node, prop, scope, prefix) {
-      var editable = node.getProperty('editable');
-      if (editable) {
-        if (prefix) prop = prefix.concat(prop).map(function(item, i) {
-          return i == 0 ? item : '[' + item + ']'
-        }).join('');
-        this.convert(node, prop, editable);
-      }
-      return prefix;
-    }, null, true);
-    if (this.controls) this.controls.each(function(child) {
-      this.element.appendChild(child.element);
-    }, this);
-  },
 
-  finish: function() {
-    for (var object; object = this.objects.shift();) this.revert(object);
-    this.controls = this.getElements(':not(:read-write)').map(function(child) {
-      child.element.parentNode.removeChild(child.element)
-      return child;
-    });
-  },
-  
-  convert: function(element, name, type) {
-    this.objects.push(element)
-    return this.getReplacement(element, name, type).replaces(element);
-  },
-  
-  revert: function(element) {
-    element.replaces(Element.retrieve(element, 'widget:edit'));
-  },
-  
-  cancel: function() {
-    this.fireEvent('cancel', arguments)
-  },
-  
-  submit: function() {
-    if (this.getResource) {
-      var Resource = this.getResource();
-      new Resource(Object.append(this.getParams(), {id: this.attributes.itemid})).save(function(html) {
-        this.execute({action: 'replace', target: this.element}, html);
-      }.bind(this));
-    }
-  },
-  
-  getReplacement: function(element, name, type) {
-    var widget = Element.retrieve(element, 'widget:edit');
-    if (!widget) {
-      var options = {name: name};
-      widget = this.buildLayout(type == 'area' ? 'textarea' : ('input-' + (type || 'text')), this, options);
-      Element.store(element, 'widget:edit', widget);
-    }
-    widget.setValue(Element.get(element, 'itemvalue'));
-    return widget;
+  getRequestURL: function() {
+    return this.attributes.action || location.pathname;
   }
-})
+});
+
 /*
 ---
  
@@ -21653,19 +21887,16 @@ requires:
   - QFocuser/QFocuser
  
 provides:
-  - LSD.Mixin.Focus
-  - LSD.Mixin.Focus.State
-  - LSD.Mixin.Focus.Propagation
+  - LSD.Mixin.Focusable
+  - LSD.Mixin.Focusable.Propagation
  
 ...
 */
   
-LSD.Mixin.Focus = new Class({
-  behaviour: '[tabindex][tabindex!=-1]',
-  
+LSD.Mixin.Focusable = new Class({
   options: {
     actions: {
-      focus: {
+      focusable: {
         target: false,
         enable: function(target) {
           if (target.tabindex != null) {
@@ -21692,13 +21923,14 @@ LSD.Mixin.Focus = new Class({
     }
   },
   
-  getFocuser: Macro.getter('focuser', function() {
-    return new QFocuser(this.toElement(), {
+  getFocuser: function() {
+    if (!this.focuser) this.focuser = new QFocuser(this.toElement(), {
       onWidgetFocus: this.onFocus.bind(this),
       onWidgetBlur: this.onBlur.bind(this),
       tabIndex: this.getAttribute('tabindex')
-    })
-  }),
+    });
+    return this.focuser;
+  },
   
   focus: function(element) {
     if (element !== false) {
@@ -21709,7 +21941,7 @@ LSD.Mixin.Focus = new Class({
     this.focused = true;
     this.fireEvent('focus', arguments);
     this.onStateChange('focused', true);
-    LSD.Mixin.Focus.Propagation.focus(this);
+    LSD.Mixin.Focusable.Propagation.focus(this);
   },
   
   blur: function(propagated) {
@@ -21717,32 +21949,32 @@ LSD.Mixin.Focus = new Class({
     this.focused = false;
     this.fireEvent('blur', arguments);
     this.onStateChange('focused', false);
-    if (!propagated) LSD.Mixin.Focus.Propagation.blur.delay(10, this, this);
+    if (!propagated) LSD.Mixin.Focusable.Propagation.blur.delay(10, this, this);
   },
   
   retain: function(e) {
-    if (e) e.stop();
+    if (e) e.preventDefault();
     this.focus();
   },
   
-  onFocus: Macro.defaults(function() {
+  onFocus: function() {
     this.focus(false);
     this.document.activeElement = this;
-  }),
+  },
   
-  onBlur: Macro.defaults(function() {
+  onBlur: function() {
     var active = this.document.activeElement;
     if (active == this) delete this.document.activeElement;
     while (active && (active = active.parentNode)) if (active == this) return;
     this.blur();
-  }),
+  },
   
   getKeyListener: function() {
     return this.getFocuser().getKeyListener()
   }
 });
 
-LSD.Mixin.Focus.Propagation = {
+LSD.Mixin.Focusable.Propagation = {
   focus: function(parent) {
     while (parent = parent.parentNode) if (parent.getFocuser) parent.focus(false);
   },
@@ -21759,123 +21991,8 @@ LSD.Mixin.Focus.Propagation = {
     }
   }
 };
-/*
----
- 
-script: Select.js
- 
-description: Basic selectbox
- 
-license: Public domain (http://unlicense.org).
 
-authors: Yaroslaff Fedin
- 
-requires:
-- LSD/LSD.Widget
-- LSD.Widget.Button
-- LSD/LSD.Trait.Menu
-- LSD/LSD.Trait.List
-- LSD/LSD.Trait.Choice
-- LSD/LSD.Mixin.Focus
-
-provides: [LSD.Widget.Select, LSD.Widget.Select.Button, LSD.Widget.Select.Option]
- 
-...
-*/
-
-LSD.Widget.Select = new Class({
-  
-  Includes: [
-    LSD.Widget,
-    LSD.Trait.Menu,
-    LSD.Trait.List,
-    LSD.Trait.Choice
-  ],
-  
-  options: {
-    tag: 'select',
-    events: {
-      _select: {
-        element: {
-          click: 'expand'
-        },
-        self: {
-          set: function(item) {
-            this.setValue(item.getValue());
-            this.write(item.getTitle());
-            this.collapse();
-          },
-          collapse: 'forgetChosenItem'
-        }
-      }
-    },
-    shortcuts: {
-      'ok': 'selectChosenItem'
-    },
-    menu: {
-      position: 'focus',
-      width: 'adapt'
-    },
-    writable: true,
-    layout: {
-      children: Array.fast('::button')
-    },
-    has: {
-      many: {
-        items: {
-          layout: 'select-option',
-          mutation: '> option, > li',
-          relay: {
-            mouseover: function() {
-              if (!this.chosen) this.listWidget.selectItem(this, true)
-            },
-            click: function(event) {
-              if (!this.select()) this.listWidget.collapse();
-              if (event) event.stop();
-              this.forget();
-            }
-          }
-        }
-      },
-      one: {
-        menu: {
-          proxy: function(widget) {
-            if (!widget.pseudos.item) return;
-            if (!this.getSelectedItem() || widget.pseudos.selected) this.selectItem(widget)
-            return true;
-          }
-        },
-        button: {
-          selector: 'button',
-          layout: 'select-button'
-        }
-      }
-    }
-  }
-});
-
-LSD.Widget.Select.Button = new Class({
-  Extends: LSD.Widget.Button
-});
-
-LSD.Widget.Select.Option = new Class({
-  Extends: LSD.Widget,
-  
-  options: {
-    tag: 'option',
-    pseudos: Array.fast('item')
-  },
-  
-  getTitle: function() {
-    return this.element.get('text').trim();
-  },
-  
-  getValue: function() {
-    return this.attributes.value || this.element.get('text').trim();
-  }
-});
-
-LSD.Widget.Select.Option.prototype.addStates('chosen', 'selected');
+LSD.Behavior.define('[tabindex][tabindex!=-1], :focusable', LSD.Mixin.Focusable);
 /*
 ---
  
@@ -21887,7 +22004,7 @@ license: Public domain (http://unlicense.org).
  
 requires:
   - LSD.Trait
-  - LSD.Mixin.Focus
+  - LSD.Mixin.Focusable
 
 provides: 
   - LSD.Trait.Input
@@ -21898,32 +22015,29 @@ provides:
 LSD.Trait.Input = new Class({
   options: {
     input: {},
-    events: {
-      input: {
-        element:  {
-          mousedown: function(e) {
-            e.stopPropagation()
-          }
-        },
-        self: {
-          attach: function() {
-            this.getInput().addEvents({
-              blur: this.onBlur.bind(this),
-              focus: this.onFocus.bind(this)
-            });
+  },
+  
+  constructors: {
+    input: function() {
+      return {
+        events: {
+          self: {
+            build: function() {
+              this.getInput().inject(this.element);
+            },
+            focus: function() {
+              this.document.activeElement = this;
+              if (LSD.Mixin.Focusable) LSD.Mixin.Focusable.Propagation.focus(this);
+            },
+            blur: function() {
+                if (this.document.activeElement == this) delete this.document.activeElement;
+             //   if (LSD.Mixin.Focusable) LSD.Mixin.Focusable.Propagation.blur.delay(10, this, this);
+            }
           },
-          build: function() {
-            this.getInput().inject(this.element);
+          input: {
+            focus: 'onFocus',
+            blur: 'onBlur'
           },
-          focus: function() {
-            this.document.activeElement = this;
-            if (LSD.Mixin.Focus) LSD.Mixin.Focus.Propagation.focus(this);
-          },
-          blur: function() {
-              if (this.document.activeElement == this) delete this.document.activeElement;
-           //   if (LSD.Mixin.Focus) LSD.Mixin.Focus.Propagation.blur.delay(10, this, this);
-          },
-          resize: 'setInputSize'
         }
       }
     }
@@ -21936,31 +22050,12 @@ LSD.Trait.Input = new Class({
   
   getInput: Macro.getter('input', function() {
     var input = new Element('input', Object.append({'type': 'text'}, this.options.input));
-    this.fireEvent('register', ['input', resizer]);
+    this.fireEvent('register', ['input', input]);
     return input;
   }),
   
-  setInputSize: function(size) {
-    var height = size.height - this.input.getStyle('padding-top').toInt() - this.input.getStyle('padding-bottom').toInt();
-    if (this.input.style.height != height + 'px') this.input.setStyle('height', height);
-    if (this.input.style.lineHeight != height + 'px') this.input.setStyle('line-height', height);
-    var width = this.size.width - this.input.getStyle('padding-left').toInt() - this.input.getStyle('padding-right').toInt();
-    if (this.style.current.glyph) {
-      var glyph = this.layers.glyph.measure().width + (this.style.current.glyphRight || 0) + (this.style.current.glyphLeft || 0);
-      width -= glyph;
-      this.input.setStyle('margin-left', glyph);
-    }
-    if (this.canceller) width -= this.canceller.getLayoutWidth();
-    if (this.glyph) width -= this.glyph.getLayoutWidth();
-    this.input.setStyle('width', width);
-  },
-  
-  getObservedElement: function() {
-    return this.getInput();
-  },
-  
   getValueInput: function() {
-    return this.input
+    return this.input;
   }
 });
 /*
@@ -21977,26 +22072,23 @@ authors: Yaroslaff Fedin
 requires:
   - LSD/LSD.Widget
   - LSD/LSD.Trait.Input
-  - LSD/LSD.Mixin.Focus
+  - LSD/LSD.Mixin.Focusable
 
 provides: 
   - LSD.Widget.Input
  
 ...
 */
+
 LSD.Widget.Input = new Class({
-  Includes: [
-    LSD.Widget,
-    LSD.Trait.Input
-  ],
+  Extends: LSD.Trait.Input,
   
   options: {
     tag: 'input',
     attributes: {
       type: 'text'
     },
-    focusable: false,
-    writable: true,
+    pseudos: Array.fast('form-associated', 'value'),
     events: {
       _input: {
         focus: function() {
@@ -22017,10 +22109,73 @@ LSD.Widget.Input = new Class({
   
   applyValue: function(item) {
     this.input.set('value', item);
+  },
+
+  getRawValue: function() {
+    return ('value' in this.attributes) && this.element.get('value');
+  },
+
+  focus: function() {
+    this.element.focus();
+  }
+
+});
+
+/*
+---
+ 
+script: Submit.js
+ 
+description: A button that submits form
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Widget.Input
+  - LSD.Widget.Button
+
+provides: 
+  - LSD.Widget.Input.Submit
+  - LSD.Widget.Button.Submit
+ 
+...
+*/
+
+LSD.Widget.Button.Submit = new Class({
+  Implements: LSD.Widget.Button,
+  
+  options: {
+    events: {
+      _submission: {
+        self: {
+          setDocument: function() {
+            var tag = this.element.get('tag');
+            if (!tag || tag == 'input' || tag == 'button') return;
+            this.shim = this.allocate('submit').inject(this.element);
+            this.element.addEvent('destroy', this.shim.destroy.bind(this.shim));
+          }
+        }
+      }
+    },
+    chain: {
+      submission: function() {
+        var target = this.form || Slick.find(this, '! :submittable');
+        if (target) return {action: 'submit', target: target};
+      }
+    },
+    pseudos: Array.fast('form-associated', 'value', 'command')
   }
 });
 
-LSD.Widget.Input.prototype.addState('focused');
+LSD.Widget.Input.Submit = new Class({
+  Implements: LSD.Widget.Button.Submit, 
+  
+  options: {
+    tag: 'input'
+  }
+})
 /*
 ---
  
@@ -22037,7 +22192,7 @@ requires:
 - LSD.Widget.Button
 - LSD/LSD.Widget
 - LSD/LSD.Trait.Slider
-- LSD/LSD.Mixin.Focus
+- LSD/LSD.Mixin.Focusable
 
 provides: [LSD.Widget.Input.Range]
  
@@ -22045,10 +22200,7 @@ provides: [LSD.Widget.Input.Range]
 */
 
 LSD.Widget.Input.Range = new Class({
-  Includes: [
-    LSD.Widget,
-    LSD.Trait.Slider
-  ],
+  Extends: LSD.Trait.Slider,
   
   options: {
     tag: 'input',
@@ -22056,22 +22208,19 @@ LSD.Widget.Input.Range = new Class({
       next: 'increment',
       previous: 'decrement'
     },
-    layout: {
-      children: Array.fast('::thumb')
-    },
+    layout: Array.fast('::thumb'),
     has: {
       one: {
         thumb: {
           selector: 'thumb',
-          layout: 'input-range-thumb'
+          source: 'input-range-thumb'
         }
       }
     },
-    writable: true
+    pseudos: Array.fast('focusable', 'value', 'form-associated')
   },
   
   initialize: function() {
-    //delete this.options.events.focus.element.mousedown;
     this.parent.apply(this, arguments);
     this.addPseudo(this.options.mode);
   },
@@ -22103,7 +22252,7 @@ requires:
 - LSD.Widget.Input
 - LSD/LSD.Widget
 - LSD/LSD.Mixin.Touchable
-- LSD/LSD.Mixin.Focus
+- LSD/LSD.Mixin.Focusable
 
 provides: [LSD.Widget.Input.Radio]
  
@@ -22111,29 +22260,12 @@ provides: [LSD.Widget.Input.Radio]
 */
 
 LSD.Widget.Input.Radio = new Class({
-  Extends: LSD.Widget,
-  
   options: {
     tag: 'input',
+    pseudos: Array.fast('focusable', 'clickable', 'radio', 'form-associated', 'value'),
     shortcuts: {
       space: 'click'
-    },
-    command: {
-      type: 'radio'
-    },
-    events: {
-      enabled: {
-        element: {
-          click: 'click'
-        }
-      }
-    },
-    writable: true
-  },
-
-  click: function(event){
-    if (event && event.preventDefault) event.preventDefault();
-    if (!this.checked && !this.disabled) return this.parent.apply(this, arguments);
+    }
   }
 });
 /*
@@ -22148,40 +22280,217 @@ license: Public domain (http://unlicense.org).
 authors: Yaroslaff Fedin
  
 requires:
-- LSD.Widget.Input
-- LSD/LSD.Mixin.Touchable
-- LSD/LSD.Mixin.Focus
+  - LSD.Widget.Input
+  - LSD/LSD.Mixin.Touchable
+  - LSD/LSD.Mixin.Focusable
+  - LSD/LSD.Mixin.Command
 
-provides: [LSD.Widget.Input.Checkbox]
+provides: 
+  - LSD.Widget.Input.Checkbox
  
 ...
 */
 LSD.Widget.Input.Checkbox = new Class({
-  Extends: LSD.Widget,
-  
   options: {
     tag: 'input',
     shortcuts: {
       space: 'toggle'
     },
-    command: {
-      type: 'checkbox'
-    },
-    events: {
-      enabled: {
-        element: {
-          click: 'click'
-        }
-      }
-    },
-    writable: true
-  },
-  
-  click: function(event){
-    if (event && event.preventDefault) event.preventDefault();
-    if (!this.disabled) return this.parent.apply(this, arguments);
+    pseudos: Array.fast('clickable', 'focusable', 'checkbox', 'value', 'form-associated')
   }
 });
+/*
+---
+ 
+script: HTML.js
+ 
+description: Wysiwyg for people
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Widget.Input
+  - LSD/LSD.Mixin.ContentEditable
+
+provides: 
+  - LSD.Widget.Input.HTML
+  - LSD.Widget.Input.Html
+  
+...
+*/
+
+
+LSD.Widget.Input.Html = LSD.Widget.Input.HTML = new Class({
+  options: {
+    tag: 'input',
+    pseudos: Array.fast('form-associated', 'value'),
+    attributes: {
+      contenteditable: 'editor',
+      tabindex: 0
+    },
+    states: Array.fast('editing'),
+    events: {
+      self: {
+        focus: 'edit',
+        edit: function() {
+          this.openEditor();
+        },
+        finish: 'closeEditor'
+      }
+    }
+  },
+  
+  getValue: function() {
+    if (this.editing && this.editor) return this.editor.getData();
+    return this.element.get('html');
+  },
+  
+  writeValue: function(value) {
+    if (this.editing && this.editor) return this.editor.setData(value);
+    return this.element.set('html', value);
+  }
+  
+})
+/*
+---
+ 
+script: Edit.js
+ 
+description: Turn element into editable mode
+ 
+license: Public domain (http://unlicense.org).
+
+authors: Yaroslaff Fedin
+ 
+requires:
+  - LSD.Action
+  - Widgets/LSD.Widget.Body
+  - Widgets/LSD.Widget.Form
+  - Widgets/LSD.Widget.Input.HTML
+  - LSD.Mixin.Fieldset
+  - LSD.Mixin.Resource
+
+provides:
+  - LSD.Action.Edit
+
+...
+*/
+
+LSD.Action.Edit = LSD.Action.build({
+  enable: function(target, content) {
+    var session = this.retrieve(target);
+    if (!session) {
+      $ss = session = new LSD.Widget(target.element || target, {source: 'form-edit'});
+      this.store(target, session);
+    }
+    session.edit(content);
+  },
+  
+  disable: function(target) {
+    var session = this.retrieve(target);
+    if (session) session.hide();
+  }
+});
+
+LSD.Widget.Form.Edit = new Class({
+  options: {
+    key: null,
+    layout: {
+      'aside.buttons': {
+        '::canceller': 'Cancel',
+        '::submitter': 'Save'
+      }
+    },
+    events: {
+      self: {
+        'cancel': 'finish'
+      }
+    },
+    states: Array.fast('editing', 'hidden'),
+    pseudos: Array.fast('form', 'fieldset', 'resource', 'command'),
+    has: {
+      one: {
+        submitter: {
+          selector: '[type=submit]',
+          source: 'button[type=submit]'
+        },
+        canceller: {
+          selector: 'button.cancel',
+          events: {
+            click: 'cancel'
+          }
+        }
+      }
+    }
+  },
+  
+  constructors: {
+    session: function() {
+      this.objects = [];
+    }
+  },
+  
+  edit: function(values) {
+    Element.Item.walk.call(this, this.element, function(node, prop, scope, prefix) {
+      var editable = node.getProperty('editable');
+      if (editable) {
+        if (prefix) prop = prefix.concat(prop).map(function(item, i) {
+          return i == 0 ? item : '[' + item + ']'
+        }).join('');
+        this.convert(node, prop, editable);
+      }
+      return prefix;
+    }, null, true);
+    if (this.controls) this.controls.each(function(child) {
+      this.element.appendChild(child.element);
+    }, this);
+  },
+
+  finish: function() {
+    //console.log('revert', [].concat(this.objects))
+    for (var object; object = this.objects.shift();) this.revert(object);
+    this.submitter.dispose();
+    this.canceller.dispose();
+  },
+  
+  convert: function(element, name, type) {
+    this.objects.push(element)
+    return this.getReplacement(element, name, type).replaces(element);
+  },
+  
+  revert: function(element) {
+    element.replaces(Element.retrieve(element, 'widget:edit'));
+  },
+  
+  cancel: function() {
+    this.fireEvent('cancel', arguments)
+  },
+  
+  submit: function() {
+    if (this.getResource) {
+      var Resource = this.getResource();
+      new Resource(Object.append(this.getParams(), {id: this.attributes.itemid})).save(function(html) {
+        this.execute({action: 'replace', target: this.element}, html);
+      }.bind(this));
+    }
+  },
+  
+  getReplacement: function(element, name, type) {
+    var widget = Element.retrieve(element, 'widget:edit');
+    if (!widget) {
+      var options = {attributes: {name: name, type: type}};
+      widget = this.getLayout().selector('input', this, options);
+      
+      Element.store(element, 'widget:edit', widget);
+    }
+    //widget.setValue(Element.get(element, 'itemvalue'));
+    return widget;
+  }
+});
+
+LSD.Widget.Input.Area = LSD.Widget.Input.HTML;
 /*
 ---
  
@@ -22238,7 +22547,7 @@ authors: Andrey Koppel
  
 requires:
   - Wrongler.Widget
-  - Native/LSD.Native.Body
+  - Widgets/LSD.Widget.Body
 
 provides:
   - Wrongler.Widget.Body
@@ -22246,11 +22555,11 @@ provides:
 ...
 */
 
-Wrongler.Widget.Body = LSD.Native.Body;
+Wrongler.Widget.Body = LSD.Widget.Body;
 /*
 ---
  
-script: Dialog.js
+script: Lightbox.js
  
 description: An in-page independent document (like iphone app page)
  
@@ -22260,105 +22569,36 @@ authors: Yaroslaff Fedin
  
 requires:
   - Wrongler.Widget.Body
-  - Native/LSD.Native.Body
-  - LSD/LSD.Trait.Fieldset
+  - Core/Element.Dimensions
 
 provides:
-  - Wrongler.Widget.Body.Dialog
+  - Wrongler.Widget.Body.Lightbox
 
 ...
 */
 
-Wrongler.Widget.Body.Dialog = new Class({
-  Includes: [
-    LSD.Native.Body,
-    LSD.Trait.Fieldset
-  ],
-  
+Wrongler.Widget.Body.Lightbox = new Class({
+  Extends: Wrongler.Widget.Body,
+
   options: {
-    tag: 'dialog',
-    pseudos: Array.fast('submittable'),
-    nodeType: 1,
     element: {
-      tag: 'section'
+      tag: 'section',
+      id: 'lightbox'
     },
-    transformation: {
-      name: 'pop'
+    attributes: {
+      type: 'lightbox'
     },
-    events: {
-      _dialog: {
-        element: {
-          'click:relay(.cancel)': 'cancel'
-        },
-        self: {
-          show: 'build',
-          build: function() {
-            this.element.inject('content');
-          }
-        }
-      }
-    },
-    has: {
-      one: {
-        'form': {
-          selector: 'form',
-          chain: {
-            'submission': function() {
-              return {action: 'send', target: this.document}
-            }
-          }
-        }
-      }
-    }
-  },
-  
-  cancel: function() {
-    this.hide();
-    this.fireEvent('cancel', arguments);
-  },
-  
-  submit: function() {
-    this.hide();
-    this.fireEvent('submit', arguments);
-  },
-  
-  getData: function() {
-    return (this.form ? this.form.getData : this.parent).apply(this.form || this, arguments);
-  },
-  
-  hidden: true
-});
-/*
----
- 
-script: Dialog.Lightbox.js
- 
-description: An in-page independent document (like iphone app page)
- 
-license: Public domain (http://unlicense.org).
-
-authors: Yaroslaff Fedin
- 
-requires:
-  - Wrongler.Widget.Body.Dialog
-  - LSD/LSD.Mixin.Focus
-
-provides:
-  - Wrongler.Widget.Body.Dialog.Lightbox
-
-...
-*/
-
-Wrongler.Widget.Body.Dialog.Lightbox = new Class({
-  Extends: Wrongler.Widget.Body.Dialog,
-
-  options: {
-    tag: 'lightbox',
     container: {
       enabled: true
     },
+    lightbox: {
+      top: 130
+    },
     events : {
       _lightbox: {
+        element: {
+          'click:relay(.cancel)': 'cancel'
+        },
         self: {
           build: function(){
             this.overlay = new Element('div', {
@@ -22368,45 +22608,16 @@ Wrongler.Widget.Body.Dialog.Lightbox = new Class({
               this.cancel();
             }.bind(this));
             this.addEvent('destroy', this.overlay.destroy.bind(this.overlay));
+            this.getWrapper().setStyle('top', document.body.getScroll().y + this.options.lightbox.top);
           }
         }
       }
     }
-  }
-});
-/*
----
- 
-script: Animated.js
- 
-description: Basic widget animated
- 
-license: Public domain (http://unlicense.org).
-
-authors: Andrey Koppel
- 
-requires:
-  - Wrongler.Widget
-  - LSD/LSD.Native
-  - LSD/LSD.Mixin.Animation
-  - LSD/LSD.Mixin.Focus
-  - Core/Fx.Transitions
-
-provides:
-  - Wrongler.Widget.Animated
- 
-...
-*/
-
-Wrongler.Widget.Animated = new Class({
-  Extends: LSD.Native,
+  },
   
-  options: {
-    tag: 'widget',
-    animation: {
-      duration: 350,
-      transition: 'circ:out'
-    }
+  cancel: function() {
+    this.destroy();
+    this.fireEvent('cancel', arguments);
   }
 });
 /*
@@ -22423,15 +22634,19 @@ authors: Andrey Koppel
 requires:
   - Wrongler.Widget
   - Native/LSD.Native.Input.*
+  - Native/LSD.Native.Textarea
+  - Widgets/LSD.Widget.Input.Submit
   - LSD/LSD.Mixin.Placeholder
 
 provides:
   - Wrongler.Widget.Input
+  - Wrongler.Widget.Textarea
  
 ...
 */
 
 Wrongler.Widget.Input = LSD.Native.Input;
+Wrongler.Widget.Textarea = LSD.Native.Textarea;
 /*
 ---
  
@@ -22487,13 +22702,6 @@ Wrongler.Widget.Input.Radio = new Class({
   options: {
     element: {
       tag: 'div'
-    },
-    events: {
-      _radio: {
-        self: {
-          uncheck: 'callChain'
-        }
-      }
     }
   }
 });
@@ -22541,9 +22749,7 @@ authors: Yaroslaff Fedin
  
 requires:
   - Wrongler.Widget.Input
-  - Native/LSD.Native.Table.Calendar
-  - LSD/LSD.Widget
-  - LSD/LSD.Trait.Date
+  - Widgets/LSD.Widget.Table.Calendar
   - LSD/LSD.Trait.Date
   - More/Locale.ru-RU.Date
 
@@ -22554,10 +22760,7 @@ provides:
 */
 
 Wrongler.Widget.Input.Date = new Class({
-  Includes: [
-    LSD.Widget,
-    LSD.Trait.Date
-  ],
+  Implements: [LSD.Trait.Date],
   
   options: {
     tag: 'input',
@@ -22587,9 +22790,7 @@ Wrongler.Widget.Input.Date = new Class({
       }
     },
     writable: true,
-    layout: {
-      children: Array.fast('::button')
-    },
+    layout: Array.fast('::button'),
     has: {
       one: {
         button: {
@@ -22649,10 +22850,7 @@ Wrongler.Widget.Input.Date = new Class({
 });
 
 Wrongler.Widget.Datepicker = new Class({
-  Includes: [
-    LSD.Widget,
-    LSD.Trait.Date
-  ],
+  Implements: [LSD.Trait.Date],
   
   options: {
     attributes: {
@@ -22666,11 +22864,9 @@ Wrongler.Widget.Datepicker = new Class({
     pseudos: Array.fast('datepicker'),
     writable: true,
     layout: {
-      children: {
-        '.arrow::decrementor': 'Previous month',
-        '.arrow::incrementor': 'Next month',
-        '::table': true
-      }
+      '.arrow::decrementor': 'Previous month',
+      '.arrow::incrementor': 'Next month',
+      '::table': true
     },
     has: {
       one: {
@@ -22710,63 +22906,12 @@ Wrongler.Widget.Datepicker = new Class({
     this.fireEvent('onSelectDate', date);
   }  
 });
-/*
----
- 
-script: Select.js
- 
-description: Basic selectbox
- 
-license: Public domain (http://unlicense.org).
 
-authors: Yaroslaff Fedin
- 
-requires:
-  - Wrongler.Widget
-  - Widgets/LSD.Widget.Select
+Locale.define('ru-RU', 'Date', {
+	months_abbr: ['Января', 'Февраля', 'Марта', 'Апреля', 'Мая','Июня','Июля','Августа','Сентября','Октября','Ноября','Декабря']
+}).inherit('ru-RU', 'Date');
 
-provides: [Wrongler.Widget.Select, Wrongler.Widget.Select.Button, Wrongler.Widget.Select.Option]
-
-...
-*/
-
-Wrongler.Widget.Select = new Class({
-  Extends: LSD.Widget.Select,
-  
-  options: {
-    element: {
-      tag: 'div'
-    }
-  }
-});
-
-Wrongler.Widget.Select.Button = LSD.Widget.Select.Button;
-
-Wrongler.Widget.Select.Option = new Class({
-  Extends: LSD.Widget.Select.Option,
-  
-  options: {
-    element: {
-      tag: 'div'
-    }
-  }
-});
-
-Wrongler.Widget.Menu = LSD.Widget.Menu;
-
-Wrongler.Widget.Menu.Context = new Class({
-  Extends: LSD.Widget.Menu.Context,
-  
-  options: {
-    attributes: {
-      animation: 'fade'
-    },
-    animation: {
-      duration: 350,
-      transition: 'circ:out' 
-    }
-  }
-});
+Locale.use('ru-RU');
 /*
 ---
  
@@ -22781,12 +22926,13 @@ authors: Andrey Koppel
 requires:
   - Wrongler
   - Wrongler.Widget.*
-  - Native/LSD.Native.Form
-  - Native/LSD.Native.Textarea
-  - Native/LSD.Native.Button
-  - Native/LSD.Native.Label
+  - Widgets/LSD.Widget.Button
+  - Widgets/LSD.Widget.Form
+  - LSD/LSD.Mixin.Request
+  - LSD/LSD.Mixin.Target
   - LSD/LSD.Action.*
-  - LSD/LSD.Application
+  - LSD/LSD.Document
+  
   
 provides:
   - Wrongler.Application
@@ -22794,15 +22940,11 @@ provides:
 ...
 */
 
-Locale.use('ru-RU');
+LSD.Element.pool.push(LSD.Widget);
 
-Wrongler.Application = new LSD.Application(document);
-
-// Transformations
-Wrongler.Transformations = {
-  'a.button': 'button',
-  'a.button[type="submit"]': 'input[type="submit"]',
-  'div[animation]': 'animated'
-};
-Wrongler.Widget.Body.prototype.options.mutations = Wrongler.Transformations;
-Wrongler.Widget.Body.prototype.options.layout.options.context = 'element';
+Wrongler.Application = new LSD.Document({
+  mutations: {
+    'a.button[type="submit"]': 'button-submit',
+    'a.button': 'button'
+  }
+});

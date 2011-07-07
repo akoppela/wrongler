@@ -45,6 +45,9 @@
           +button
           :margin
             :top -1px
+          &.is-active
+            :margin
+              :top 0
           &[hidden]
             :display none
       & + aside
@@ -203,7 +206,7 @@
             :content ''
             +absoluted
             :background url(/images/arrows/play.png) no-repeat center
-          &.is-working
+          &.working
             &:before
               +opacity(0.6, true)
               :background
